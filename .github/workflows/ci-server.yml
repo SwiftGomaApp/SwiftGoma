@@ -39,4 +39,4 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/swiftgoma_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/swiftgoma_test_v1
