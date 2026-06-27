@@ -4,8 +4,13 @@ const { prisma } = require("../config/db.config");
 
 const run = async () => {
   try {
-    const email = "support@swiftgoma.com";
-    const password = "Support@2026!";
+    const email = process.env.SUPPORT_EMAIL;
+    const password = process.env.SUPPORT_PASSWORD;
+
+    if (!email || !password) {
+      console.error("SUPPORT_EMAIL and SUPPORT_PASSWORD env vars required");
+      process.exit(1);
+    }
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
