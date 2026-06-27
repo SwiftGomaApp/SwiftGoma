@@ -1,0 +1,102 @@
+require("dotenv").config();
+require("./instrument");
+const Sentry = require("@sentry/node");
+const http = require("http");
+const express = require("express");
+const cookieParser = require("cookie-parser");
+const { port, cookie_secret } = require("./config/env.config");
+const { applySecurityMiddleware } = require("./shared/middleware/security");
+const { globalLimiter } = require("./shared/middleware/rateLimiter");
+const { errorHandler } = require("./shared/errors/error.handler");
+const { prisma } = require("./config/db.config");
+const { redis } = require("./config/redis.config");
+const { initSocket } = require("./config/socket.config");
+const { authRouter } = require("./features/auth/routes/auth.routes");
+const { totpRouter } = require("./features/auth/routes/totp.routes");
+const { passkeyRouter } = require("./features/auth/routes/passkey.routes");
+const { googleRouter } = require("./features/auth/routes/google.routes");
+const { sessionRouter } = require("./features/auth/routes/session.routes");
+const { emailRouter } = require("./features/auth/routes/email.routes");
+const { phoneRouter } = require("./features/auth/routes/phone.routes");
+const { statusRouter } = require("./features/status/routes/status.routes");
+const { usersRouter } = require("./features/users/routes/users.routes");
+const { orderRouter } = require("./features/orders/routes/order.routes");
+const {
+  notificationRouter,
+} = require("./features/notifications/routes/notification.routes");
+const { sellerRouter } = require("./features/seller/routes/seller.routes");
+const { webhookRouter } = require("./features/seller/routes/webhooks.routes");
+const { invoiceRouter } = require("./features/invoice/routes/invoice.routes");
+const {
+  startHealthCheckCron,
+} = require("./features/status/jobs/health-check.cron");
+const { startAccountCleanupCron } = require("./features/users/jobs/cleanup");
+const {
+  startSubscriptionCron,
+} = require("./features/seller/cron/subscription.cron");
+const { startOrderCron } = require("./features/orders/jobs/order.cron");
+
+const app = express();
+const server = http.createServer(app);
+
+applySecurityMiddleware(app);
+app.use(express.json({ limit: "10kb" }));
+app.use(express.urlencoded({ extended: true, limit: "10kb" }));
+app.use(cookieParser(cookie_secret));
+app.use(globalLimiter);
+
+app.get("/health", (req, res) => {
+  res.json({ success: true, message: "SwiftGoma API." });
+});
+
+app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/auth/totp", totpRouter);
+app.use("/api/v1/auth/passkeys", passkeyRouter);
+app.use("/api/v1/auth/google", googleRouter);
+app.use("/api/v1/auth/sessions", sessionRouter);
+app.use("/api/v1/auth/email", emailRouter);
+app.use("/api/v1/auth/phone", phoneRouter);
+app.use("/api/v1/status", statusRouter);
+app.use("/api/v1/users", usersRouter);
+app.use("/api/v1/notifications", notificationRouter);
+app.use("/api/v1/sellers", sellerRouter);
+app.use("/api/v1/webhooks", webhookRouter);
+app.use("/api/v1/invoices", invoiceRouter);
+app.use("/api/v1/orders", orderRouter);
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    code: "NOT_FOUND",
+    message: `Route ${req.method} ${req.originalUrl} introuvable.`,
+  });
+});
+
+Sentry.setupExpressErrorHandler(app);
+app.use(errorHandler);
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+
+initSocket(server);
+
+prisma
+  .$connect()
+  .then(() => console.log("✅ PostgreSQL connected"))
+  .catch((err) => {
+    console.error("❌ PostgreSQL connection failed:", err.message);
+    process.exit(1);
+  });
+
+redis.connect().catch((err) => {
+  console.error("❌ Redis connection failed:", err.message);
+  process.exit(1);
+});
+
+// startHealthCheckCron();
+// startAccountCleanupCron();
+// startSubscriptionCron();
+// startOrderCron();
+
+server.listen(port, () => {
+  console.log(`✅ Server running on port ${port}`);
+});
