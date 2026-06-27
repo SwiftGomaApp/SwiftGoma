@@ -8,7 +8,7 @@ const { generateOrderConfirmationPdf } = require("./order.pdf");
 const {
   sendOrderConfirmationEmail,
 } = require("../../../services/email.service");
-const { cloudinary } = require("../../../config/coudinary.config");
+const { cloudinaryV2 } = require("../../../config/coudinary.config");
 
 // ─── Sequential order number ──────────────────────────────────────────────────
 
@@ -291,7 +291,7 @@ const confirmOrderPayment = async ({ pawapayDepositId, paidAt }) => {
       .then(async (pdfBuffer) => {
         // Upload to Cloudinary
         const pdfUrl = await new Promise((res, rej) => {
-          const stream = cloudinary.v2.uploader.upload_stream(
+          const stream = cloudinaryV2.uploader.upload_stream(
             {
               folder: "swiftgoma/order-confirmations",
               public_id: payment.order.orderNumber,
