@@ -1,16 +1,16 @@
-import { LoginForm } from "@/components/auth/login-form";
+import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
 import { AuthCarousel } from "@/components/auth/auth-carousel";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Connexion",
+  title: "Mot de passe oublié",
   description:
-    "Connectez-vous à votre espace vendeur SwiftGoma pour gérer votre boutique, vos produits et vos commandes.",
+    "Réinitialisez le mot de passe de votre compte vendeur SwiftGoma.",
 };
 
-export default function LoginPage() {
+export default function ForgotPasswordPage() {
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       <div className="flex flex-col gap-4 p-6 md:p-10">
@@ -20,19 +20,12 @@ export default function LoginPage() {
 
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-xs">
-            <LoginForm />
+            <ForgotPasswordForm />
           </div>
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} SwiftGoma — Goma, RDC ·{" "}
-          <Link
-            href="https://swiftgoma.com/legal/seller"
-            className="underline underline-offset-2 hover:text-foreground"
-            target="_blank"
-          >
-            Politique vendeur
-          </Link>
+          © {new Date().getFullYear()} SwiftGoma — Goma, RDC
         </p>
       </div>
 

@@ -1,16 +1,29 @@
-import { LoginForm } from "@/components/auth/login-form";
+import { ResetPasswordForm } from "@/components/auth/reset-password-form";
 import { AuthCarousel } from "@/components/auth/auth-carousel";
 import { Logo } from "@/components/logo";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
-  title: "Connexion",
+  title: "Réinitialiser le mot de passe",
   description:
-    "Connectez-vous à votre espace vendeur SwiftGoma pour gérer votre boutique, vos produits et vos commandes.",
+    "Choisissez un nouveau mot de passe pour votre compte vendeur SwiftGoma.",
 };
 
-export default function LoginPage() {
+interface ResetPasswordPageProps {
+  searchParams: Promise<{ token?: string }>;
+}
+
+export default async function ResetPasswordPage({
+  searchParams,
+}: ResetPasswordPageProps) {
+  const { token } = await searchParams;
+
+  if (!token) {
+    redirect("/auth/forgot-password");
+  }
+
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       <div className="flex flex-col gap-4 p-6 md:p-10">
@@ -20,19 +33,12 @@ export default function LoginPage() {
 
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-xs">
-            <LoginForm />
+            <ResetPasswordForm token={token} />
           </div>
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} SwiftGoma — Goma, RDC ·{" "}
-          <Link
-            href="https://swiftgoma.com/legal/seller"
-            className="underline underline-offset-2 hover:text-foreground"
-            target="_blank"
-          >
-            Politique vendeur
-          </Link>
+          © {new Date().getFullYear()} SwiftGoma — Goma, RDC
         </p>
       </div>
 
