@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #ffffff; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            -webkit-font-smoothing: antialiased; 
+        }
+        table { border-collapse: collapse; border-spacing: 0; }
+        .wrapper { width: 100%; background-color: #ffffff; }
+        .main { margin: 0 auto; width: 100%; max-width: 660px; color: #1d1d1f; }
+        
+        .content { padding: 30px 40px; text-align: left; }
+        
+        .logo-header { padding: 40px 40px 20px 40px; }
+        .logo-img { height: 28px; width: auto; opacity: 0.8; }
+
+        .title { 
+            font-size: 32px; 
+            font-weight: 600; 
+            line-height: 1.1; 
+            letter-spacing: -0.01em; 
+            color: #1d1d1f; 
+            margin: 20px 0 30px 0; 
+            text-align: center;
+        }
+
+        .greeting { font-size: 17px; font-weight: 400; margin-bottom: 20px; }
+        .body-text { font-size: 17px; line-height: 1.47; font-weight: 400; color: #1d1d1f; margin-bottom: 20px; }
+
+        /* OTP */
+        .code-display { 
+            font-size: 32px; 
+            font-weight: 700; 
+            color: #000000; 
+            margin: 35px 0; 
+            letter-spacing: 0.5px;
+        }
+        .code-expiry {
+            font-size: 13px;
+            color: #86868b;
+            margin-top: -25px;
+            margin-bottom: 30px;
+        }
+
+        /* Button */
+        .btn-container { margin: 30px 0; }
+        .button { background-color: #D4450F; color: #ffffff !important; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-size: 15px; font-weight: 400; display: inline-block; }
+
+        /* Subscription / info box */
+        .sub-container { background-color: #f5f5f7; padding: 20px; border-radius: 12px; margin: 25px 0; }
+        .sub-title { font-weight: 600; margin-bottom: 12px; font-size: 12px; color: #86868b; text-transform: uppercase; }
+        .sub-row { margin-bottom: 8px; font-size: 14px; border-bottom: 1px solid #e5e5e5; padding-bottom: 8px; }
+        .sub-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .sub-label { color: #86868b; }
+        .sub-value { font-weight: 500; color: #1d1d1f; float: right; }
+        .clearfix::after { content: ""; clear: both; display: table; }
+
+        /* Login alert table */
+        .login-table { width: 100%; background-color: #f5f5f7; border-radius: 12px; margin: 25px 0; overflow: hidden; }
+        .login-table th { font-size: 11px; font-weight: 600; color: #86868b; text-transform: uppercase; padding: 12px 16px; text-align: left; border-bottom: 1px solid #e5e5e5; background-color: #ebebed; }
+        .login-table td { font-size: 13px; color: #1d1d1f; padding: 12px 16px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
+        .login-table tr:last-child td { border-bottom: none; }
+        .login-status-ok  { display: inline-block; background: #d1f5d3; color: #1a7f37; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+        .login-status-fail { display: inline-block; background: #fde8e8; color: #c0392b; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+
+        /* Promo / announcement banner */
+        .promo-banner { background: linear-gradient(135deg, #D4450F 0%, #a33309 100%); border-radius: 12px; padding: 28px 24px; margin: 25px 0; text-align: center; }
+        .promo-badge  { display: inline-block; background: rgba(255,255,255,0.2); color: #ffffff; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 12px; border-radius: 20px; margin-bottom: 14px; }
+        .promo-title  { font-size: 24px; font-weight: 700; color: #ffffff; margin: 0 0 10px 0; line-height: 1.2; }
+        .promo-sub    { font-size: 15px; color: rgba(255,255,255,0.85); margin: 0 0 20px 0; }
+        .promo-btn    { display: inline-block; background: #ffffff; color: #D4450F !important; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-size: 15px; font-weight: 600; }
+
+        /* Invoice summary */
+        .invoice-container { background-color: #f5f5f7; padding: 20px; border-radius: 12px; margin: 25px 0; }
+        .invoice-title { font-weight: 600; font-size: 12px; color: #86868b; text-transform: uppercase; margin-bottom: 12px; }
+        .invoice-row { font-size: 14px; border-bottom: 1px solid #e5e5e5; padding: 8px 0; }
+        .invoice-row:last-child { border-bottom: none; }
+        .invoice-label { color: #86868b; }
+        .invoice-value { font-weight: 500; color: #1d1d1f; float: right; }
+        .invoice-total-row { font-size: 15px; padding: 12px 0 0 0; margin-top: 4px; }
+        .invoice-total-label { font-weight: 700; color: #1d1d1f; }
+        .invoice-total-value { font-weight: 700; color: #1d1d1f; float: right; }
+
+        /* Alert box */
+        .alert-box { border-left: 4px solid #f59e0b; background-color: #fffbeb; padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 20px 0; font-size: 14px; color: #78350f; }
+        .alert-box.danger { border-left-color: #ef4444; background-color: #fef2f2; color: #7f1d1d; }
+        .alert-box.info   { border-left-color: #3b82f6; background-color: #eff6ff; color: #1e3a5f; }
+
+        /* Section header */
+        .section-header { font-size: 17px; font-weight: 600; margin-top: 30px; margin-bottom: 5px; color: #1d1d1f; }
+
+        /* Footer */
+        .footer-bar { background-color: #f5f5f7; padding: 25px 40px; margin-top: 40px; }
+        .footer-text { font-size: 12px; color: #86868b; line-height: 1.6; }
+        .footer-text a { color: #D4450F; text-decoration: none; }
+        .copyright { margin-top: 15px; font-size: 11px; color: #86868b; }
+    </style>
+</head>
+<body>
+    <center class="wrapper">
+        <table class="main" role="presentation" cellpadding="0" cellspacing="0">
+            <!-- Logo -->
+            <tr>
+                <td class="logo-header">
+                    <span style="font-size: 20px; font-weight: 700; color: #1d1d1f; letter-spacing: -0.01em;">
+                        SwiftGoma</span><span style="color: #D4450F; font-size: 28px; line-height: 0; vertical-align: -4px;">.</span>
+                    </span>
+                </td>
+            </tr>
+
+            <!-- Body -->
+            <tr>
+                <td class="content">
+                    <div class="title"><%= locals.title || "SwiftGoma" %></div>
+
+                    <div class="greeting">Cher/Chère <%= name %>,</div>
+
+                    <div class="body-text"><%= message %></div>
+
+                    <%# ── OTP CODE ─────────────────────────────────────────── %>
+                    <% if (locals.code) { %>
+                        <div class="code-display"><%= code %></div>
+                        <% if (locals.codeExpiresIn) { %>
+                            <div class="code-expiry">Ce code expire dans <strong><%= codeExpiresIn %></strong>. Ne le partagez avec personne.</div>
+                        <% } %>
+                    <% } %>
+
+                    <%# ── ACTION BUTTON ───────────────────────────────────── %>
+                    <% if (locals.linkUrl) { %>
+                        <div class="btn-container">
+                            <a href="<%= linkUrl %>" class="button"><%= locals.linkText || "Continuer" %></a>
+                        </div>
+                        <p style="font-size: 13px; color: #86868b;">
+                            Si le bouton ne fonctionne pas, copiez ce lien :<br>
+                            <a href="<%= linkUrl %>" style="color: #D4450F;"><%= linkUrl %></a>
+                        </p>
+                        <% if (locals.linkExpiresIn) { %>
+                            <p style="font-size: 13px; color: #86868b;">Ce lien expire dans <strong><%= linkExpiresIn %></strong>.</p>
+                        <% } %>
+                    <% } %>
+
+                    <%# ── PROMO / ANNOUNCEMENT BANNER ─────────────────────── %>
+                    <% if (locals.promo) { %>
+                        <div class="promo-banner">
+                            <% if (locals.promo.badge) { %>
+                                <div class="promo-badge"><%= promo.badge %></div>
+                            <% } %>
+                            <div class="promo-title"><%= promo.title %></div>
+                            <% if (locals.promo.subtitle) { %>
+                                <div class="promo-sub"><%= promo.subtitle %></div>
+                            <% } %>
+                            <% if (locals.promo.ctaUrl) { %>
+                                <a href="<%= promo.ctaUrl %>" class="promo-btn"><%= promo.ctaText || "En savoir plus" %></a>
+                            <% } %>
+                        </div>
+                    <% } %>
+
+                    <%# ── ALERT / SECURITY WARNING ────────────────────────── %>
+                    <% if (locals.alert) { %>
+                        <div class="alert-box <%= locals.alert.type || "" %>">
+                            <% if (locals.alert.title) { %><strong><%= alert.title %></strong><br><% } %>
+                            <%= alert.body %>
+                        </div>
+                    <% } %>
+
+                    <%# ── LOGIN ACTIVITY TABLE ────────────────────────────── %>
+                    <% if (locals.loginActivity && loginActivity.length) { %>
+                        <table class="login-table" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>Date &amp; heure</th>
+                                    <th>Appareil</th>
+                                    <th>Navigateur</th>
+                                    <th>Localisation</th>
+                                    <th>IP</th>
+                                    <th>Statut</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% loginActivity.forEach(function(row) { %>
+                                    <tr>
+                                        <td><%= row.datetime %></td>
+                                        <td><%= row.device || "—" %></td>
+                                        <td><%= row.browser || "—" %></td>
+                                        <td><%= row.location || "—" %></td>
+                                        <td style="font-family: monospace; font-size: 12px;"><%= row.ip || "—" %></td>
+                                        <td>
+                                            <% if (row.status === "success") { %>
+                                                <span class="login-status-ok">Succès</span>
+                                            <% } else { %>
+                                                <span class="login-status-fail">Échec</span>
+                                            <% } %>
+                                        </td>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    <% } %>
+
+                    <%# ── INVOICE SUMMARY ─────────────────────────────────── %>
+                    <% if (locals.invoice) { %>
+                        <div class="invoice-container">
+                            <div class="invoice-title">Récapitulatif de la facture</div>
+                            <% if (locals.invoice.number) { %>
+                                <div class="invoice-row clearfix">
+                                    <span class="invoice-label">N° Facture</span>
+                                    <span class="invoice-value" style="font-family: monospace;"><%= invoice.number %></span>
+                                </div>
+                            <% } %>
+                            <% if (locals.invoice.date) { %>
+                                <div class="invoice-row clearfix">
+                                    <span class="invoice-label">Date</span>
+                                    <span class="invoice-value"><%= invoice.date %></span>
+                                </div>
+                            <% } %>
+                            <% if (locals.invoice.items && invoice.items.length) { %>
+                                <% invoice.items.forEach(function(item) { %>
+                                    <div class="invoice-row clearfix">
+                                        <span class="invoice-label"><%= item.label %></span>
+                                        <span class="invoice-value"><%= item.amount %></span>
+                                    </div>
+                                <% }); %>
+                            <% } %>
+                            <% if (locals.invoice.total) { %>
+                                <div class="invoice-row invoice-total-row clearfix">
+                                    <span class="invoice-total-label">Total</span>
+                                    <span class="invoice-total-value"><%= invoice.total %></span>
+                                </div>
+                            <% } %>
+                            <% if (locals.invoice.pdfNote) { %>
+                                <p style="font-size: 12px; color: #86868b; margin: 12px 0 0 0;"><%= invoice.pdfNote %></p>
+                            <% } %>
+                        </div>
+                    <% } %>
+
+                    <%# ── SUBSCRIPTION DETAILS ────────────────────────────── %>
+                    <% if (locals.planName || locals.startDate || locals.endDate || locals.planPrice || locals.planFeatures) { %>
+                        <div class="sub-container">
+                            <div class="sub-title">Détails de l'abonnement</div>
+                            <% if (locals.planName) { %>
+                                <div class="sub-row clearfix">
+                                    <span class="sub-label">Formule</span>
+                                    <span class="sub-value"><%= planName %></span>
+                                </div>
+                            <% } %>
+                            <% if (locals.planPrice) { %>
+                                <div class="sub-row clearfix">
+                                    <span class="sub-label">Prix</span>
+                                    <span class="sub-value"><%= planPrice %></span>
+                                </div>
+                            <% } %>
+                            <% if (locals.startDate) { %>
+                                <div class="sub-row clearfix">
+                                    <span class="sub-label">Date de début</span>
+                                    <span class="sub-value"><%= startDate %></span>
+                                </div>
+                            <% } %>
+                            <% if (locals.endDate) { %>
+                                <div class="sub-row clearfix">
+                                    <span class="sub-label">Date d'expiration</span>
+                                    <span class="sub-value"><%= endDate %></span>
+                                </div>
+                            <% } %>
+                            <% if (locals.planFeatures && planFeatures.length) { %>
+                                <div class="sub-row">
+                                    <span class="sub-label">Inclus</span>
+                                    <ul style="margin: 6px 0 0 0; padding-left: 18px; font-size: 13px; color: #1d1d1f;">
+                                        <% planFeatures.forEach(function(f) { %>
+                                            <li style="margin-bottom: 4px;"><%= f %></li>
+                                        <% }); %>
+                                    </ul>
+                                </div>
+                            <% } %>
+                        </div>
+                    <% } %>
+
+                    <%# ── ORDER DETAILS (SwiftGoma specific) ──────────────── %>
+                    <% if (locals.order) { %>
+                        <div class="invoice-container">
+                            <div class="invoice-title">Détails de la commande</div>
+                            <% if (locals.order.id) { %>
+                                <div class="invoice-row clearfix">
+                                    <span class="invoice-label">N° Commande</span>
+                                    <span class="invoice-value" style="font-family: monospace;">#<%= order.id %></span>
+                                </div>
+                            <% } %>
+                            <% if (locals.order.date) { %>
+                                <div class="invoice-row clearfix">
+                                    <span class="invoice-label">Date</span>
+                                    <span class="invoice-value"><%= order.date %></span>
+                                </div>
+                            <% } %>
+                            <% if (locals.order.seller) { %>
+                                <div class="invoice-row clearfix">
+                                    <span class="invoice-label">Vendeur</span>
+                                    <span class="invoice-value"><%= order.seller %></span>
+                                </div>
+                            <% } %>
+                            <% if (locals.order.items && order.items.length) { %>
+                                <% order.items.forEach(function(item) { %>
+                                    <div class="invoice-row clearfix">
+                                        <span class="invoice-label"><%= item.name %> × <%= item.qty %></span>
+                                        <span class="invoice-value"><%= item.price %></span>
+                                    </div>
+                                <% }); %>
+                            <% } %>
+                            <% if (locals.order.delivery) { %>
+                                <div class="invoice-row clearfix">
+                                    <span class="invoice-label">Livraison</span>
+                                    <span class="invoice-value"><%= order.delivery %></span>
+                                </div>
+                            <% } %>
+                            <% if (locals.order.total) { %>
+                                <div class="invoice-row invoice-total-row clearfix">
+                                    <span class="invoice-total-label">Total</span>
+                                    <span class="invoice-total-value"><%= order.total %></span>
+                                </div>
+                            <% } %>
+                            <% if (locals.order.paymentMethod) { %>
+                                <p style="font-size: 12px; color: #86868b; margin: 12px 0 0 0;">Payé via <%= order.paymentMethod %></p>
+                            <% } %>
+                        </div>
+                    <% } %>
+
+                    <%# ── WHY DID YOU RECEIVE THIS ────────────────────────── %>
+                    <% if (locals.whyText) { %>
+    <div class="section-header">Pourquoi avez-vous reçu cet e-mail ?</div>
+    <div class="body-text" style="font-size: 15px; color: #424245;">
+        <%= whyText %>
+    </div>
+<% } %>
+
+                    <%# ── UNSUBSCRIBE ─────────────────────────────────────── %>
+                    <% if (locals.unsubscribeUrl) { %>
+                        <p style="font-size: 12px; color: #86868b; margin-top: 20px;">
+                            Pour ne plus recevoir ces e-mails :
+                            <a href="<%= unsubscribeUrl %>" style="color: #86868b; text-decoration: underline;">Se désabonner</a>
+                        </p>
+                    <% } %>
+
+                    <div class="body-text" style="margin-top: 30px;">L'équipe SwiftGoma</div>
+                </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+                <td class="footer-bar">
+                    <div class="footer-text">
+                        <a href="https://swiftgoma.com/account">Mon Compte</a> |
+                        <a href="https://swiftgoma.com/support">Assistance</a> |
+                        <a href="https://swiftgoma.com/legal/privacy">Confidentialité</a> |
+                        <a href="https://swiftgoma.com/legal/terms">CGU</a>
+                    </div>
+                    <div class="copyright">
+                        Date de l'opération : <%= new Date().toLocaleString("fr-FR", { timeZone: "UTC" }) %> UTC<br>
+                        Copyright &copy; <%= new Date().getFullYear() %> SwiftGoma. Tous droits réservés. — Goma, DRC
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </center>
+</body>
+</html>
