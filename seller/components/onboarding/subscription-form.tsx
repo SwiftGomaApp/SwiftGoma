@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -37,8 +37,6 @@ const providerLabels: Record<Provider, string> = {
 
 const formatPrice = (amount: number) => `$${amount}`;
 
-// Stop polling after this long if nothing resolves, so the user isn't
-// stuck on a spinner forever.
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 2 * 60 * 1000;
 
@@ -52,51 +50,57 @@ export function SubscriptionForm() {
   const [provider, setProvider] = useState<Provider>("ORANGE");
   const [error, setError] = useState<string | null>(null);
 
-  // Local UI phase, separate from the mutation itself.
-  const [phase, setPhase] = useState<
-    "form" | "polling" | "success" | "failed" | "timeout"
-  >("form");
+  // Only two states we actually *decide*: user hasn't submitted yet, or has.
+  // Success / failed / timeout are derived below from query data, not stored.
+  const [submitted, setSubmitted] = useState(false);
   const [initMessage, setInitMessage] = useState<string | null>(null);
-  const pollStartedAt = useRef<number | null>(null);
+  const [pollStartedAt, setPollStartedAt] = useState<number | null>(null);
 
   const plansQuery = useQuery({
     queryKey: ["plans"],
     queryFn: () => sellerApi.listPlans().then((res) => res.data),
   });
 
-  // Poll only while we're actually waiting on a payment confirmation.
   const subscriptionQuery = useQuery({
     queryKey: ["seller", "subscription"],
     queryFn: () => sellerApi.getSubscription().then((res) => res.data),
-    enabled: phase === "polling",
-    refetchInterval: phase === "polling" ? POLL_INTERVAL_MS : false,
+    enabled: submitted,
+    // Function form re-evaluates on every fetch using the latest data,
+    // so we can stop polling without needing an effect + setState.
+    refetchInterval: (query) => {
+      if (!submitted) return false;
+      const sub = query.state.data;
+      if (sub?.status === "ACTIVE") return false;
+      if (sub?.payments?.[0]?.status === "FAILED") return false;
+      if (pollStartedAt && Date.now() - pollStartedAt > POLL_TIMEOUT_MS) {
+        return false;
+      }
+      return POLL_INTERVAL_MS;
+    },
   });
 
-  // React to poll results: flip phase based on server truth, not user taps.
-  useEffect(() => {
-    if (phase !== "polling") return;
-    const sub = subscriptionQuery.data;
-    if (!sub) return;
+  // ── Derived UI phase (no effect needed — computed straight from data) ────
+  const sub = subscriptionQuery.data;
+  const latestPayment = sub?.payments?.[0];
+  const isActive = sub?.status === "ACTIVE";
+  const isFailed = latestPayment?.status === "FAILED";
+  const isTimedOut =
+    submitted &&
+    !isActive &&
+    !isFailed &&
+    !!pollStartedAt &&
+    Date.now() - pollStartedAt > POLL_TIMEOUT_MS;
 
-    if (sub.status === "ACTIVE") {
-      setPhase("success");
-      queryClient.invalidateQueries({ queryKey: ["seller", "subscription"] });
-      return;
-    }
-
-    const latestPayment = sub.payments?.[0];
-    if (latestPayment?.status === "FAILED") {
-      setPhase("failed");
-      return;
-    }
-
-    if (
-      pollStartedAt.current &&
-      Date.now() - pollStartedAt.current > POLL_TIMEOUT_MS
-    ) {
-      setPhase("timeout");
-    }
-  }, [phase, subscriptionQuery.data, queryClient]);
+  const phase: "form" | "polling" | "success" | "failed" | "timeout" =
+    !submitted
+      ? "form"
+      : isActive
+        ? "success"
+        : isFailed
+          ? "failed"
+          : isTimedOut
+            ? "timeout"
+            : "polling";
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -111,8 +115,8 @@ export function SubscriptionForm() {
     },
     onSuccess: (res) => {
       setInitMessage(res.data.message);
-      pollStartedAt.current = Date.now();
-      setPhase("polling");
+      setPollStartedAt(Date.now());
+      setSubmitted(true);
     },
     onError: (err) => setError(getApiErrorMessage(err)),
   });
@@ -130,9 +134,16 @@ export function SubscriptionForm() {
   };
 
   const retryPayment = () => {
-    setPhase("form");
+    setSubmitted(false);
     setInitMessage(null);
-    pollStartedAt.current = null;
+    setPollStartedAt(null);
+  };
+
+  const keepChecking = () => {
+    setPollStartedAt(Date.now());
+    // submitted stays true; refetchInterval's function form re-enables polling
+    // on the next query check since pollStartedAt just reset.
+    queryClient.invalidateQueries({ queryKey: ["seller", "subscription"] });
   };
 
   const selectedPlan = useMemo(
@@ -150,7 +161,8 @@ export function SubscriptionForm() {
         <div>
           <h2 className="text-lg font-semibold">Abonnement activé</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Votre plan {selectedPlan?.name ?? ""} est maintenant actif.
+            Votre plan {selectedPlan?.name ?? sub?.plan?.name ?? ""} est
+            maintenant actif.
           </p>
         </div>
         <Button onClick={() => router.push("/")}>
@@ -162,7 +174,6 @@ export function SubscriptionForm() {
 
   // ── Failed ───────────────────────────────────────────────────────────────
   if (phase === "failed") {
-    const reason = subscriptionQuery.data?.payments?.[0]?.failureReason;
     return (
       <div className="mx-auto flex max-w-md flex-col items-center gap-4 py-12 text-center">
         <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10">
@@ -171,7 +182,7 @@ export function SubscriptionForm() {
         <div>
           <h2 className="text-lg font-semibold">Paiement échoué</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {reason ??
+            {latestPayment?.failureReason ??
               "Le paiement n'a pas pu être confirmé. Veuillez réessayer."}
           </p>
         </div>
@@ -198,14 +209,7 @@ export function SubscriptionForm() {
           <Button variant="outline" onClick={() => router.push("/")}>
             Retour à l&apos;accueil
           </Button>
-          <Button
-            onClick={() => {
-              pollStartedAt.current = Date.now();
-              setPhase("polling");
-            }}
-          >
-            Continuer à vérifier
-          </Button>
+          <Button onClick={keepChecking}>Continuer à vérifier</Button>
         </div>
       </div>
     );
