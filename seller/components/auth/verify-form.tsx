@@ -6,16 +6,18 @@ import { Button } from "@/components/ui/button";
 import { OtpInput } from "@/components/auth/otp-input";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+import { getApiErrorMessage } from "@/lib/api-client";
+import { authApi } from "@/lib/api/auth-api";
 
 interface VerifyFormProps extends React.ComponentProps<"div"> {
-  identifier: string;
+  userId: string;
+  target: string;
 }
 
 export function VerifyForm({
   className,
-  identifier,
+  userId,
+  target,
   ...props
 }: VerifyFormProps) {
   const router = useRouter();
@@ -29,34 +31,30 @@ export function VerifyForm({
     setError(null);
     setLoading(true);
 
-    // SIMULATION — replace with real API call: verify-account-otp { identifier, code }
-    await wait(800);
-
-    if (otp !== "123456") {
-      console.log("[SIMULATION] Invalid verification code");
-      setError("Code invalide. Veuillez réessayer.");
+    try {
+      await authApi.verifyAccount({ userId, code: otp });
+      router.push("/auth/sign-in?verified=1");
+    } catch (err) {
+      setError(getApiErrorMessage(err));
       setCode("");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    console.log("[SIMULATION] Account verified → redirect to onboarding");
-    setLoading(false);
-    // TODO: router.push("/onboarding/profile")
-    router.push("/onboarding/profile");
   };
 
   const handleResend = async () => {
     setError(null);
     setResending(true);
 
-    // SIMULATION — replace with real API call: resend-otp { identifier }
-    await wait(600);
-    console.log("[SIMULATION] Verification code resent to", identifier);
-
-    setResending(false);
-    setResent(true);
-    setTimeout(() => setResent(false), 3000);
+    try {
+      await authApi.resendOtp({ userId, type: "ACCOUNT_VERIFICATION" });
+      setResent(true);
+      setTimeout(() => setResent(false), 3000);
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setResending(false);
+    }
   };
 
   return (
@@ -65,10 +63,7 @@ export function VerifyForm({
         <h1 className="text-xl font-semibold">Vérifiez votre compte</h1>
         <p className="text-sm text-balance text-muted-foreground">
           Un code à 6 chiffres a été envoyé à{" "}
-          <span className="font-medium text-foreground">{identifier}</span>
-        </p>
-        <p className="text-xs text-muted-foreground">
-          (Simulation — utilisez le code 123456)
+          <span className="font-medium text-foreground">{target}</span>
         </p>
       </div>
 

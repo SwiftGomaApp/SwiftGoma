@@ -10,13 +10,13 @@ export const metadata: Metadata = {
 };
 
 interface VerifyPageProps {
-  searchParams: Promise<{ identifier?: string }>;
+  searchParams: Promise<{ userId?: string; target?: string }>;
 }
 
 export default async function VerifyPage({ searchParams }: VerifyPageProps) {
-  const { identifier } = await searchParams;
+  const { userId, target } = await searchParams;
 
-  if (!identifier) {
+  if (!userId || !target) {
     redirect("/auth/sign-up");
   }
 
@@ -30,7 +30,7 @@ export default async function VerifyPage({ searchParams }: VerifyPageProps) {
 
       <main className="flex flex-1 items-center justify-center px-4 py-8">
         <div className="w-full max-w-sm">
-          <VerifyForm identifier={identifier} />
+          <VerifyForm userId={userId} target={target} />
         </div>
       </main>
 

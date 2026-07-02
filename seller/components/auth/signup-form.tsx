@@ -16,8 +16,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { Value as PhoneValue } from "react-phone-number-input";
-
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+import { getApiErrorCode, getApiErrorMessage } from "@/lib/api-client";
+import { authApi } from "@/lib/api/auth-api";
 
 type IdentifierMethod = "email" | "phone";
 
@@ -50,22 +50,33 @@ export function SignUpForm({
 
     setLoading(true);
 
-    // SIMULATION — replace with real API call:
-    // POST /auth/register { name, identifier, role: "SELLER" }
-    await wait(800);
-    console.log("[SIMULATION] Register request", {
-      name,
-      identifier,
-      role: "SELLER",
-    });
+    try {
+      const res = await authApi.register({
+        name,
+        identifier,
+        role: "SELLER",
+      });
 
-    // Real response shape: { userId, type, target }
-    const simulatedTarget = identifier;
+      router.push(
+        `/auth/verify?userId=${encodeURIComponent(res.data.userId)}&target=${encodeURIComponent(res.data.target)}`,
+      );
+    } catch (err) {
+      const code = getApiErrorCode(err);
 
-    setLoading(false);
-    router.push(
-      `/auth/verify?identifier=${encodeURIComponent(simulatedTarget)}`,
-    );
+      if (code === "EMAIL_EXISTS") {
+        setError(
+          "Cette adresse e-mail est déjà utilisée. Connectez-vous plutôt.",
+        );
+      } else if (code === "PHONE_EXISTS") {
+        setError(
+          "Ce numéro de téléphone est déjà utilisé. Connectez-vous plutôt.",
+        );
+      } else {
+        setError(getApiErrorMessage(err));
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -97,7 +108,10 @@ export function SignUpForm({
         <Field className="gap-3">
           <Tabs
             value={method}
-            onValueChange={(v) => setMethod(v as IdentifierMethod)}
+            onValueChange={(v) => {
+              setMethod(v as IdentifierMethod);
+              setError(null);
+            }}
           >
             <TabsList className="w-full">
               <TabsTrigger value="email" className="flex-1">
@@ -129,7 +143,7 @@ export function SignUpForm({
                 defaultCountry="CD"
                 value={phone}
                 onChange={setPhone}
-                placeholder="+243 893 456 789"
+                placeholder="893 456 789"
               />
             </Field>
           )}
@@ -179,7 +193,15 @@ export function SignUpForm({
         </FieldDescription>
 
         <FieldDescription className="text-center text-xs">
-          En créant un compte, vous acceptez notre Politique vendeur.
+          En créant un compte, vous acceptez notre{" "}
+          <Link
+            href="https://swiftgoma.com/legal/seller"
+            target="_blank"
+            className="underline underline-offset-4"
+          >
+            Politique vendeur
+          </Link>
+          .
         </FieldDescription>
       </FieldGroup>
     </form>

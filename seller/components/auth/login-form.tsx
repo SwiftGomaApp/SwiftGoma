@@ -15,17 +15,19 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OtpInput } from "@/components/auth/otp-input";
 import { KeyRound, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getApiErrorMessage } from "@/lib/api-client";
+import { authApi, passkeyApi, totpApi } from "@/lib/api/auth-api";
+import { useAuth } from "@/src/providers/auth-context";
 
 type LoginMethod = "otp" | "password";
 type Step = "identifier" | "otp-code" | "totp-code";
-
-// Simulated network delay
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"form">) {
+  const router = useRouter();
   const [method, setMethod] = useState<LoginMethod>("otp");
   const [step, setStep] = useState<Step>("identifier");
   const [identifier, setIdentifier] = useState("");
@@ -33,94 +35,120 @@ export function LoginForm({
   const [otpCode, setOtpCode] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ─── Step 1: submit identifier (request OTP or check password) ────────────
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [otpUserId, setOtpUserId] = useState<string | null>(null);
+  const [otpTarget, setOtpTarget] = useState<string | null>(null);
+
+  const { refetch } = useAuth();
 
   const handleIdentifierSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    // SIMULATION — replace with real API calls
-    await wait(800);
-
-    if (method === "otp") {
-      // Simulate: request-login-otp { identifier }
-      console.log("[SIMULATION] OTP sent to", identifier);
-      setStep("otp-code");
-    } else {
-      // Simulate: login-with-password { identifier, password }
-      console.log("[SIMULATION] Password login attempt", {
-        identifier,
-        password,
-      });
-
-      // Simulate a 50/50 chance the account has 2FA enabled
-      const has2FA = identifier.includes("2fa");
-
-      if (has2FA) {
-        console.log("[SIMULATION] 2FA required");
-        setStep("totp-code");
+    try {
+      if (method === "otp") {
+        const res = await authApi.loginWithOtp({ identifier });
+        setOtpUserId(res.data.userId);
+        setOtpTarget(res.data.target);
+        setStep("otp-code");
       } else {
-        console.log("[SIMULATION] Login successful → redirect to dashboard");
-        // TODO: router.push("/dashboard")
+        const res = await authApi.loginWithPassword({ identifier, password });
+
+        if ("requires2fa" in res.data && res.data.requires2fa) {
+          setPendingUserId(res.data.userId);
+          setStep("totp-code");
+        } else {
+          await refetch();
+          router.push("/");
+        }
       }
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
-
-  // ─── Step 2a: verify OTP code ───────────────────────────────────────────────
 
   const handleVerifyOtp = async (code: string) => {
+    if (!otpUserId) return;
     setError(null);
     setLoading(true);
 
-    // SIMULATION — replace with real API call
-    await wait(800);
+    try {
+      const res = await authApi.verifyLoginOtp({ userId: otpUserId, code });
 
-    if (code !== "123456") {
-      console.log("[SIMULATION] Invalid OTP code");
-      setError("Code invalide. Veuillez réessayer.");
+      if ("requires2fa" in res.data && res.data.requires2fa) {
+        setPendingUserId(res.data.userId);
+        setStep("totp-code");
+      } else {
+        await refetch();
+        router.push("/");
+      }
+    } catch (err) {
+      setError(getApiErrorMessage(err));
       setOtpCode("");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    console.log("[SIMULATION] OTP verified → redirect to dashboard");
-    // TODO: router.push("/dashboard")
-    setLoading(false);
   };
-
-  // ─── Step 2b: verify TOTP code (2FA) ────────────────────────────────────────
 
   const handleVerifyTotp = async (code: string) => {
+    if (!pendingUserId) return;
     setError(null);
     setLoading(true);
 
-    // SIMULATION — replace with real API call
-    await wait(800);
-
-    if (code !== "123456") {
-      console.log("[SIMULATION] Invalid TOTP code");
-      setError("Code invalide. Veuillez réessayer.");
+    try {
+      await totpApi.verifyLogin({ userId: pendingUserId, code });
+      await refetch();
+      router.push("/");
+    } catch (err) {
+      setError(getApiErrorMessage(err));
       setTotpCode("");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    console.log("[SIMULATION] TOTP verified → redirect to dashboard");
-    // TODO: router.push("/dashboard")
-    setLoading(false);
   };
 
-  // ─── Resend OTP ───────────────────────────────────────────────────────────────
-
   const handleResendOtp = async () => {
+    if (!otpUserId) return;
     setError(null);
-    await wait(500);
-    console.log("[SIMULATION] OTP resent to", identifier);
+
+    try {
+      const res = await authApi.resendOtp({
+        userId: otpUserId,
+        type: "SIGNIN",
+      });
+      setOtpTarget(res.data.target);
+    } catch (err) {
+      setError(getApiErrorMessage(err));
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    setError(null);
+    setPasskeyLoading(true);
+
+    try {
+      const { data: options } = await passkeyApi.getAuthOptions();
+
+      const { startAuthentication } = await import("@simplewebauthn/browser");
+      const credential = await startAuthentication(options as any);
+
+      await passkeyApi.verifyAuth({ credential });
+      router.push("/");
+    } catch (err) {
+      if (err instanceof Error && err.name === "NotAllowedError") {
+        setPasskeyLoading(false);
+        return;
+      }
+      setError(getApiErrorMessage(err));
+    } finally {
+      setPasskeyLoading(false);
+    }
   };
 
   const goBack = () => {
@@ -129,8 +157,6 @@ export function LoginForm({
     setTotpCode("");
     setStep("identifier");
   };
-
-  // ─── Step: identifier (email/phone + method switch) ────────────────────────
 
   if (step === "identifier") {
     return (
@@ -149,7 +175,10 @@ export function LoginForm({
 
           <Tabs
             value={method}
-            onValueChange={(v) => setMethod(v as LoginMethod)}
+            onValueChange={(v) => {
+              setMethod(v as LoginMethod);
+              setError(null);
+            }}
           >
             <TabsList className="w-full">
               <TabsTrigger value="otp" className="flex-1">
@@ -231,9 +260,16 @@ export function LoginForm({
               Se connecter avec Google
             </Button>
 
-            <Button variant="outline" type="button">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={handlePasskeyLogin}
+              disabled={passkeyLoading}
+            >
               <KeyRound className="size-4" />
-              Se connecter avec une clé d&apos;accès
+              {passkeyLoading
+                ? "Vérification..."
+                : "Se connecter avec une clé d'accès"}
             </Button>
           </Field>
 
@@ -247,8 +283,6 @@ export function LoginForm({
       </form>
     );
   }
-
-  // ─── Step: OTP code entry ────────────────────────────────────────────────────
 
   if (step === "otp-code") {
     return (
@@ -266,10 +300,7 @@ export function LoginForm({
           <h1 className="text-xl font-semibold">Entrez le code</h1>
           <p className="text-sm text-balance text-muted-foreground">
             Un code à 6 chiffres a été envoyé à{" "}
-            <span className="font-medium text-foreground">{identifier}</span>
-          </p>
-          <p className="text-xs text-muted-foreground">
-            (Simulation — utilisez le code 123456)
+            <span className="font-medium text-foreground">{otpTarget}</span>
           </p>
         </div>
 
@@ -306,8 +337,6 @@ export function LoginForm({
     );
   }
 
-  // ─── Step: TOTP code entry (2FA) ─────────────────────────────────────────────
-
   return (
     <div className={cn("flex flex-col gap-6", className)}>
       <button
@@ -325,10 +354,7 @@ export function LoginForm({
         </h1>
         <p className="text-sm text-balance text-muted-foreground">
           Entrez le code à 6 chiffres généré par votre application
-          d&apos;authentification
-        </p>
-        <p className="text-xs text-muted-foreground">
-          (Simulation — utilisez le code 123456)
+          d&apos;authentification, ou un code de secours
         </p>
       </div>
 
