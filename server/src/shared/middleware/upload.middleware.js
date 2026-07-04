@@ -1,6 +1,6 @@
 const multer = require("multer");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
-const { cloudinary } = require("../../config/coudinary.config");
+const { cloudinaryV2: cloudinary } = require("../../config/coudinary.config");
 const { errors } = require("../errors/app.error");
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -164,7 +164,20 @@ const kycUploadHandler = multer({
 }).array("documents", 5);
 
 const kycUploadMiddleware = (req, res, next) => {
+  let finished = false;
+
+  const timeout = setTimeout(() => {
+    if (!finished) {
+      finished = true;
+      next(errors.badRequest("Le téléversement a expiré. Réessayez."));
+    }
+  }, 15000); // 15s
+
   kycUploadHandler(req, res, (err) => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timeout);
+
     if (err instanceof multer.MulterError) {
       if (err.code === "LIMIT_FILE_SIZE") {
         return next(

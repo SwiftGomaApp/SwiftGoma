@@ -6,6 +6,8 @@ const {
   getRefreshToken,
   verifyRefreshToken,
   clearAuthCookies,
+  setAuthCookies,
+  setRefreshCookie,
 } = require("../../../shared/utils/cookie.utils");
 const { USER_SELECT } = require("../constants/prisma-selects");
 const {
@@ -14,7 +16,9 @@ const {
 const {
   revokeSession,
   revokeAllSessions,
+  createSession,
 } = require("../../../shared/utils/session.utils");
+const { detectDevice } = require("../../../shared/utils/device.utils");
 
 const register = catchAsync(async (req, res) => {
   const { name, identifier, email, phone, role } = req.body;
@@ -256,9 +260,7 @@ const refresh = catchAsync(async (req, res) => {
       expiresAt: true,
       revokedAt: true,
       user: {
-        select: {
-          USER_SELECT,
-        },
+        select: USER_SELECT,
       },
     },
   });

@@ -18,23 +18,8 @@ const { googleRouter } = require("./features/auth/routes/google.routes");
 const { sessionRouter } = require("./features/auth/routes/session.routes");
 const { emailRouter } = require("./features/auth/routes/email.routes");
 const { phoneRouter } = require("./features/auth/routes/phone.routes");
-const { statusRouter } = require("./features/status/routes/status.routes");
 const { usersRouter } = require("./features/users/routes/users.routes");
-const { orderRouter } = require("./features/orders/routes/order.routes");
-const {
-  notificationRouter,
-} = require("./features/notifications/routes/notification.routes");
-const { sellerRouter } = require("./features/seller/routes/seller.routes");
-const { webhookRouter } = require("./features/seller/routes/webhooks.routes");
-const { invoiceRouter } = require("./features/invoice/routes/invoice.routes");
-const {
-  startHealthCheckCron,
-} = require("./features/status/jobs/health-check.cron");
-const { startAccountCleanupCron } = require("./features/users/jobs/cleanup");
-const {
-  startSubscriptionCron,
-} = require("./features/seller/cron/subscription.cron");
-const { startOrderCron } = require("./features/orders/jobs/order.cron");
+
 
 const app = express();
 const server = http.createServer(app);
@@ -56,13 +41,7 @@ app.use("/api/v1/auth/google", googleRouter);
 app.use("/api/v1/auth/sessions", sessionRouter);
 app.use("/api/v1/auth/email", emailRouter);
 app.use("/api/v1/auth/phone", phoneRouter);
-app.use("/api/v1/status", statusRouter);
 app.use("/api/v1/users", usersRouter);
-app.use("/api/v1/notifications", notificationRouter);
-app.use("/api/v1/sellers", sellerRouter);
-app.use("/api/v1/webhooks", webhookRouter);
-app.use("/api/v1/invoices", invoiceRouter);
-app.use("/api/v1/orders", orderRouter);
 
 app.use((req, res) => {
   res.status(404).json({

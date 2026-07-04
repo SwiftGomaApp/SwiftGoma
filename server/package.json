@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "seed:plans": "node src/scripts/seed-plans.js",
     "seed:support": "node src/scripts/seed-support.js",
+    "backfill:invoices": "node src/scripts/backfill-invoice-pdfs.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
