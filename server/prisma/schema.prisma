@@ -57,6 +57,13 @@ enum Language {
   SW
 }
 
+enum KycStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -85,13 +92,15 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  otps                Otp[]
-  refreshTokens       RefreshToken[]
-  sessions            Session[]
-  passkeys            Passkey[]
-  totp                Totp?
-  backupCodes         BackupCode[]
-  addresses           Address[]
+  otps          Otp[]
+  refreshTokens RefreshToken[]
+  sessions      Session[]
+  passkeys      Passkey[]
+  totp          Totp?
+  backupCodes   BackupCode[]
+  addresses     Address[]
+  sellerProfile SellerProfile?
+  kycReviews    Kyc[]          @relation("KycReviewer")
 
   @@map("users")
 }
@@ -206,4 +215,46 @@ model Address {
 
   @@index([userId])
   @@map("addresses")
+}
+
+// ─── PROFILES ───────────────────────────────────────────────────────────────────
+
+model SellerProfile {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  shopName    String
+  description String?
+  logo        String
+  commune     String
+  quartier    String
+  avenue      String
+  isApprouved Boolean   @default(true)
+  approuvedAt DateTime?
+  approuvedBy String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kyc  Kyc?
+
+  @@map("seller_profiles")
+}
+
+model Kyc {
+  id              String    @id @default(uuid())
+  sellerProfileId String    @unique
+  documents       String[]
+  status          KycStatus @default(PENDING)
+  note            String?
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  submittedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sellerProfile SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  reviewer      User?         @relation("KycReviewer", fields: [reviewedBy], references: [id])
+
+  @@index([status])
+  @@map("kyc")
 }
