@@ -20,6 +20,8 @@ const { emailRouter } = require("./features/auth/routes/email.routes");
 const { phoneRouter } = require("./features/auth/routes/phone.routes");
 const { usersRouter } = require("./features/users/routes/users.routes");
 const { pawapayRouter } = require("./features/pawapay/routes/pawapay.routes");
+const { sellerRouter } = require("./features/sellers/routes/seller.routes");
+const { kycRouter } = require("./features/sellers/routes/kyc.routes");
 
 const app = express();
 const server = http.createServer(app);
@@ -43,6 +45,8 @@ app.use("/api/v1/auth/email", emailRouter);
 app.use("/api/v1/auth/phone", phoneRouter);
 app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/pawapay", pawapayRouter);
+app.use("/api/v1/seller", sellerRouter);
+app.use("/api/v1/kyc", kycRouter)
 
 app.use((req, res) => {
   res.status(404).json({

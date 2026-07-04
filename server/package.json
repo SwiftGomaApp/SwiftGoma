@@ -8,7 +8,9 @@
     "start": "node src/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "seed:admin": "node src/scripts/seed-admin.js",
+    "seed:support": "node src/scripts/seed-support.js",
     "prisma:generate": "prisma generate",
+    "db-push": "prisma db push",
     "prisma:migrate": "prisma migrate dev"
   },
   "keywords": [],
