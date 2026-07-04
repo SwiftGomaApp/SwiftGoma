@@ -46,6 +46,11 @@ module.exports = {
   cloudinary_api_key: process.env.CLOUDINARY_API_KEY,
   cloudinary_api_secret: process.env.CLOUDINARY_API_SECRET,
 
-  pawapay_api_secret: process.env.PAWAPAY_API_TOKEN,
-  pawapay_env: process.env.PAWAPAY_SANDBOX,
+  pawapay_production_api_token: process.env.PAWAPAY_PRODUCTION_API_TOKEN,
+  pawapay_sandbox_api_token: process.env.PAWAPAY_SANDBOX_API_TOKEN,
+  pawapay_environement: process.env.PAWAPAY_ENV,
+  pawapay_callback_base_url: process.env.PAWAPAY_CALLBACK_BASE_URL,
+  pawapay_signed_requests: process.env.PAWAPAY_SIGNED_REQUESTS,
+  pawapay_signed_callbacks: process.env.PAWAPAY_SIGNED_CALLBACKS,
+  pawapay_active_countries: process.env.PAWAPAY_ACTIVE_COUNTRIES,
 };
