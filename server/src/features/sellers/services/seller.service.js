@@ -21,6 +21,7 @@ const createSellerProfile = async ({
   userId,
   shopName,
   description,
+  country,
   commune,
   quartier,
   avenue,
@@ -28,6 +29,9 @@ const createSellerProfile = async ({
 }) => {
   if (!shopName?.trim())
     throw errors.badRequest("Le nom commercial est requis.");
+  if (!["COD", "RWA"].includes(country)) {
+    throw errors.badRequest("Le pays est requis (COD ou RWA).");
+  }
   if (!commune?.trim()) throw errors.badRequest("La commune est requise.");
   if (!quartier?.trim()) throw errors.badRequest("Le quartier est requis.");
 
@@ -42,11 +46,11 @@ const createSellerProfile = async ({
         userId,
         shopName: shopName.trim(),
         description: description?.trim() ?? null,
+        country,
         commune: commune.trim(),
         quartier: quartier.trim(),
         avenue: avenue?.trim() ?? null,
         logo: logoUrl,
-        isApprouved: true
       },
     });
 

@@ -64,6 +64,28 @@ enum KycStatus {
   REJECTED
 }
 
+enum KycCountry {
+  COD
+  RWA
+}
+
+enum Country {
+  COD // DR Congo
+  RWA // Rwanda
+}
+
+enum SellerType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum IdDocumentType {
+  NATIONAL_ID
+  VOTERS_CARD
+  PASSPORT
+  RESIDENCE_PERMIT
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -225,12 +247,13 @@ model SellerProfile {
   shopName    String
   description String?
   logo        String
+  country     Country
   commune     String
   quartier    String
   avenue      String
-  isApprouved Boolean   @default(true)
-  approuvedAt DateTime?
-  approuvedBy String?
+  isApproved  Boolean   @default(false)
+  approvedAt  DateTime?
+  approvedBy  String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -241,16 +264,28 @@ model SellerProfile {
 }
 
 model Kyc {
-  id              String    @id @default(uuid())
-  sellerProfileId String    @unique
-  documents       String[]
-  status          KycStatus @default(PENDING)
-  note            String?
-  reviewedBy      String?
-  reviewedAt      DateTime?
-  submittedAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id              String @id @default(uuid())
+  sellerProfileId String @unique
+
+  sellerType SellerType @default(INDIVIDUAL)
+
+  idType     IdDocumentType?
+  idNumber   String?
+  idFrontUrl String?
+  idBackUrl  String?
+  selfieUrl  String?
+
+  businessName               String?
+  businessRegistrationNumber String?
+  businessDocUrl             String?
+
+  status      KycStatus @default(PENDING)
+  note        String?
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  submittedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   sellerProfile SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
   reviewer      User?         @relation("KycReviewer", fields: [reviewedBy], references: [id])
