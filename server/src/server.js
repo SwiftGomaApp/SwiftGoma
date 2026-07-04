@@ -58,11 +58,6 @@ app.use("/api/v1/auth/email", emailRouter);
 app.use("/api/v1/auth/phone", phoneRouter);
 app.use("/api/v1/status", statusRouter);
 app.use("/api/v1/users", usersRouter);
-app.use("/api/v1/notifications", notificationRouter);
-app.use("/api/v1/sellers", sellerRouter);
-app.use("/api/v1/webhooks", webhookRouter);
-app.use("/api/v1/invoices", invoiceRouter);
-app.use("/api/v1/orders", orderRouter);
 
 app.use((req, res) => {
   res.status(404).json({
