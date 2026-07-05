@@ -12,12 +12,6 @@ const destroySafely = (url) => {
   cloudinary.uploader.destroy(publicIdFromUrl(url)).catch(() => {});
 };
 
-/**
- * Submits (or re-submits, after a REJECTED review) KYC for the caller's
- * seller profile. Validates the minimum required documents per country
- * and seller tier, since a DRC voter's card has no back side but an RDB
- * business cert is a whole separate requirement from a Rwandan national ID.
- */
 const submitKyc = async ({
   userId,
   sellerType = "INDIVIDUAL",
@@ -36,9 +30,6 @@ const submitKyc = async ({
   });
   if (!profile) throw errors.notFound("Profil vendeur introuvable.");
 
-  // country comes from the seller's own profile, not the client — trusting
-  // a client-submitted country on the KYC form would let someone claim a
-  // different country than the shop they actually registered.
   const country = profile.country;
 
   const existing = profile.kyc;
@@ -60,8 +51,7 @@ const submitKyc = async ({
       "Une photo de vous tenant votre document est requise.",
     );
   }
-  // Voter's cards (common in DRC) are usually single-sided — only enforce
-  // a back-side photo for document types that actually have one.
+
   if (idType !== "VOTERS_CARD" && !idBackUrl) {
     throw errors.badRequest("La photo verso du document est requise.");
   }
@@ -178,13 +168,17 @@ const reviewKyc = async ({ sellerProfileId, approve, note, reviewerId }) => {
 
     // This is the piece that was missing entirely — nothing previously
     // connected a KYC approval to whether the seller is actually allowed
-    // to sell. isApproved now defaults to false and only flips here.
+    // to sell, or advanced them to the next onboarding stage. isApproved
+    // defaults to false and only flips here; onboardingStatus moves the
+    // seller to PENDING_SUBSCRIPTION on approval (or back to KYC_REJECTED,
+    // so they can resubmit) — nothing else in the codebase sets this field.
     await tx.sellerProfile.update({
       where: { id: sellerProfileId },
       data: {
         isApproved: approve,
         approvedAt: approve ? new Date() : null,
         approvedBy: approve ? reviewerId : null,
+        onboardingStatus: approve ? "PENDING_SUBSCRIPTION" : "KYC_REJECTED",
       },
     });
 

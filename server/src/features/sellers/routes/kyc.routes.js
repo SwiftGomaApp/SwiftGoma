@@ -8,13 +8,25 @@ const {
 } = require("../../auth/middlewares/authenticate.middleware");
 const { kycUpload } = require("../middlewares/kyc-upload.middleware");
 const kycController = require("../controllers/kyc.controller");
+const { requireNotSuspended } = require("../middlewares/onbarding.middleware");
 
 const router = express.Router();
 
 router.use(authenticate);
 
-router.post("/seller/kyc", requireVerified, kycUpload, kycController.submitKyc);
-router.get("/seller/kyc", requireVerified, kycController.getMyKycStatus);
+router.post(
+  "/seller/kyc",
+  requireVerified,
+  requireNotSuspended,
+  kycUpload,
+  kycController.submitKyc,
+);
+router.get(
+  "/seller/kyc",
+  requireVerified,
+  requireNotSuspended,
+  kycController.getMyKycStatus,
+);
 
 router.get(
   "/support/kyc",

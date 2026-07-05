@@ -11,13 +11,21 @@ const {
   createSellerProfile,
   updateSellerProfile,
 } = require("../controllers/seller.controller");
+const { requireNotSuspended } = require("../middlewares/onbarding.middleware");
 
 const router = express.Router();
 
 router.use(authenticate);
 
-router.get("/", requireVerified, getSellerProfile);
 router.post("/", requireVerified, logoUpload, createSellerProfile);
-router.patch("/", requireVerified, logoUpload, updateSellerProfile);
+
+router.get("/", requireVerified, requireNotSuspended, getSellerProfile);
+router.patch(
+  "/",
+  requireVerified,
+  requireNotSuspended,
+  logoUpload,
+  updateSellerProfile,
+);
 
 module.exports = { sellerRouter: router };
