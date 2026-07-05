@@ -19,15 +19,29 @@ const DEFAULT_CUSTOMER_MESSAGE = "SwiftGoma";
 async function request(method, url, data) {
   try {
     const res = await http.request({ method, url, data });
+    console.log(
+      `[pawapay] ${method.toUpperCase()} ${url} →`,
+      res.status,
+      JSON.stringify(res.data),
+    );
     return { ok: true, status: res.status, data: res.data };
   } catch (err) {
     if (err.response) {
+      console.error(
+        `[pawapay] ${method.toUpperCase()} ${url} failed →`,
+        err.response.status,
+        JSON.stringify(err.response.data),
+      );
       return {
         ok: false,
         status: err.response.status,
         data: err.response.data,
       };
     }
+    console.error(
+      `[pawapay] ${method.toUpperCase()} ${url} network error →`,
+      err.message,
+    );
     return {
       ok: false,
       status: null,

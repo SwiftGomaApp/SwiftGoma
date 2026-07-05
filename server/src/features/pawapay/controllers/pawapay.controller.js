@@ -3,6 +3,8 @@
 const { AppError } = require("../../../shared/errors/app.error");
 const { catchAsync } = require("../../../shared/utils/catchAsync");
 const pawapay = require("../services/pawapay.service");
+const { verifyPawapayCallback } = require("../utils/pawapay.utils");
+const { dispatchDepositCallback } = require("../services/deposit-callback.registry");
 
 function throwPawapayError(result, fallbackCode) {
   const reason = result?.data?.failureReason || result?.data?.rejectionReason;
@@ -59,10 +61,8 @@ const resendDepositCallback = catchAsync(async (req, res) => {
 });
 
 const handleDepositCallback = catchAsync(async (req, res) => {
-  const callback = req.body;
-  // TODO: verify signature here if signedCallbacks is enabled (RFC-9421 headers)
-  // TODO: idempotently update your DB using callback.depositId + callback.status
-  console.log("[pawapay] deposit callback:", callback);
+  await verifyPawapayCallback(req);
+  await dispatchDepositCallback(req.body);
   res.sendStatus(200);
 });
 
