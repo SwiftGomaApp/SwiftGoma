@@ -1,6 +1,0 @@
-"use strict";
-
-const YEARLY_FREE_MONTHS = 2;
-const YEARLY_BILLED_MONTHS = 12 - YEARLY_FREE_MONTHS;
-
-module.exports = { YEARLY_FREE_MONTHS, YEARLY_BILLED_MONTHS };

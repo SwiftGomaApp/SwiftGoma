@@ -27,20 +27,12 @@ const {
 const {
   getPreferences,
   updatePreferences,
-  getSellerProfile,
-  createSellerProfile,
-  updateSellerProfile,
-  submitKyc,
-  getDelivererProfile,
-  createDelivererProfile,
-  updateDelivererProfile,
   listUsers,
   getUserById,
   blockUser,
   unblockUser,
   verifyUser,
   changeUserRole,
-  reviewKyc,
 } = require("../controllers/users.controller");
 
 const router = express.Router();
@@ -70,27 +62,29 @@ router.patch("/addresses/:id/default", requireVerified, setDefaultAddress);
 router.get("/preferences", getPreferences);
 router.patch("/preferences", updatePreferences);
 
-// ─── Seller onboarding ───────────────────────────────────────────────────────
-
-router.get("/seller", requireVerified, getSellerProfile);
-router.post("/seller", requireVerified, logoUpload, createSellerProfile);
-router.patch("/seller", requireVerified, logoUpload, updateSellerProfile);
-router.post("/seller/kyc", requireVerified, kycUploadMiddleware, submitKyc);
-
-// ─── Deliverer onboarding ─────────────────────────────────────────────────────
-
-router.get("/deliverer", requireVerified, getDelivererProfile);
-router.post("/deliverer", requireVerified, createDelivererProfile);
-router.patch("/deliverer", requireVerified, updateDelivererProfile);
-
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
-router.get("/admin/users", requireRole("ADMIN"), listUsers);
-router.get("/admin/users/:id", requireRole("ADMIN"), getUserById);
-router.patch("/admin/users/:id/block", requireRole("ADMIN"), blockUser);
-router.patch("/admin/users/:id/unblock", requireRole("ADMIN"), unblockUser);
-router.patch("/admin/users/:id/verify", requireRole("ADMIN"), verifyUser);
-router.patch("/admin/users/:id/role", requireRole("ADMIN"), changeUserRole);
-router.patch("/admin/kyc/:sellerProfileId", requireRole("ADMIN"), reviewKyc);
+router.get("/admin/users", requireRole("ADMIN", "SUPPORT"), listUsers);
+router.get("/admin/users/:id", requireRole("ADMIN", "SUPPORT"), getUserById);
+router.patch(
+  "/admin/users/:id/block",
+  requireRole("ADMIN", "SUPPORT"),
+  blockUser,
+);
+router.patch(
+  "/admin/users/:id/unblock",
+  requireRole("ADMIN", "SUPPORT"),
+  unblockUser,
+);
+router.patch(
+  "/admin/users/:id/verify",
+  requireRole("ADMIN", "SUPPORT"),
+  verifyUser,
+);
+router.patch(
+  "/admin/users/:id/role",
+  requireRole("ADMIN", "SUPPORT"),
+  changeUserRole,
+);
 
 module.exports = { usersRouter: router };

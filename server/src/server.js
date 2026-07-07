@@ -19,29 +19,15 @@ const { sessionRouter } = require("./features/auth/routes/session.routes");
 const { emailRouter } = require("./features/auth/routes/email.routes");
 const { phoneRouter } = require("./features/auth/routes/phone.routes");
 const { usersRouter } = require("./features/users/routes/users.routes");
-const { pawapayRouter } = require("./features/pawapay/routes/pawapay.routes");
-const { sellerRouter } = require("./features/sellers/routes/seller.routes");
-const { kycRouter } = require("./features/sellers/routes/kyc.routes");
-const {
-  subscriptionRouter,
-} = require("./features/sellers/routes/subscription.routes");
-
-const subscriptionService = require("./features/sellers/services/subscription.service");
-const {
-  registerDepositHandler,
-} = require("./features/pawapay/services/deposit-callback.registry");
-const { rawBodySaver } = require("./features/pawapay/utils/pawapay.utils");
 
 const app = express();
 
-// Trust the first proxy hop (ngrok in dev, load balancer in prod).
-// Required so express-rate-limit can safely read X-Forwarded-For.
 app.set("trust proxy", 1);
 
 const server = http.createServer(app);
 
 applySecurityMiddleware(app);
-app.use(express.json({ limit: "10kb", verify: rawBodySaver }));
+app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 app.use(cookieParser(cookie_secret));
 app.use(globalLimiter);
@@ -58,15 +44,6 @@ app.use("/api/v1/auth/sessions", sessionRouter);
 app.use("/api/v1/auth/email", emailRouter);
 app.use("/api/v1/auth/phone", phoneRouter);
 app.use("/api/v1/users", usersRouter);
-app.use("/api/v1/pawapay", pawapayRouter);
-app.use("/api/v1/seller", sellerRouter);
-app.use("/api/v1/kyc", kycRouter);
-app.use("/api/v1/subscriptions", subscriptionRouter);
-
-registerDepositHandler(
-  "subscription",
-  subscriptionService.handleDepositWebhook,
-);
 
 app.use((req, res) => {
   res.status(404).json({

@@ -6,6 +6,7 @@ const {
   disableTotp,
   regenerateBackupCodes,
   requestRegenerateBackupCodes,
+  requestDisableTotp,
 } = require("../controllers/totp.controller");
 const {
   authenticate,
@@ -18,6 +19,12 @@ router.post("/verify", verifyTotp);
 
 router.post("/setup", authenticate, requireVerified, setupTotp);
 router.post("/enable", authenticate, requireVerified, enableTotp);
+router.post(
+  "/disable/request",
+  authenticate,
+  requireVerified,
+  requestDisableTotp,
+);
 router.post("/disable", authenticate, requireVerified, disableTotp);
 router.post(
   "/backup-codes/request",

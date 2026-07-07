@@ -155,13 +155,13 @@ const requestRecoverAccount = async ({ email }) => {
 
 const recoverAccount = async ({ email, code }) => {
   const user = await prisma.user.findUnique({
-    where: { email: email },
+    where: { email },
     select: { id: true, isDeleted: true, deletedAt: true },
   });
 
-  const userId = user.id;
-
   if (!user) throw errors.accountNotFound();
+
+  const userId = user.id;
 
   if (!user.isDeleted) {
     throw errors.badRequest("Ce compte n'est pas supprimé.");

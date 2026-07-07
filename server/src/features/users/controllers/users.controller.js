@@ -43,121 +43,6 @@ const updatePreferences = catchAsync(async (req, res) => {
   });
 });
 
-// ─── Seller ───────────────────────────────────────────────────────────────────
-
-const getSellerProfile = catchAsync(async (req, res) => {
-  const profile = await sellerService.getSellerProfile({ userId: req.user.id });
-  res.status(200).json({ success: true, data: profile });
-});
-
-const createSellerProfile = catchAsync(async (req, res) => {
-  const { shopName, description, commune, quartier, avenue } = req.body;
-
-  const profile = await sellerService.createSellerProfile({
-    userId: req.user.id,
-    shopName,
-    description,
-    commune,
-    quartier,
-    avenue,
-    logoUrl: req.file?.path ?? null,
-  });
-
-  res.status(201).json({
-    success: true,
-    message:
-      "Profil vendeur créé. Soumettez vos documents KYC pour commencer à vendre.",
-    data: profile,
-  });
-});
-
-const updateSellerProfile = catchAsync(async (req, res) => {
-  const { shopName, description, commune, quartier, avenue } = req.body;
-
-  const profile = await sellerService.updateSellerProfile({
-    userId: req.user.id,
-    shopName,
-    description,
-    commune,
-    quartier,
-    avenue,
-    logoUrl: req.file?.path ?? null,
-  });
-
-  res.status(200).json({
-    success: true,
-    message: "Profil vendeur mis à jour.",
-    data: profile,
-  });
-});
-
-const submitKyc = catchAsync(async (req, res) => {
-  if (!req.files || req.files.length === 0) {
-    throw errors.badRequest("Au moins un document KYC est requis.");
-  }
-
-  const documentUrls = req.files.map((f) => f.path);
-
-  const profile = await sellerService.submitKyc({
-    userId: req.user.id,
-    documentUrls,
-  });
-
-  res.status(200).json({
-    success: true,
-    message:
-      "Documents KYC soumis. Votre profil sera examiné dans les 48 heures.",
-    data: profile,
-  });
-});
-
-// ─── Deliverer ────────────────────────────────────────────────────────────────
-
-const getDelivererProfile = catchAsync(async (req, res) => {
-  const profile = await delivererService.getDelivererProfile({
-    userId: req.user.id,
-  });
-  res.status(200).json({ success: true, data: profile });
-});
-
-const createDelivererProfile = catchAsync(async (req, res) => {
-  const { sellerProfileId, zone, vehicleType } = req.body;
-
-  if (!sellerProfileId) {
-    throw errors.badRequest("L'identifiant de la boutique est requis.");
-  }
-
-  const profile = await delivererService.createDelivererProfile({
-    userId: req.user.id,
-    sellerProfileId,
-    zone,
-    vehicleType,
-  });
-
-  res.status(201).json({
-    success: true,
-    message: "Profil livreur créé.",
-    data: profile,
-  });
-});
-
-const updateDelivererProfile = catchAsync(async (req, res) => {
-  const { zone, vehicleType, isAvailable } = req.body;
-
-  const profile = await delivererService.updateDelivererProfile({
-    userId: req.user.id,
-    zone,
-    vehicleType,
-    isAvailable,
-  });
-
-  res.status(200).json({
-    success: true,
-    message: "Profil livreur mis à jour.",
-    data: profile,
-  });
-});
-
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 const listUsers = catchAsync(async (req, res) => {
@@ -214,38 +99,13 @@ const changeUserRole = catchAsync(async (req, res) => {
   });
 });
 
-const reviewKyc = catchAsync(async (req, res) => {
-  const { decision, note } = req.body;
-
-  const profile = await adminUsersService.reviewKyc({
-    sellerProfileId: req.params.sellerProfileId,
-    decision,
-    note,
-    adminId: req.user.id,
-  });
-
-  res.status(200).json({
-    success: true,
-    message: `KYC ${decision === "APPROVED" ? "approuvé" : "rejeté"}.`,
-    data: profile,
-  });
-});
-
 module.exports = {
   getPreferences,
   updatePreferences,
-  getSellerProfile,
-  createSellerProfile,
-  updateSellerProfile,
-  submitKyc,
-  getDelivererProfile,
-  createDelivererProfile,
-  updateDelivererProfile,
   listUsers,
   getUserById,
   blockUser,
   unblockUser,
   verifyUser,
   changeUserRole,
-  reviewKyc,
 };
