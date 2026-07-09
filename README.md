@@ -170,7 +170,7 @@ swiftgoma/
 
 SwiftGoma is built for the Goma market — a city of over 1 million people in North Kivu, DRC, with a fast-growing mobile money ecosystem. The platform is designed to work in low-connectivity environments with offline-first mobile apps and resilient payment retry logic.
 
-**Company:** JASKAB COMPANY  
+**Company:** SWIFTGOMA
 **Location:** Goma, Nord-Kivu, République Démocratique du Congo  
 **Contact:** info@swiftgoma.com
 
