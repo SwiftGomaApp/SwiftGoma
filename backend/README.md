@@ -241,4 +241,4 @@ Buyer places order
 
 ---
 
-© 2026 SwiftGoma / JASKAB COMPANY — All rights reserved.
+© 2026 SwiftGoma — All rights reserved.
