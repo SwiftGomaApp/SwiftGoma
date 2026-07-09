@@ -53,4 +53,17 @@ module.exports = {
   pawapay_signed_requests: process.env.PAWAPAY_SIGNED_REQUESTS,
   pawapay_signed_callbacks: process.env.PAWAPAY_SIGNED_CALLBACKS,
   pawapay_active_countries: process.env.PAWAPAY_ACTIVE_COUNTRIES,
+
+  // pawaPay signing
+  pawapay_sign_algorithm: process.env.PAWAPAY_SIGN_ALGORITHM,
+  pawapay_signature_validity_seconds:
+    process.env.PAWAPAY_SIGNATURE_VALIDITY_SECONDS,
+
+  pawapay_key_id_production: process.env.PAWAPAY_KEY_ID,
+  pawapay_private_key_pem_base64_production:
+    process.env.PAWAPAY_PRIVATE_KEY_PEM_BASE64,
+
+  pawapay_key_id_sandbox: process.env.PAWAPAY_KEY_ID_SANDBOX,
+  pawapay_private_key_pem_base64_sandbox:
+    process.env.PAWAPAY_PRIVATE_KEY_PEM_BASE64_SANDBOX,
 };
