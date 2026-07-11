@@ -1,17 +1,22 @@
-# SwiftGoma — Seller Dashboard
+# SwiftGoma — Seller App
 
-> Web dashboard for sellers to manage their shops, products, orders, and deliverers on SwiftGoma.
+> Flutter mobile app for sellers to manage their shops, products, orders, and deliverers on SwiftGoma.
+
+[![SwiftGoma](https://img.shields.io/badge/SwiftGoma-Seller-orange)](https://github.com/SwiftGomaApp/SwiftGoma)
 
 ---
 
 ## Stack
 
-- **Framework:** Next.js 15 + TypeScript
-- **Styling:** Tailwind CSS + shadcn/ui
-- **State / Data fetching:** TanStack Query
-- **Auth:** Cookie-based JWT (synced with SwiftGoma API)
-- **Payments:** PawaPay mobile money (subscription flow)
+- **Framework:** Flutter + Dart
+- **State management:** Riverpod
+- **Navigation:** GoRouter
+- **HTTP:** Dio
+- **Local storage:** SQLite (offline cache)
 - **Maps:** Mapbox (shop location picker)
+- **Push notifications:** Expo / OneSignal
+- **Payments:** PawaPay mobile money (subscription flow)
+- **Auth:** Bearer token (JWT) — access + refresh, stored in secure device storage (Keychain / Keystore), synced with SwiftGoma API
 
 ---
 
@@ -24,6 +29,7 @@
 - **Orders** — view, confirm, prepare, ship orders, assign deliverers
 - **Deliverers** — create and manage deliverer accounts linked to shops
 - **Security** — TOTP 2FA, passkeys, Google OAuth, active sessions management
+- **Notifications** — push notifications for new orders and status changes
 - **Legal pages** — buyer policy, seller policy, delivery, refund, privacy, cookies
 
 ---
@@ -31,19 +37,24 @@
 ## Project Structure
 
 ```
-src/
-├── app/
-│   ├── (auth)/          # Sign in, sign up, OTP verification
-│   ├── (dashboard)/     # Protected seller pages
-│   │   ├── products/    # Product management
-│   │   ├── orders/      # Order management
-│   │   ├── deliverers/  # Deliverer management
-│   │   ├── settings/    # Security, profile, subscription
-│   │   └── shop/        # Shop settings
-│   └── legal/           # Legal pages
-├── components/          # Shared UI components
-├── lib/                 # API client, utilities
-└── types/               # TypeScript types
+lib/
+├── core/
+│   ├── config/          # App config, API base URL, constants
+│   ├── errors/          # Exception handling
+│   ├── network/         # Dio client, auth interceptor (attaches Bearer token, handles refresh)
+│   └── utils/           # Helpers, formatters
+├── features/
+│   ├── auth/            # Login, register, OTP, Google OAuth, TOTP, passkeys, token storage
+│   ├── onboarding/       # Seller profile, KYC upload, shop creation
+│   ├── subscription/       # Plan selection, PawaPay payment flow
+│   ├── products/             # Product CRUD, variants, images, categories
+│   ├── orders/                 # Order list, detail, status updates, deliverer assignment
+│   ├── deliverers/                # Deliverer account creation and management
+│   ├── shop/                        # Shop settings, location picker
+│   └── settings/                      # Security (2FA, passkeys, sessions), profile
+└── shared/
+    ├── widgets/         # Shared UI components
+    └── theme/            # Colors, typography, theme
 ```
 
 ---
@@ -52,56 +63,65 @@ src/
 
 ### Prerequisites
 
-- Node.js 18+
-- SwiftGoma API running locally or deployed
+- Flutter 3.x+
+- Dart 3.x+
+- SwiftGoma API running
 
 ### Installation
 
 ```bash
 git clone https://github.com/SwiftGomaApp/SwiftGoma.git
-cd seller
-npm install
+cd SwiftGoma/frontend/seller
+flutter pub get
 ```
 
 ### Environment
 
-```bash
-cp .env.example .env.local
-```
+Create `lib/core/config/env.dart`:
 
-```env
-NEXT_PUBLIC_API_URL=http://localhost:3001
-NEXT_PUBLIC_MAPBOX_TOKEN=your_mapbox_token
+```dart
+class Env {
+  static const apiUrl = 'http://localhost:3001';
+  static const mapboxToken = 'your_mapbox_token';
+}
 ```
 
 ### Run
 
 ```bash
-# Development
-npm run dev
+# Android
+flutter run
 
-# Production
-npm run build
-npm start
+# iOS
+flutter run -d ios
+
+# Release build
+flutter build apk --release
+flutter build ipa --release
 ```
 
 ---
 
-## Pages
+## Onboarding Flow
 
-| Path                     | Description                       |
-| ------------------------ | --------------------------------- |
-| `/auth/sign-in`          | Login with email/phone + password |
-| `/auth/sign-up`          | Create seller account             |
-| `/auth/verify`           | OTP verification                  |
-| `/dashboard`             | Overview and stats                |
-| `/dashboard/products`    | Product listing and management    |
-| `/dashboard/orders`      | Order management                  |
-| `/dashboard/deliverers`  | Deliverer management              |
-| `/dashboard/shop`        | Shop settings                     |
-| `/settings/security`     | 2FA, passkeys, sessions           |
-| `/settings/subscription` | Plan and billing                  |
-| `/legal/*`               | Legal pages                       |
+```
+Sign up (phone/email + password)
+        │
+        ▼
+   OTP verification
+        │
+        ▼
+   Seller profile + KYC document upload
+        │
+        ▼
+   Create first shop
+        │
+        ▼
+   Select subscription plan → Pay via Mobile Money
+        │
+        ▼
+   Dashboard unlocked — add products, receive orders
+```
 
 ---
 
@@ -119,9 +139,10 @@ npm start
 
 ## Related
 
-- [SwiftGoma API](../server) — Express backend
+- [SwiftGoma API](../../backend) — Express backend
 - [Buyer App](../buyer) — Flutter mobile app for buyers
 - [Deliverer App](../deliverer) — Flutter mobile app for deliverers
+- [Admin Dashboard](../admin) — Next.js admin/support web app
 
 ---
 

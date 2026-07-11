@@ -15,7 +15,7 @@
 - **Local storage:** SQLite (favorites, offline cache)
 - **Maps:** Mapbox (live delivery tracking)
 - **Push notifications:** Expo / OneSignal
-- **Auth:** Cookie-based JWT (synced with SwiftGoma API)
+- **Auth:** Bearer token (JWT) — access + refresh, stored in secure device storage (Keychain / Keystore), synced with SwiftGoma API
 
 ---
 
@@ -40,20 +40,20 @@ lib/
 ├── core/
 │   ├── config/          # App config, API base URL, constants
 │   ├── errors/          # Exception handling
-│   ├── network/         # Dio client, interceptors
+│   ├── network/         # Dio client, auth interceptor (attaches Bearer token, handles refresh)
 │   └── utils/           # Helpers, formatters
 ├── features/
-│   ├── auth/            # Login, register, OTP, Google OAuth
-│   ├── home/            # Product discovery, featured, categories
-│   ├── shop/            # Shop detail page
-│   ├── product/         # Product detail, variants
-│   ├── cart/            # Cart management
-│   ├── orders/          # Place order, order history, tracking
-│   ├── profile/         # User profile, addresses
-│   └── notifications/   # Push notification handling
+│   ├── auth/            # Login, register, OTP, Google OAuth, token storage
+│   ├── home/             # Product discovery, featured, categories
+│   ├── shop/              # Shop detail page
+│   ├── product/           # Product detail, variants
+│   ├── cart/               # Cart management
+│   ├── orders/             # Place order, order history, tracking
+│   ├── profile/             # User profile, addresses
+│   └── notifications/       # Push notification handling
 └── shared/
     ├── widgets/         # Shared UI components
-    └── theme/           # Colors, typography, theme
+    └── theme/            # Colors, typography, theme
 ```
 
 ---
@@ -70,7 +70,7 @@ lib/
 
 ```bash
 git clone https://github.com/SwiftGomaApp/SwiftGoma.git
-cd SwiftGoma/buyer
+cd SwiftGoma/frontend/buyer
 flutter pub get
 ```
 
@@ -137,9 +137,10 @@ Confirm reception → Invoice generated
 
 ## Related
 
-- [SwiftGoma API](../server) — Express backend
-- [Seller Dashboard](../seller) — Next.js seller web app
-- [Deliverer App](../deliverer) — Flutter deliverer app
+- [SwiftGoma API](../../backend) — Express backend
+- [Seller App](../seller) — Flutter mobile app for sellers
+- [Deliverer App](../deliverer) — Flutter mobile app for deliverers
+- [Admin Dashboard](../admin) — Next.js admin/support web app
 
 ---
 

@@ -1,6 +1,6 @@
-# SwiftGoma — API Server
+# SwiftGoma — Monorepo
 
-> REST API + real-time backend for SwiftGoma — the local marketplace for Goma, DRC.
+> The local marketplace for Goma, DRC — REST API + real-time backend, mobile apps, and admin dashboard.
 
 [![SwiftGoma](https://img.shields.io/badge/SwiftGoma-API-orange)](https://github.com/SwiftGomaApp/SwiftGoma)
 
@@ -17,12 +17,29 @@
 - **Email:** Nodemailer (SMTP)
 - **SMS / OTP:** Africa's Talking
 - **Monitoring:** Sentry
+- **Mobile:** Flutter (buyer, seller, deliverer)
+- **Web:** Next.js 15 (admin)
+
+---
+
+## Apps
+
+| App | Platform | Users |
+|---|---|---|
+| `frontend/buyer` | Flutter (mobile) | Buyers |
+| `frontend/seller` | Flutter (mobile) | Sellers |
+| `frontend/deliverer` | Flutter (mobile) | Deliverers |
+| `frontend/admin` | Next.js 15 (web) | Internal admin / support |
+| `backend` | Node.js / Express | API for all of the above |
 
 ---
 
 ## Features
 
-- **Auth** — JWT (cookie-only), passkeys (WebAuthn), Google OAuth, TOTP 2FA, OTP via SMS/email, multi-device sessions
+- **Auth** — JWT, passkeys (WebAuthn), Google OAuth, TOTP 2FA, OTP via SMS/email, multi-device sessions
+  - **Mobile (buyer, seller, deliverer):** short-lived access token + rotating refresh token, sent via `Authorization: Bearer`, stored client-side in secure hardware-backed storage (Keychain / Keystore)
+  - **Web (admin):** HttpOnly, `Secure`, `SameSite` session cookies
+  - Backend auth middleware checks `Authorization: Bearer` first, falls back to cookie if absent — one shared `User`/`Session` model underneath
 - **Sellers** — profile, KYC, shops, plan-gated subscriptions with PawaPay mobile money
 - **Products** — categories (seller suggest / admin approve), variants, images, featured listings, all plan-gated
 - **Orders** — full status flow, COD + Mobile Money, PawaPay webhook, stock management
@@ -38,30 +55,41 @@
 ## Project Structure
 
 ```
-src/
-├── config/
-│   ├── db.config.js         # Prisma client
-│   ├── redis.config.js      # Redis client
-│   ├── socket.config.js     # Socket.io setup + room helpers
-│   ├── coudinary.config.js  # Cloudinary (root + v2)
-│   └── env.config.js        # Environment variables
-├── features/
-│   ├── auth/                # JWT, passkeys, Google OAuth, TOTP, sessions, OTP
-│   ├── users/               # Profile, addresses, preferences, push tokens, cleanup cron
-│   ├── seller/              # Profile, KYC, shops, plans, subscriptions, deliverers, webhooks
-│   ├── orders/              # Order flow, payments, live tracking, PDF, auto-complete cron
-│   ├── invoice/             # PDF generation, sequential numbering, Cloudinary upload
-│   ├── notifications/       # In-app, email, push, SMS dispatcher
-│   └── status/              # Health checks, incidents, public Socket.io
-├── services/
-│   └── email.service.js     # Nodemailer transactional email
-├── shared/
-│   ├── errors/              # AppError, error handler, catchAsync
-│   ├── middleware/          # Auth, rate limiter, security, upload (Cloudinary/multer)
-│   └── utils/               # JWT, cookie, slug utilities
-├── scripts/
-│   └── seed-plans.js        # Seed subscription plans
-└── server.js                # App entry point
+SwiftGoma/
+├── backend/
+│   ├── prisma/
+│   ├── src/
+│   │   ├── config/
+│   │   │   ├── db.config.js         # Prisma client
+│   │   │   ├── redis.config.js      # Redis client
+│   │   │   ├── socket.config.js     # Socket.io setup + room helpers
+│   │   │   ├── coudinary.config.js  # Cloudinary (root + v2)
+│   │   │   └── env.config.js        # Environment variables
+│   │   ├── features/
+│   │   │   ├── auth/                # JWT (cookie + Bearer), passkeys, Google OAuth, TOTP, sessions, OTP
+│   │   │   ├── users/                # Profile, addresses, preferences, push tokens, cleanup cron
+│   │   │   ├── seller/                # Profile, KYC, shops, plans, subscriptions, deliverers, webhooks
+│   │   │   ├── orders/                # Order flow, payments, live tracking, PDF, auto-complete cron
+│   │   │   ├── invoice/               # PDF generation, sequential numbering, Cloudinary upload
+│   │   │   ├── notifications/         # In-app, email, push, SMS dispatcher
+│   │   │   └── status/                # Health checks, incidents, public Socket.io
+│   │   ├── services/
+│   │   │   └── email.service.js       # Nodemailer transactional email
+│   │   ├── shared/
+│   │   │   ├── errors/                # AppError, error handler, catchAsync
+│   │   │   ├── middleware/            # Auth (cookie + Bearer), rate limiter, security, upload
+│   │   │   └── utils/                 # JWT, cookie, slug utilities
+│   │   ├── scripts/
+│   │   │   └── seed-plans.js          # Seed subscription plans
+│   │   └── server.js                  # App entry point
+│   ├── .env.dev
+│   ├── .env.example
+│   └── package.json
+└── frontend/
+    ├── buyer/          # Flutter mobile app
+    ├── seller/         # Flutter mobile app
+    ├── deliverer/      # Flutter mobile app
+    └── admin/          # Next.js 15 web app (admin + support)
 ```
 
 ---
@@ -81,7 +109,7 @@ src/
 
 ```bash
 git clone https://github.com/SwiftGomaApp/SwiftGoma.git
-cd SwiftGoma/server
+cd SwiftGoma/backend
 npm install
 ```
 
@@ -120,17 +148,19 @@ npm start
 | Resource | Base Path | Auth |
 |---|---|---|
 | Auth | `/api/v1/auth` | Public / Mixed |
-| TOTP | `/api/v1/auth/totp` | Authenticated |
+| TOTP | `/api/v1/auth/totp` | Authenticated (Bearer or cookie) |
 | Passkeys | `/api/v1/auth/passkeys` | Mixed |
 | Google OAuth | `/api/v1/auth/google` | Public |
-| Sessions | `/api/v1/auth/sessions` | Authenticated |
-| Users | `/api/v1/users` | Authenticated |
+| Sessions | `/api/v1/auth/sessions` | Authenticated (Bearer or cookie) |
+| Users | `/api/v1/users` | Authenticated (Bearer or cookie) |
 | Sellers | `/api/v1/sellers` | Mixed |
-| Orders | `/api/v1/orders` | Authenticated |
-| Invoices | `/api/v1/invoices` | Authenticated |
-| Notifications | `/api/v1/notifications` | Authenticated |
+| Orders | `/api/v1/orders` | Authenticated (Bearer or cookie) |
+| Invoices | `/api/v1/invoices` | Authenticated (Bearer or cookie) |
+| Notifications | `/api/v1/notifications` | Authenticated (Bearer or cookie) |
 | Webhooks | `/api/v1/webhooks` | Public (PawaPay) |
 | Status | `/api/v1/status` | Public |
+
+> Mobile apps (buyer, seller, deliverer) authenticate with `Authorization: Bearer <accessToken>`. The admin web app authenticates via HttpOnly session cookie. The same middleware accepts either.
 
 ---
 
@@ -214,9 +244,9 @@ Buyer places order
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
 | `REDIS_URL` | Redis connection string |
-| `JWT_ACCESS_SECRET` | JWT access token secret |
+| `JWT_ACCESS_SECRET` | JWT access token secret (mobile Bearer + web session) |
 | `JWT_REFRESH_SECRET` | JWT refresh token secret |
-| `COOKIE_SECRET` | Cookie signing secret |
+| `COOKIE_SECRET` | Cookie signing secret (admin web sessions) |
 | `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret |
@@ -228,16 +258,17 @@ Buyer places order
 | `AT_API_KEY` | Africa's Talking API key |
 | `AT_USERNAME` | Africa's Talking username |
 | `AT_SENDER_ID` | SMS sender ID |
-| `CLIENT_URL` | Frontend URL (for email links) |
+| `CLIENT_URL` | Admin web app URL (for email links, cookie domain) |
 | `SENTRY_DSN` | Sentry DSN |
 
 ---
 
 ## Related
 
-- [Seller Dashboard](../seller) — Next.js seller web app
-- [Buyer App](../buyer) — Flutter buyer mobile app
-- [Deliverer App](../deliverer) — Flutter deliverer mobile app
+- [Buyer App](../frontend/buyer) — Flutter mobile app
+- [Seller App](../frontend/seller) — Flutter mobile app
+- [Deliverer App](../frontend/deliverer) — Flutter mobile app
+- [Admin Dashboard](../frontend/admin) — Next.js 15 web app
 
 ---
 

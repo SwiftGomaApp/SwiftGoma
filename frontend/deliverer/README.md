@@ -15,7 +15,7 @@
 - **Maps:** Mapbox (route display, location broadcast)
 - **Real-time:** Socket.io client (live GPS broadcast)
 - **Push notifications:** Expo / OneSignal
-- **Auth:** Cookie-based JWT (synced with SwiftGoma API)
+- **Auth:** Bearer token (JWT) — access + refresh, stored in secure device storage (Keychain / Keystore), synced with SwiftGoma API
 
 ---
 
@@ -38,16 +38,16 @@ lib/
 ├── core/
 │   ├── config/          # App config, API base URL, constants
 │   ├── errors/          # Exception handling
-│   ├── network/         # Dio client, interceptors, Socket.io
+│   ├── network/         # Dio client, auth interceptor (attaches Bearer token, handles refresh), Socket.io
 │   └── utils/           # Helpers, location utils
 ├── features/
-│   ├── auth/            # Login (credentials provided by seller)
+│   ├── auth/            # Login (credentials provided by seller), token storage
 │   ├── deliveries/      # Delivery list, detail, status update
-│   ├── tracking/        # Live GPS broadcast, map view
-│   └── profile/         # Deliverer profile, availability
+│   ├── tracking/          # Live GPS broadcast, map view
+│   └── profile/            # Deliverer profile, availability
 └── shared/
     ├── widgets/         # Shared UI components
-    └── theme/           # Colors, typography, theme
+    └── theme/            # Colors, typography, theme
 ```
 
 ---
@@ -64,7 +64,7 @@ lib/
 
 ```bash
 git clone https://github.com/SwiftGomaApp/SwiftGoma.git
-cd SwiftGoma/deliverer
+cd SwiftGoma/frontend/deliverer
 flutter pub get
 ```
 
@@ -122,10 +122,12 @@ Buyer confirms reception (48h window) → Order COMPLETED
 ## Socket.io Events
 
 | Event               | Direction       | Description               |
-| ------------------- | --------------- | ------------------------- |
-| `delivery:join`     | Client → Server | Join order tracking room  |
-| `delivery:location` | Client → Server | Broadcast GPS coordinates |
-| `delivery:status`   | Client → Server | Update delivery status    |
+| -------------------- | ----------------- | -------------------------- |
+| `delivery:join`      | Client → Server    | Join order tracking room     |
+| `delivery:location`  | Client → Server    | Broadcast GPS coordinates      |
+| `delivery:status`    | Client → Server    | Update delivery status           |
+
+> Socket.io connections authenticate using the same Bearer access token as REST calls, passed during the handshake.
 
 ---
 
@@ -133,18 +135,19 @@ Buyer confirms reception (48h window) → Order COMPLETED
 
 Deliverer accounts are created by sellers — deliverers do not sign up themselves.
 
-1. Seller creates deliverer account via dashboard → `POST /api/v1/sellers/deliverers`
+1. Seller creates deliverer account via the seller app → `POST /api/v1/sellers/deliverers`
 2. Seller shares phone number + auto-generated password with deliverer
-3. Deliverer logs in with those credentials
+3. Deliverer logs in with those credentials, receiving an access + refresh token pair
 4. Deliverer is linked exclusively to that seller's shops
 
 ---
 
 ## Related
 
-- [SwiftGoma API](../server) — Express backend
-- [Seller Dashboard](../seller) — Next.js seller web app
-- [Buyer App](../buyer) — Flutter buyer app
+- [SwiftGoma API](../../backend) — Express backend
+- [Buyer App](../buyer) — Flutter mobile app for buyers
+- [Seller App](../seller) — Flutter mobile app for sellers
+- [Admin Dashboard](../admin) — Next.js admin/support web app
 
 ---
 
