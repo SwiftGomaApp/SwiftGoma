@@ -16,6 +16,7 @@ const { detectDevice } = require("../../../shared/utils/device.utils");
 const {
   setAuthCookies,
   setRefreshCookie,
+  signAccessToken,
 } = require("../../../shared/utils/cookie.utils");
 const {
   sendOtpEmail,
@@ -23,6 +24,7 @@ const {
   sendPasswordChangedEmail,
 } = require("../../../services/email.service");
 const { sendOtpSms } = require("../../../services/sms.service");
+const { getDeviceId, getPlatform } = require("../../../shared/utils/platform.utils");
 
 const maskEmail = (email) => {
   const [local, domain] = email.split("@");
@@ -53,13 +55,38 @@ const resolveIdentifier = (identifier) => {
 
 const createLoginSession = async (user, req, res) => {
   const deviceInfo = detectDevice(req);
+  const platform = getPlatform(req);
+  const deviceId = getDeviceId(req);
 
   const { session, refreshToken } = await createSession({
     userId: user.id,
     role: user.role,
     deviceInfo,
+    platform,
+    deviceId,
   });
 
+  const userPayload = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+  };
+
+  if (platform === "MOBILE") {
+    // Mobile: no cookies. Tokens go in the response body — the client stores
+    // them in flutter_secure_storage (Keychain/Keystore), not in-memory JS.
+    const accessToken = signAccessToken({
+      userId: user.id,
+      role: user.role,
+      sessionId: session.id,
+    });
+
+    return { user: userPayload, accessToken, refreshToken };
+  }
+
+  // Web (admin): HttpOnly cookies only, no tokens in the response body.
   setAuthCookies(res, {
     userId: user.id,
     role: user.role,
@@ -67,15 +94,7 @@ const createLoginSession = async (user, req, res) => {
   });
   setRefreshCookie(res, refreshToken);
 
-  return {
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-    },
-  };
+  return { user: userPayload };
 };
 
 const register = async ({ name, email, phone, role }) => {

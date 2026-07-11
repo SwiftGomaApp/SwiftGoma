@@ -19,12 +19,6 @@ const { sessionRouter } = require("./features/auth/routes/session.routes");
 const { emailRouter } = require("./features/auth/routes/email.routes");
 const { phoneRouter } = require("./features/auth/routes/phone.routes");
 const { usersRouter } = require("./features/users/routes/users.routes");
-const {
-  pawapayCallbackRouter,
-} = require("./features/payments/routes/pawapay.routes");
-const {
-  pawapayTestRouter,
-} = require("./features/payments/routes/pawapay.test.routes");
 
 const app = express();
 
@@ -32,14 +26,6 @@ app.set("trust proxy", 1);
 
 const server = http.createServer(app);
 
-app.use(
-  "/api/v1/pawapay/callbacks",
-  express.json({
-    verify: (req, res, buf) => {
-      req.rawBody = buf.toString("utf8");
-    },
-  }),
-);
 applySecurityMiddleware(app);
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true, limit: "10kb" }));
@@ -58,11 +44,6 @@ app.use("/api/v1/auth/sessions", sessionRouter);
 app.use("/api/v1/auth/email", emailRouter);
 app.use("/api/v1/auth/phone", phoneRouter);
 app.use("/api/v1/users", usersRouter);
-app.use("/api/v1/pawapay/callbacks", pawapayCallbackRouter);
-
-if (process.env.NODE_ENV !== "production") {
-  app.use("/api/v1/pawapay/test", pawapayTestRouter);
-}
 
 app.use((req, res) => {
   res.status(404).json({

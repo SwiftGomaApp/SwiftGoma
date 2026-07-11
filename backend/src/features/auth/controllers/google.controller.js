@@ -3,6 +3,8 @@ const { errors } = require("../../../shared/errors/app.error");
 const googleService = require("../services/google.service");
 const { createLoginSession } = require("../services/auth.service");
 const { sendWelcomeEmail } = require("../../../services/email.service");
+const { prisma } = require("../../../config/db.config");
+const { clearAuthCookies } = require("../../../shared/utils/cookie.utils");
 
 const registerWithGoogle = catchAsync(async (req, res) => {
   const { idToken, role } = req.body;
@@ -15,7 +17,21 @@ const registerWithGoogle = catchAsync(async (req, res) => {
     role,
   });
 
-  await createLoginSession(user, req, res);
+  const totp = await prisma.totp.findUnique({
+    where: { userId: user.id },
+    select: { isEnabled: true },
+  });
+
+  if (totp?.isEnabled) {
+    clearAuthCookies(res); // no-op for mobile, harmless
+    return res.status(200).json({
+      success: true,
+      requires2fa: true,
+      data: { userId: user.id },
+    });
+  }
+
+  const result = await createLoginSession(user, req, res);
 
   if (isNew) {
     sendWelcomeEmail({
@@ -30,7 +46,11 @@ const registerWithGoogle = catchAsync(async (req, res) => {
     message: isNew
       ? "Compte créé avec succès via Google."
       : "Compte Google lié et connexion réussie.",
-    data: { user },
+    data: {
+      user: result.user,
+      ...(result.accessToken && { accessToken: result.accessToken }),
+      ...(result.refreshToken && { refreshToken: result.refreshToken }),
+    },
   });
 });
 
@@ -41,12 +61,30 @@ const loginWithGoogle = catchAsync(async (req, res) => {
 
   const user = await googleService.loginWithGoogle({ idToken });
 
-  await createLoginSession(user, req, res);
+  const totp = await prisma.totp.findUnique({
+    where: { userId: user.id },
+    select: { isEnabled: true },
+  });
+
+  if (totp?.isEnabled) {
+    clearAuthCookies(res);
+    return res.status(200).json({
+      success: true,
+      requires2fa: true,
+      data: { userId: user.id },
+    });
+  }
+
+  const result = await createLoginSession(user, req, res);
 
   res.status(200).json({
     success: true,
     message: "Connexion réussie via Google.",
-    data: { user },
+    data: {
+      user: result.user,
+      ...(result.accessToken && { accessToken: result.accessToken }),
+      ...(result.refreshToken && { refreshToken: result.refreshToken }),
+    },
   });
 });
 

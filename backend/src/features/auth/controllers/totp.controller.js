@@ -32,13 +32,23 @@ const verifyTotp = catchAsync(async (req, res) => {
   const { userId, code } = req.body;
   if (!userId) throw errors.badRequest("L'identifiant utilisateur est requis.");
   if (!code) throw errors.badRequest("Le code est requis.");
-  const result = await totpService.verifyTotp({ userId, code }, req, res);
-  await createLoginSession(result.user, req, res);
+
+  const totpResult = await totpService.verifyTotp({ userId, code });
+
+  const sessionResult = await createLoginSession(totpResult.user, req, res);
+
   res.status(200).json({
     success: true,
     message: "Authentification réussie.",
     data: {
-      usedBackupCode: result.usedBackupCode || false,
+      usedBackupCode: totpResult.usedBackupCode || false,
+      user: sessionResult.user,
+      ...(sessionResult.accessToken && {
+        accessToken: sessionResult.accessToken,
+      }),
+      ...(sessionResult.refreshToken && {
+        refreshToken: sessionResult.refreshToken,
+      }),
     },
   });
 });

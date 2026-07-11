@@ -54,7 +54,6 @@ const setRefreshCookie = (res, refreshToken) => {
 const setAuthCookies = (res, { userId, role, sessionId }) => {
   const accessToken = signAccessToken({ userId, role, sessionId });
   res.cookie(ACCESS_COOKIE_NAME, accessToken, ACCESS_COOKIE_OPTIONS);
-
   return accessToken;
 };
 
@@ -104,12 +103,18 @@ const verifyRefreshToken = (token) => {
   }
 };
 
+const getBearerToken = (req) => {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith("Bearer ")) return null;
+  return header.slice(7).trim() || null;
+};
+
 const getAccessToken = (req) => {
-  return req.cookies?.[ACCESS_COOKIE_NAME] || null;
+  return getBearerToken(req) || req.cookies?.[ACCESS_COOKIE_NAME] || null;
 };
 
 const getRefreshToken = (req) => {
-  return req.cookies?.[REFRESH_COOKIE_NAME] || null;
+  return req.body?.refreshToken || req.cookies?.[REFRESH_COOKIE_NAME] || null;
 };
 
 module.exports = {
@@ -123,6 +128,7 @@ module.exports = {
   verifyRefreshToken,
   getAccessToken,
   getRefreshToken,
+  getBearerToken,
   signAccessToken,
   signRefreshToken,
 };

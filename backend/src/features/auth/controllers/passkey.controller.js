@@ -2,6 +2,8 @@ const { catchAsync } = require("../../../shared/utils/catchAsync");
 const { errors } = require("../../../shared/errors/app.error");
 const passkeyService = require("../services/passkey.service");
 const { createLoginSession } = require("../services/auth.service");
+const { prisma } = require("../../../config/db.config");
+const { clearAuthCookies } = require("../../../shared/utils/cookie.utils");
 
 const getRegistrationOptions = catchAsync(async (req, res) => {
   const options = await passkeyService.getRegistrationOptions({
@@ -41,11 +43,30 @@ const verifyAuthentication = catchAsync(async (req, res) => {
 
   const user = await passkeyService.verifyAuthentication({ credential });
 
-  await createLoginSession(user, req, res);
+  const totp = await prisma.totp.findUnique({
+    where: { userId: user.id },
+    select: { isEnabled: true },
+  });
+
+  if (totp?.isEnabled) {
+    clearAuthCookies(res); // no-op for mobile, harmless
+    return res.status(200).json({
+      success: true,
+      requires2fa: true,
+      data: { userId: user.id },
+    });
+  }
+
+  const result = await createLoginSession(user, req, res);
 
   res.status(200).json({
     success: true,
     message: "Authentification réussie.",
+    data: {
+      user: result.user,
+      ...(result.accessToken && { accessToken: result.accessToken }),
+      ...(result.refreshToken && { refreshToken: result.refreshToken }),
+    },
   });
 });
 

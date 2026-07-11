@@ -8,6 +8,7 @@ const {
   clearAuthCookies,
   setAuthCookies,
   setRefreshCookie,
+  signAccessToken,
 } = require("../../../shared/utils/cookie.utils");
 const { USER_SELECT } = require("../constants/prisma-selects");
 const {
@@ -19,6 +20,10 @@ const {
   createSession,
 } = require("../../../shared/utils/session.utils");
 const { detectDevice } = require("../../../shared/utils/device.utils");
+const {
+  getPlatform,
+  getDeviceId,
+} = require("../../../shared/utils/platform.utils");
 
 const register = catchAsync(async (req, res) => {
   const { name, identifier, email, phone, role } = req.body;
@@ -117,7 +122,11 @@ const verifyLoginOtp = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Connexion réussie. Bienvenue sur SwiftGoma !",
-    data: { user: result.user },
+    data: {
+      user: result.user,
+      ...(result.accessToken && { accessToken: result.accessToken }),
+      ...(result.refreshToken && { refreshToken: result.refreshToken }),
+    },
   });
 });
 
@@ -162,7 +171,11 @@ const loginWithPassword = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Connexion réussie. Bienvenue sur SwiftGoma !",
-    data: { user: result.user },
+    data: {
+      user: result.user,
+      ...(result.accessToken && { accessToken: result.accessToken }),
+      ...(result.refreshToken && { refreshToken: result.refreshToken }),
+    },
   });
 });
 
@@ -247,39 +260,59 @@ const logoutAll = catchAsync(async (req, res) => {
 
 const refresh = catchAsync(async (req, res) => {
   const token = getRefreshToken(req);
+  const platform = getPlatform(req);
+  const deviceId = getDeviceId(req);
 
   if (!token) throw errors.unauthorized();
+  if (platform === "MOBILE" && !deviceId) {
+    throw errors.badRequest("Identifiant d'appareil requis.");
+  }
 
-  const payload = verifyRefreshToken(token);
+  verifyRefreshToken(token);
 
   const stored = await prisma.refreshToken.findUnique({
     where: { token },
     select: {
       id: true,
       userId: true,
+      sessionId: true,
       expiresAt: true,
       revokedAt: true,
-      user: {
-        select: USER_SELECT,
-      },
+      platform: true,
+      deviceId: true,
+      replacedByToken: true,
+      user: { select: USER_SELECT },
     },
   });
 
-  if (!stored || stored.revokedAt) throw errors.tokenExpired();
+  if (!stored) throw errors.tokenExpired();
   if (new Date() > stored.expiresAt) throw errors.tokenExpired();
   if (!stored.user.isActive) throw errors.forbidden();
   if (stored.user.isDeleted) throw errors.accountDeleted();
 
-  const { session, refreshToken: newRefreshToken } = await createSession({
-    userId: stored.userId,
+  if (stored.revokedAt && !stored.replacedByToken) throw errors.tokenExpired();
+
+  const { session, refreshToken: newRefreshToken } = await rotateRefreshToken({
+    storedToken: stored,
     role: stored.user.role,
     deviceInfo: detectDevice(req),
+    platform,
+    deviceId,
   });
 
-  await prisma.refreshToken.update({
-    where: { id: stored.id },
-    data: { revokedAt: new Date() },
-  });
+  if (platform === "MOBILE") {
+    const accessToken = signAccessToken({
+      userId: stored.userId,
+      role: stored.user.role,
+      sessionId: session.id,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Token rafraîchi.",
+      data: { accessToken, refreshToken: newRefreshToken },
+    });
+  }
 
   setAuthCookies(res, {
     userId: stored.userId,
@@ -288,10 +321,7 @@ const refresh = catchAsync(async (req, res) => {
   });
   setRefreshCookie(res, newRefreshToken);
 
-  res.status(200).json({
-    success: true,
-    message: "Token rafraîchi.",
-  });
+  res.status(200).json({ success: true, message: "Token rafraîchi." });
 });
 
 module.exports = {
