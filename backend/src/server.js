@@ -19,6 +19,10 @@ const { sessionRouter } = require("./features/auth/routes/session.routes");
 const { emailRouter } = require("./features/auth/routes/email.routes");
 const { phoneRouter } = require("./features/auth/routes/phone.routes");
 const { usersRouter } = require("./features/users/routes/users.routes");
+const {
+  validatePawaPayConfig,
+} = require("./features/pawapay/config/pawapay.config");
+const { pawapayRouter } = require("./features/pawapay/routes/pawapay.routes");
 
 const app = express();
 
@@ -44,6 +48,7 @@ app.use("/api/v1/auth/sessions", sessionRouter);
 app.use("/api/v1/auth/email", emailRouter);
 app.use("/api/v1/auth/phone", phoneRouter);
 app.use("/api/v1/users", usersRouter);
+app.use("/api/v1/pawapay", pawapayRouter);
 
 app.use((req, res) => {
   res.status(404).json({
@@ -77,6 +82,7 @@ redis.connect().catch((err) => {
 // startAccountCleanupCron();
 // startSubscriptionCron();
 // startOrderCron();
+validatePawaPayConfig();
 
 server.listen(port, () => {
   console.log(`✅ Server running on port ${port}`);

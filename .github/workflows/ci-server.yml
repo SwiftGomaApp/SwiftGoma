@@ -42,7 +42,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/swiftgoma_test_v1
 
   test:
-    name: Auth Unit Tests
+    name: Unit Tests
     runs-on: ubuntu-latest
     needs: lint-and-check
 
