@@ -17,6 +17,11 @@ enum Role {
   ADMIN
 }
 
+enum Platform {
+  WEB
+  MOBILE
+}
+
 enum OtpType {
   EMAIL_VERIFICATION
   PHONE_VERIFICATION
@@ -209,10 +214,15 @@ model RefreshToken {
   revokedAt DateTime?
   createdAt DateTime  @default(now())
 
+  platform        Platform @default(WEB)
+  deviceId        String?
+  replacedByToken String?
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([sessionId])
+  @@index([deviceId])
   @@map("refresh_tokens")
 }
 
@@ -299,28 +309,66 @@ model Address {
 // ─── PROFILES ───────────────────────────────────────────────────────────────────
 
 model SellerProfile {
-  id               String           @id @default(uuid())
-  userId           String           @unique
-  shopName         String
-  description      String?
-  logo             String
+  id     String @id @default(uuid())
+  userId String @unique
+
   country          Country
-  commune          String
-  quartier         String
-  avenue           String
   isApproved       Boolean          @default(false)
   onboardingStatus OnboardingStatus @default(PENDING_KYC)
   approvedAt       DateTime?
   approvedBy       String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+
+  pawapaySubMerchantAgreementAcceptedAt DateTime?
+
+  payoutPhoneNumber String?
+  payoutProvider    String?
+  payoutCurrency    String?
+
+  businessPhone String?
+  businessEmail String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   kyc                 Kyc?
-  subscriptions       Subscription[]
+  subscription        Subscription?
+  shops               Shop[]
   pawapayTransactions PawaPayTransaction[]
 
+  @@index([onboardingStatus])
+  @@index([isApproved])
   @@map("seller_profiles")
+}
+
+model Shop {
+  id              String @id @default(uuid())
+  sellerProfileId String
+
+  name        String
+  slug        String  @unique
+  description String?
+  logo        String
+  coverImage  String?
+
+  country   Country
+  commune   String
+  quartier  String
+  avenue    String
+  reference String?
+  latitude  Float?
+  longitude Float?
+
+  isActive  Boolean @default(true)
+  isPrimary Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sellerProfile SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([sellerProfileId])
+  @@map("shops")
 }
 
 model Kyc {
@@ -401,7 +449,7 @@ model PlanPrice {
 
 model Subscription {
   id              String @id @default(uuid())
-  sellerProfileId String
+  sellerProfileId String @unique
   planId          String
 
   country      Country
@@ -427,7 +475,7 @@ model Subscription {
   plan                Plan                 @relation(fields: [planId], references: [id])
   pawapayTransactions PawaPayTransaction[]
 
-  @@index([sellerProfileId, status])
+  @@index([status])
   @@index([pawapayDepositId])
   @@map("subscriptions")
 }

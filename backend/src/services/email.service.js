@@ -35,7 +35,7 @@ const sendEmail = async ({ to, subject, data, attachments = [] }) => {
     console.log("📧 Template rendered");
 
     const mailOptions = {
-      from: email_from || "SwiftGoma <noreply@swiftgoma.com>",
+      from: email_from || "SwiftGoma <info@swiftgoma.com>",
       to,
       subject,
       html,
