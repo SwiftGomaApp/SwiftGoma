@@ -26,6 +26,7 @@ const { pawapayRouter } = require("./features/pawapay/routes/pawapay.routes");
 const {
   sellerProfileRouter,
 } = require("./features/seller/routes/seller.profile.routes");
+const { sellerKycRouter } = require("./features/seller/routes/seller.kyc.routes");
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use("/api/v1/auth/phone", phoneRouter);
 app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/pawapay", pawapayRouter);
 app.use("/api/v1/seller-profile", sellerProfileRouter);
+app.use("/api/v1/seller-kyc", sellerKycRouter);
 
 app.use((req, res) => {
   res.status(404).json({
