@@ -38,11 +38,24 @@ jobs:
           channel: "stable"
           cache: true
 
+      - name: Check app is scaffolded
+        id: scaffolded
+        run: |
+          if [ -f "pubspec.yaml" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::apps/${{ matrix.app }} has no pubspec.yaml yet — skipping pub get/analyze/test until the app is scaffolded."
+          fi
+
       - name: Install dependencies
+        if: steps.scaffolded.outputs.exists == 'true'
         run: flutter pub get
 
       - name: Analyze
+        if: steps.scaffolded.outputs.exists == 'true'
         run: flutter analyze
 
       - name: Run tests
+        if: steps.scaffolded.outputs.exists == 'true'
         run: flutter test
