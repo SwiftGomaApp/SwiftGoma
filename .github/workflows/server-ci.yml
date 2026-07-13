@@ -1,0 +1,56 @@
+name: Server CI
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - "server/**"
+      - ".github/workflows/server-ci.yml"
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "server/**"
+      - ".github/workflows/server-ci.yml"
+
+defaults:
+  run:
+    working-directory: server
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          # cache: "npm" and cache-dependency-path re-enabled once
+          # server has a package.json + package-lock.json committed
+
+      - name: Check app is scaffolded
+        id: scaffolded
+        run: |
+          if [ -f "package.json" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::server has no package.json yet — skipping install/lint/test until the app is scaffolded."
+          fi
+
+      - name: Install dependencies
+        if: steps.scaffolded.outputs.exists == 'true'
+        run: npm ci
+
+      - name: Lint
+        if: steps.scaffolded.outputs.exists == 'true'
+        run: npm run lint --if-present
+
+      - name: Run tests
+        if: steps.scaffolded.outputs.exists == 'true'
+        run: npm test --if-present
+        env:
+          NODE_ENV: test
