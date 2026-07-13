@@ -1,0 +1,64 @@
+# ===== Environment & secrets =====
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ===== Node / npm =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.pnp/
+.pnp.js
+
+# ===== Next.js (apps/admin) =====
+.next/
+out/
+next-env.d.ts
+.vercel/
+
+# ===== Flutter / Dart (apps/buyer, apps/seller, apps/delivery) =====
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub-cache/
+**/.pub/
+**/build/
+**/ios/Flutter/.last_build_id
+**/ios/Pods/
+**/ios/.symlinks/
+**/android/.gradle/
+**/android/local.properties
+**/android/key.properties
+**/*.iml
+**/*.g.dart
+**/*.freezed.dart
+
+# ===== IDE / editor =====
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# ===== Logs =====
+*.log
+logs/
+
+# ===== Testing / coverage =====
+coverage/
+.nyc_output/
+
+# ===== Build artifacts =====
+dist/
+build/
+
+# ===== Misc =====
+*.tmp
+*.bak
+.cache/
