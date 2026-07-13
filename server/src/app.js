@@ -5,6 +5,9 @@ const express = require("express");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const Sentry = require("@sentry/node");
+const { errorHandler } = require("./common/middleware/errorHandler");
+const { notFound } = require("./common/middleware/notFound");
+const { requestId } = require("./common/middleware/requestId");
 
 const { env, isProduction } = require("./config/env");
 
@@ -37,7 +40,16 @@ const createApp = () => {
 
   // Routes here
 
-  Sentry.setupExpressErrorHandler(app);
+  app.use(notFound);
+
+  Sentry.setupExpressErrorHandler(app, {
+    shouldHandleError(err) {
+      const status = err.status || err.statusCode || 500;
+      return err.isOperational === false || status >= 500;
+    },
+  });
+
+  app.use(errorHandler);
 
   return app;
 };
