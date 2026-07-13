@@ -1,0 +1,116 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit configuration for Swiftgoma.
+# Server uses a feature-based structure: server/src/features/<feature>/ (e.g. orders,
+# payments, wallet, auth, sellers, riders) — each typically holding its own
+# routes/controllers, services, and jobs.
+# Full reference: https://docs.coderabbit.ai/configure-coderabbit
+
+language: "en-US"
+
+reviews:
+  profile: chill # "chill" = focused feedback, "assertive" = more nitpicks
+  request_changes_workflow: true
+  high_level_summary: true
+  sequence_diagrams: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+
+  # Files CodeRabbit should skip entirely
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/.next/**"
+    - "!**/.dart_tool/**"
+    - "!**/build/**"
+    - "!**/ios/Pods/**"
+    - "!**/android/.gradle/**"
+    - "!**/*.g.dart"
+    - "!**/*.freezed.dart"
+    - "!**/*.lock"
+    - "!**/pubspec.lock"
+    - "!**/package-lock.json"
+    - "!**/*.svg"
+    - "!**/*.png"
+    - "!**/*.jpg"
+
+  # Targeted guidance per part of the codebase
+  path_instructions:
+    - path: "server/src/features/**"
+      instructions: |
+        - This is a feature-based module (e.g. orders, payments, wallet, auth, sellers, riders).
+          Confirm each feature stays self-contained — avoid deep imports reaching into another
+          feature's internals; shared logic should go through a common/shared module instead.
+        - Confirm every route/handler enforces authentication/authorization appropriately
+          (JWT for mobile, cookies for web) and validates input before hitting the database.
+
+    - path: "server/src/features/**/*.{route,routes,controller}.*"
+      instructions: |
+        - Confirm auth/authorization checks are present and input is validated before use.
+        - Flag any handler that touches payments, wallet balances, or payouts and doesn't
+          handle PawaPay errors/timeouts explicitly.
+
+    - path: "server/src/features/**/*.service.*"
+      instructions: |
+        - Pay close attention to the PawaPay, Cloudinary, Mapbox, Africa's Talking, and FCM
+          integrations: check for unhandled promise rejections, missing retries, and secrets
+          read from environment variables (never hardcoded).
+        - Flag any code that could double-trigger a payout or refund (idempotency matters here).
+
+    - path: "server/src/features/**/*.job.*"
+      instructions: |
+        - These are BullMQ background jobs (refund timers, payout triggers, notification
+          retries). Check for idempotency, proper error handling, and that failed jobs are
+          retried or logged rather than silently dropped.
+
+    - path: "server/src/features/payments/**"
+      instructions: |
+        - Highest-scrutiny path in the codebase. Check escrow logic, QR-triggered payout
+          logic, and refund logic for race conditions and idempotency. Flag anything that
+          could release or refund funds twice for the same order.
+
+    - path: "server/src/features/orders/**"
+      instructions: |
+        - Check that order state transitions (placed \u2192 accepted/rejected \u2192 fulfillment \u2192
+          handoff \u2192 complete) can't be skipped or entered out of order.
+
+    - path: "server/src/features/auth/**"
+      instructions: |
+        - Review all five auth methods (email/password, email/OTP, Google Auth, Passkey, 2FA
+          TOTP) for consistent session issuance (JWT for mobile, cookies for web) and rate
+          limiting on OTP/password attempts.
+
+    - path: "server/prisma/**"
+      instructions: |
+        - Review schema changes for backward compatibility with existing data.
+        - Flag any migration that could cause data loss without a clear rollback path.
+
+    - path: "apps/buyer/**/*.dart"
+      instructions: |
+        - Check null safety, proper widget disposal (controllers, streams), and that QR
+          scanning / payment / checkout flows handle error and loading states explicitly.
+        - Flag any hardcoded strings that should go through localization, given French/English
+          support is expected.
+
+    - path: "apps/seller/**/*.dart"
+      instructions: |
+        - Pay attention to order accept/reject flows, rider assignment, and QR generation for
+          pickup handoff — these are trust-critical paths.
+
+    - path: "apps/delivery/**/*.dart"
+      instructions: |
+        - Check location/GPS handling for battery efficiency and permission edge cases, and
+          that QR scanning failure states are handled gracefully (no silent failures on a
+          payout-triggering action).
+
+    - path: "apps/admin/**/*.{ts,tsx}"
+      instructions: |
+        - Confirm Support vs Admin permission checks are enforced server-side, not just hidden
+          in the UI.
+        - Check API routes for input validation and proper error responses.
+
+    - path: "**/*.md"
+      instructions: |
+        - Check for clarity and accuracy. Flag outdated references to flows or decisions that
+          contradict the product doc (docs/Swiftgoma_Overview_v1.docx).
