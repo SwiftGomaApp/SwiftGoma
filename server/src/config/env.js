@@ -8,13 +8,16 @@ const env = {
     .map((origin) => origin.trim())
     .filter(Boolean),
   sentryDsn: process.env.SENTRY_DSN || "",
-  redisUrl: process.env.REDIS_URL,
+  redisUrl: process.env.REDIS_URL || "",
   databaseUrl: process.env.DATABASE_URL || "",
+  directUrl: process.env.DIRECT_URL || "",
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME || "",
+    apiKey: process.env.CLOUDINARY_API_KEY || "",
+    apiSecret: process.env.CLOUDINARY_API_SECRET || "",
+  },
 };
 
 const isProduction = env.nodeEnv === "production";
 
-module.exports = {
-  env,
-  isProduction,
-};
+module.exports = { env, isProduction };

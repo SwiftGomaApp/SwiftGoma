@@ -13,6 +13,7 @@ const { notFound } = require("./common/middleware/notFound");
 const { globalLimiter } = require("./common/middleware/rateLimiters");
 const { requestId } = require("./common/middleware/requestId");
 const { checkDatabaseConnection } = require("./config/prisma");
+const { checkCloudinaryConnection } = require("./config/cloudinary");
 
 const createApp = () => {
   const app = express();
@@ -39,13 +40,18 @@ const createApp = () => {
   app.use(globalLimiter);
 
   app.get("/health", async (req, res) => {
-    const db = await checkDatabaseConnection();
+    const [db, cloudinaryStatus] = await Promise.all([
+      checkDatabaseConnection(),
+      checkCloudinaryConnection(),
+    ]);
+    const healthy = db.connected && cloudinaryStatus.connected;
 
-    res.status(db.connected ? 200 : 503).json({
-      status: db.connected ? "ok" : "degraded",
+    res.status(healthy ? 200 : 503).json({
+      status: healthy ? "ok" : "degraded",
       env: env.nodeEnv,
       timestamp: new Date().toISOString(),
       database: db,
+      cloudinary: cloudinaryStatus,
     });
   });
 
