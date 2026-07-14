@@ -58,6 +58,11 @@ coverage/
 dist/
 build/
 
+# ===== Prisma =====
+# Generated client code — regenerated via `npm run db:generate` /
+# postinstall. prisma/migrations/ is NOT ignored — those are committed.
+server/generated/
+
 # ===== Misc =====
 *.tmp
 *.bak

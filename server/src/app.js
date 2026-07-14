@@ -5,17 +5,21 @@ const express = require("express");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const Sentry = require("@sentry/node");
-const { errorHandler } = require("./common/middleware/errorHandler");
-const { notFound } = require("./common/middleware/notFound");
-const { requestId } = require("./common/middleware/requestId");
 
 const { env, isProduction } = require("./config/env");
+const { botDetection } = require("./common/middleware/botDetection");
+const { errorHandler } = require("./common/middleware/errorHandler");
+const { notFound } = require("./common/middleware/notFound");
+const { globalLimiter } = require("./common/middleware/rateLimiters");
+const { requestId } = require("./common/middleware/requestId");
+const { checkDatabaseConnection } = require("./config/prisma");
 
 const createApp = () => {
   const app = express();
 
   app.disable("x-powered-by");
 
+  app.use(requestId);
   app.use(helmet());
   app.use(
     cors({
@@ -30,11 +34,18 @@ const createApp = () => {
   app.use(cookieParser());
   app.use(morgan(isProduction ? "combined" : "dev"));
 
-  app.get("/health", (req, res) => {
-    res.json({
-      status: "ok",
+  app.use(botDetection({ mode: "flag" }));
+
+  app.use(globalLimiter);
+
+  app.get("/health", async (req, res) => {
+    const db = await checkDatabaseConnection();
+
+    res.status(db.connected ? 200 : 503).json({
+      status: db.connected ? "ok" : "degraded",
       env: env.nodeEnv,
       timestamp: new Date().toISOString(),
+      database: db,
     });
   });
 
