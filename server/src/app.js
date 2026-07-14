@@ -14,6 +14,8 @@ const { globalLimiter } = require("./common/middleware/rateLimiters");
 const { requestId } = require("./common/middleware/requestId");
 const { checkDatabaseConnection } = require("./config/prisma");
 const { checkCloudinaryConnection } = require("./config/cloudinary");
+const { checkMailerConnection } = require("./config/mailer");
+const { checkSmsConnection } = require("./config/sms");
 
 const createApp = () => {
   const app = express();
@@ -40,11 +42,17 @@ const createApp = () => {
   app.use(globalLimiter);
 
   app.get("/health", async (req, res) => {
-    const [db, cloudinaryStatus] = await Promise.all([
+    const [db, cloudinaryStatus, mailerStatus, smsStatus] = await Promise.all([
       checkDatabaseConnection(),
       checkCloudinaryConnection(),
+      checkMailerConnection(),
+      checkSmsConnection(),
     ]);
-    const healthy = db.connected && cloudinaryStatus.connected;
+    const healthy =
+      db.connected &&
+      cloudinaryStatus.connected &&
+      mailerStatus.connected &&
+      smsStatus.connected;
 
     res.status(healthy ? 200 : 503).json({
       status: healthy ? "ok" : "degraded",
@@ -52,6 +60,8 @@ const createApp = () => {
       timestamp: new Date().toISOString(),
       database: db,
       cloudinary: cloudinaryStatus,
+      mailer: mailerStatus,
+      sms: smsStatus,
     });
   });
 
