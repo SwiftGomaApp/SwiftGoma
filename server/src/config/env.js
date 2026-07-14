@@ -8,6 +8,8 @@ const env = {
     .map((origin) => origin.trim())
     .filter(Boolean),
   sentryDsn: process.env.SENTRY_DSN || "",
+  redisUrl: process.env.REDIS_URL,
+  databaseUrl: process.env.DATABASE_URL || "",
 };
 
 const isProduction = env.nodeEnv === "production";
