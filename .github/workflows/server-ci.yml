@@ -20,20 +20,14 @@ jobs:
   lint-and-test:
     runs-on: ubuntu-latest
 
+    # No local Postgres container here — @prisma/adapter-neon (used in
+    # src/config/prisma.js) speaks Neon's own WebSocket/HTTP proxy
+    # protocol, not plain Postgres wire protocol. A generic postgres:16
+    # container has no such proxy and can never satisfy this adapter,
+    # regardless of what DATABASE_URL points at. Tests run against a real
+    # Neon database instead — ideally a dedicated test branch, so CI runs
+    # never touch production data. See repo secrets: TEST_DATABASE_URL.
     services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: swiftgoma
-          POSTGRES_PASSWORD: swiftgoma
-          POSTGRES_DB: swiftgoma_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
       redis:
         image: redis:7
         ports:
@@ -46,8 +40,11 @@ jobs:
 
     env:
       NODE_ENV: test
-      DATABASE_URL: postgresql://swiftgoma:swiftgoma@localhost:5432/swiftgoma_test
-      DIRECT_URL: postgresql://swiftgoma:swiftgoma@localhost:5432/swiftgoma_test
+      # Set in the repo's Settings -> Secrets and variables -> Actions.
+      # Point this at a dedicated Neon test branch, NOT production —
+      # migrate deploy + the test suite both write data.
+      DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.TEST_DATABASE_URL }}
       REDIS_URL: redis://localhost:6379
       # None of these are real credentials — they only need to satisfy each
       # config module's own validation (e.g. JWT secrets ≥32 chars, TOTP key
@@ -82,6 +79,14 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "::warning::server has no package.json yet — skipping install/lint/test until the app is scaffolded."
+          fi
+
+      - name: Check TEST_DATABASE_URL is configured
+        if: steps.scaffolded.outputs.exists == 'true'
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::TEST_DATABASE_URL secret is not set — add a dedicated Neon test branch connection string in repo Settings > Secrets and variables > Actions."
+            exit 1
           fi
 
       - name: Install dependencies
