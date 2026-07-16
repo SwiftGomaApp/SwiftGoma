@@ -1,6 +1,9 @@
 const { renderEmailLayout } = require("../layout");
 const { BRAND } = require("../../constants/brand");
 
+const FONT_FAMILY =
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+
 const COPY = {
   en: {
     subject: `New sign-in detected on your ${BRAND.name} account`,
@@ -52,29 +55,61 @@ function loginDetectedEmail(data) {
     reviewActivityUrl,
     locale = "en",
   } = data;
+
   const t = COPY[locale] || COPY.en;
 
   const bodyHtml = `
-    <p style="margin: 0 0 16px 0;">${t.hello(name)}</p>
-    <p style="margin: 0 0 16px 0;">${t.intro(email)}</p>
-    <p style="margin: 0 0 4px 0;"><strong>${t.location}</strong> ${location}</p>
-    <p style="margin: 0 0 4px 0;"><strong>${t.time}</strong> ${time}</p>
-    <p style="margin: 0 0 4px 0;"><strong>${t.browser}</strong> ${browser}</p>
-    <p style="margin: 0 0 4px 0;"><strong>${t.device}</strong> ${device}</p>
-    <p style="margin: 0 0 16px 0;"><strong>${t.ip}</strong> ${ip}</p>
-    <p style="margin: 0;">${t.dontRecognize}</p>
+    <p style="margin: 0 0 16px 0; font-family: ${FONT_FAMILY};">
+      ${t.hello(name)}
+    </p>
+
+    <p style="margin: 0 0 16px 0; font-family: ${FONT_FAMILY};">
+      ${t.intro(email)}
+    </p>
+
+    <p style="margin: 0 0 4px 0; font-family: ${FONT_FAMILY};">
+      <strong>${t.location}</strong> ${location}
+    </p>
+
+    <p style="margin: 0 0 4px 0; font-family: ${FONT_FAMILY};">
+      <strong>${t.time}</strong> ${time}
+    </p>
+
+    <p style="margin: 0 0 4px 0; font-family: ${FONT_FAMILY};">
+      <strong>${t.browser}</strong> ${browser}
+    </p>
+
+    <p style="margin: 0 0 4px 0; font-family: ${FONT_FAMILY};">
+      <strong>${t.device}</strong> ${device}
+    </p>
+
+    <p style="margin: 0 0 16px 0; font-family: ${FONT_FAMILY};">
+      <strong>${t.ip}</strong> ${ip}
+    </p>
+
+    <p style="margin: 0; font-family: ${FONT_FAMILY};">
+      ${t.dontRecognize}
+    </p>
   `;
 
   const html = renderEmailLayout({
     preheader: t.preheader(location),
     heading: t.subject,
     bodyHtml,
-    cta: { text: t.ctaText, url: reviewActivityUrl },
+    cta: {
+      text: t.ctaText,
+      url: reviewActivityUrl,
+    },
     reason: t.reason,
     locale,
   });
 
-  return { subject: t.subject, html };
+  return {
+    subject: t.subject,
+    html,
+  };
 }
 
-module.exports = { loginDetectedEmail };
+module.exports = {
+  loginDetectedEmail,
+};

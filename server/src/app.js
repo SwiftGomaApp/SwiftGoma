@@ -10,12 +10,16 @@ const { env, isProduction } = require("./config/env");
 const { botDetection } = require("./common/middleware/botDetection");
 const { errorHandler } = require("./common/middleware/errorHandler");
 const { notFound } = require("./common/middleware/notFound");
-const { globalLimiter } = require("./common/middleware/rateLimiters");
+const {
+  globalLimiter,
+  authLimiter,
+} = require("./common/middleware/rateLimiters");
 const { requestId } = require("./common/middleware/requestId");
 const { checkDatabaseConnection } = require("./config/prisma");
 const { checkCloudinaryConnection } = require("./config/cloudinary");
 const { checkMailerConnection } = require("./config/mailer");
 const { checkSmsConnection } = require("./config/sms");
+const AuthRouter = require("./features/auth/routes/auth.routes");
 
 const createApp = () => {
   const app = express();
@@ -41,7 +45,7 @@ const createApp = () => {
 
   app.use(globalLimiter);
 
-  app.get("/health", async (req, res) => {
+  app.get("/api/v1/health", async (req, res) => {
     const [db, cloudinaryStatus, mailerStatus, smsStatus] = await Promise.all([
       checkDatabaseConnection(),
       checkCloudinaryConnection(),
@@ -66,6 +70,12 @@ const createApp = () => {
   });
 
   // Routes here
+  app.use(
+    "/api/v1/auth",
+    // botDetection({ mode: "block" }),
+    // authLimiter,
+    AuthRouter,
+  );
 
   app.use(notFound);
 

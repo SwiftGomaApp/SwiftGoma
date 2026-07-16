@@ -10,9 +10,119 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  BUYER
+  SELLER
+  RIDER
+  ADMIN
+  SUPPORT
+}
+
 model User {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
+  googleId  String? @unique
   name      String
-  email     String   @unique
+  phone     String?
+  email     String?
+  password  String?
+  role      Role    @default(BUYER)
+  avatarUrl String?
+
+  isActive        Boolean @default(true)
+  isEmailVerified Boolean @default(false)
+  isPhoneVerified Boolean @default(false)
+  isBlocked       Boolean @default(false)
+
+  emailVerificationCode          String?
+  emailVerificationCodeExpiresAt DateTime?
+  phoneVerificationCode          String?
+  phoneVerificationCodeExpiresAt DateTime?
+
+  loginOtp          String?
+  loginOtpExpiresAt DateTime?
+
+  passwordResetCode          String?
+  passwordResetCodeExpiresAt DateTime?
+
+  sessions Session[]
+  passkeys Passkey[]
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  twoFactorAuth TwoFactorAuth?
+
+  @@map("users")
+}
+
+model Session {
+  id               String @id @default(uuid())
+  userId           String
+  user             User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String @unique
+
+  userAgent  String?
+  ipAddress  String?
+  deviceName String?
+
+  isRevoked  Boolean  @default(false)
+  expiresAt  DateTime
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model TwoFactorAuth {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  secret String
+
+  isEnabled Boolean @default(false)
+
+  backupCodes TwoFactorBackupCode[]
+
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("two_factor_auth")
+}
+
+model TwoFactorBackupCode {
+  id          String        @id @default(uuid())
+  twoFactorId String
+  twoFactor   TwoFactorAuth @relation(fields: [twoFactorId], references: [id], onDelete: Cascade)
+
+  codeHash String
+
+  isUsed Boolean   @default(false)
+  usedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([twoFactorId])
+  @@map("two_factor_backup_codes")
+}
+
+model Passkey {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  credentialId String @unique
+  publicKey    String
+  counter      BigInt @default(0)
+
+  deviceType String?
+  backedUp   Boolean @default(false)
+  transports String?
+  deviceName String?
+
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("passkeys")
 }
