@@ -1,3 +1,6 @@
+const { neonConfig } = require("@neondatabase/serverless");
+const ws = require("ws");
+neonConfig.webSocketConstructor = ws;
 const { PrismaNeon } = require("@prisma/adapter-neon");
 const { PrismaClient } = require("../../generated/prisma");
 
@@ -35,11 +38,3 @@ async function checkDatabaseConnection(timeoutMs = 3000) {
 }
 
 module.exports = { getPrismaClient, checkDatabaseConnection };
-
-// const { getPrismaClient } = require("../../config/prisma"); // adjust relative path as needed
-// const prisma = getPrismaClient();
-
-// // e.g. inside a feature service
-// async function findSellerById(id) {
-//   return prisma.seller.findUnique({ where: { id } });
-// }

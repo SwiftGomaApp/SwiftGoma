@@ -7,15 +7,19 @@ const morgan = require("morgan");
 const Sentry = require("@sentry/node");
 
 const { env, isProduction } = require("./config/env");
+const { checkCloudinaryConnection } = require("./config/cloudinary");
+const { checkMailerConnection } = require("./config/mailer");
+const { checkDatabaseConnection } = require("./config/prisma");
+const { checkSmsConnection } = require("./config/sms");
 const { botDetection } = require("./common/middleware/botDetection");
 const { errorHandler } = require("./common/middleware/errorHandler");
 const { notFound } = require("./common/middleware/notFound");
-const { globalLimiter } = require("./common/middleware/rateLimiters");
+const {
+  globalLimiter,
+  authLimiter,
+} = require("./common/middleware/rateLimiters");
 const { requestId } = require("./common/middleware/requestId");
-const { checkDatabaseConnection } = require("./config/prisma");
-const { checkCloudinaryConnection } = require("./config/cloudinary");
-const { checkMailerConnection } = require("./config/mailer");
-const { checkSmsConnection } = require("./config/sms");
+const authRoutes = require("./features/auth/routes/auth.routes");
 
 const createApp = () => {
   const app = express();
@@ -64,8 +68,12 @@ const createApp = () => {
       sms: smsStatus,
     });
   });
-
-  // Routes here
+  app.use(
+    "/api/v1/auth",
+    // botDetection({ mode: "block" }),
+    // authLimiter,
+    authRoutes,
+  );
 
   app.use(notFound);
 

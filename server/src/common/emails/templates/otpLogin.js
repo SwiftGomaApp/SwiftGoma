@@ -1,6 +1,9 @@
 const { renderEmailLayout } = require("../layout");
 const { BRAND } = require("../../constants/brand");
 
+const FONT_FAMILY =
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+
 const COPY = {
   en: {
     heading: `Your ${BRAND.name} login code`,
@@ -29,18 +32,42 @@ function otpLoginEmail(data) {
   const t = COPY[locale] || COPY.en;
 
   const bodyHtml = `
-    <p style="margin: 0 0 16px 0;">${t.hello(name)}</p>
-    <p style="margin: 0 0 24px 0;">${t.intro}</p>
+    <p style="margin: 0 0 16px 0; font-family: ${FONT_FAMILY};">
+      ${t.hello(name)}
+    </p>
+
+    <p style="margin: 0 0 24px 0; font-family: ${FONT_FAMILY};">
+      ${t.intro}
+    </p>
+
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px 0;">
       <tr>
-        <td style="background-color: #f5f5f5; border-radius: 6px; padding: 16px 24px;
-                    font-family: 'Courier New', monospace; font-size: 32px; font-weight: bold;
-                    letter-spacing: 6px; color: ${BRAND.colors.text};">
+        <td
+          style="
+            background-color: #f5f5f5;
+            border-radius: 6px;
+            padding: 16px 24px;
+            font-family: 'Courier New', monospace;
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 6px;
+            color: ${BRAND.colors.text};
+          "
+        >
           ${code}
         </td>
       </tr>
     </table>
-    <p style="margin: 0; color: ${BRAND.colors.muted};">${t.expiry(expiresInMinutes)}</p>
+
+    <p
+      style="
+        margin: 0;
+        font-family: ${FONT_FAMILY};
+        color: ${BRAND.colors.muted};
+      "
+    >
+      ${t.expiry(expiresInMinutes)}
+    </p>
   `;
 
   const html = renderEmailLayout({
@@ -52,7 +79,12 @@ function otpLoginEmail(data) {
     locale,
   });
 
-  return { subject: t.subject(code), html };
+  return {
+    subject: t.subject(code),
+    html,
+  };
 }
 
-module.exports = { otpLoginEmail };
+module.exports = {
+  otpLoginEmail,
+};
