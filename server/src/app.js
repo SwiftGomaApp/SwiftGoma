@@ -41,13 +41,8 @@ const createApp = () => {
   app.use(cookieParser());
   app.use(morgan(isProduction ? "combined" : "dev"));
 
-  // Tags every request with req.isSuspectedBot for monitoring, without
-  // blocking anything — sensitive routes below apply a stricter, blocking
-  // version of this on top.
   app.use(botDetection({ mode: "flag" }));
 
-  // Broad, app-wide rate limit. Auth and payment routes layer a tighter
-  // limiter on top of this one (see below), they don't replace it.
   app.use(globalLimiter);
 
   app.get("/health", async (req, res) => {
@@ -73,32 +68,15 @@ const createApp = () => {
       sms: smsStatus,
     });
   });
-
-  // Routes here. Auth and payment routes should layer on the stricter
-  // limiter/bot-blocking for their route group, e.g:
-  //
-  // const { authLimiter, paymentLimiter } = require("./common/middleware/rateLimiters");
-  //
-  // app.use(
-  //   "/api/payments",
-  //   botDetection({ mode: "block" }),
-  //   paymentLimiter,
-  //   require("./features/payments/payments.routes")
-  // );
-
   app.use(
     "/api/v1/auth",
-    botDetection({ mode: "block" }),
-    authLimiter,
+    // botDetection({ mode: "block" }),
+    // authLimiter,
     authRoutes,
   );
 
-  // No route matched — throws a NotFoundError into the handlers below.
   app.use(notFound);
 
-  // Only report genuine bugs to Sentry — expected 4xx errors (validation,
-  // not found, unauthorized, rate-limited, etc.) are normal traffic, not
-  // incidents.
   Sentry.setupExpressErrorHandler(app, {
     shouldHandleError(err) {
       const status = err.status || err.statusCode || 500;
@@ -106,8 +84,6 @@ const createApp = () => {
     },
   });
 
-  // Final handler — always runs last, formats every error (Sentry-reported
-  // or not) into the same JSON response shape for the client.
   app.use(errorHandler);
 
   return app;
