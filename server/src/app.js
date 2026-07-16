@@ -7,6 +7,10 @@ const morgan = require("morgan");
 const Sentry = require("@sentry/node");
 
 const { env, isProduction } = require("./config/env");
+const { checkCloudinaryConnection } = require("./config/cloudinary");
+const { checkMailerConnection } = require("./config/mailer");
+const { checkDatabaseConnection } = require("./config/prisma");
+const { checkSmsConnection } = require("./config/sms");
 const { botDetection } = require("./common/middleware/botDetection");
 const { errorHandler } = require("./common/middleware/errorHandler");
 const { notFound } = require("./common/middleware/notFound");
@@ -15,11 +19,7 @@ const {
   authLimiter,
 } = require("./common/middleware/rateLimiters");
 const { requestId } = require("./common/middleware/requestId");
-const { checkDatabaseConnection } = require("./config/prisma");
-const { checkCloudinaryConnection } = require("./config/cloudinary");
-const { checkMailerConnection } = require("./config/mailer");
-const { checkSmsConnection } = require("./config/sms");
-const AuthRouter = require("./features/auth/routes/auth.routes");
+const authRoutes = require("./features/auth/routes/auth.routes");
 
 const createApp = () => {
   const app = express();
@@ -41,11 +41,16 @@ const createApp = () => {
   app.use(cookieParser());
   app.use(morgan(isProduction ? "combined" : "dev"));
 
+  // Tags every request with req.isSuspectedBot for monitoring, without
+  // blocking anything — sensitive routes below apply a stricter, blocking
+  // version of this on top.
   app.use(botDetection({ mode: "flag" }));
 
+  // Broad, app-wide rate limit. Auth and payment routes layer a tighter
+  // limiter on top of this one (see below), they don't replace it.
   app.use(globalLimiter);
 
-  app.get("/api/v1/health", async (req, res) => {
+  app.get("/health", async (req, res) => {
     const [db, cloudinaryStatus, mailerStatus, smsStatus] = await Promise.all([
       checkDatabaseConnection(),
       checkCloudinaryConnection(),
@@ -69,16 +74,31 @@ const createApp = () => {
     });
   });
 
-  // Routes here
+  // Routes here. Auth and payment routes should layer on the stricter
+  // limiter/bot-blocking for their route group, e.g:
+  //
+  // const { authLimiter, paymentLimiter } = require("./common/middleware/rateLimiters");
+  //
+  // app.use(
+  //   "/api/payments",
+  //   botDetection({ mode: "block" }),
+  //   paymentLimiter,
+  //   require("./features/payments/payments.routes")
+  // );
+
   app.use(
     "/api/v1/auth",
-    // botDetection({ mode: "block" }),
-    // authLimiter,
-    AuthRouter,
+    botDetection({ mode: "block" }),
+    authLimiter,
+    authRoutes,
   );
 
+  // No route matched — throws a NotFoundError into the handlers below.
   app.use(notFound);
 
+  // Only report genuine bugs to Sentry — expected 4xx errors (validation,
+  // not found, unauthorized, rate-limited, etc.) are normal traffic, not
+  // incidents.
   Sentry.setupExpressErrorHandler(app, {
     shouldHandleError(err) {
       const status = err.status || err.statusCode || 500;
@@ -86,6 +106,8 @@ const createApp = () => {
     },
   });
 
+  // Final handler — always runs last, formats every error (Sentry-reported
+  // or not) into the same JSON response shape for the client.
   app.use(errorHandler);
 
   return app;

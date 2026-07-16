@@ -20,6 +20,49 @@ jobs:
   lint-and-test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: swiftgoma
+          POSTGRES_PASSWORD: swiftgoma
+          POSTGRES_DB: swiftgoma_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://swiftgoma:swiftgoma@localhost:5432/swiftgoma_test
+      DIRECT_URL: postgresql://swiftgoma:swiftgoma@localhost:5432/swiftgoma_test
+      REDIS_URL: redis://localhost:6379
+      # None of these are real credentials — they only need to satisfy each
+      # config module's own validation (e.g. JWT secrets ≥32 chars, TOTP key
+      # must be a 32-byte hex string) so the app boots and signs/verifies
+      # tokens correctly during tests. Nothing here ever talks to a real
+      # third-party service — emails/SMS are mocked in the test suite itself.
+      JWT_ACCESS_SECRET: ci-test-access-secret-at-least-32-characters-long
+      JWT_REFRESH_SECRET: ci-test-refresh-secret-different-from-access-key
+      TOTP_SECRET_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      GOOGLE_CLIENT_ID: ci-test-client-id.apps.googleusercontent.com
+      WEBAUTHN_RP_ID: localhost
+      WEBAUTHN_RP_NAME: Swiftgoma CI
+      CLIENT_ORIGINS: http://localhost:3000
+      APP_URL: http://localhost:3000
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,8 +71,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          # cache: "npm" and cache-dependency-path re-enabled once
-          # server has a package.json + package-lock.json committed
+          cache: "npm"
+          cache-dependency-path: server/package-lock.json
 
       - name: Check app is scaffolded
         id: scaffolded
@@ -45,12 +88,14 @@ jobs:
         if: steps.scaffolded.outputs.exists == 'true'
         run: npm ci
 
+      - name: Apply database migrations
+        if: steps.scaffolded.outputs.exists == 'true'
+        run: npx prisma migrate deploy
+
       - name: Lint
         if: steps.scaffolded.outputs.exists == 'true'
         run: npm run lint --if-present
 
       - name: Run tests
         if: steps.scaffolded.outputs.exists == 'true'
-        run: npm test --if-present
-        env:
-          NODE_ENV: test
+        run: npm test
