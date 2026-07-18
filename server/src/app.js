@@ -20,6 +20,7 @@ const {
 } = require("./common/middleware/rateLimiters");
 const { requestId } = require("./common/middleware/requestId");
 const authRoutes = require("./features/auth/routes/auth.routes");
+const UserRouter = require("./features/users/routes/user.routes");
 
 const createApp = () => {
   const app = express();
@@ -45,7 +46,7 @@ const createApp = () => {
 
   app.use(globalLimiter);
 
-  app.get("/health", async (req, res) => {
+  app.get("/api/v1/health", async (req, res) => {
     const [db, cloudinaryStatus, mailerStatus, smsStatus] = await Promise.all([
       checkDatabaseConnection(),
       checkCloudinaryConnection(),
@@ -73,6 +74,12 @@ const createApp = () => {
     // botDetection({ mode: "block" }),
     // authLimiter,
     authRoutes,
+  );
+  app.use(
+    "/api/v1/users",
+    // botDetection({ mode: "block" }),
+    // authLimiter,
+    UserRouter,
   );
 
   app.use(notFound);

@@ -7,6 +7,9 @@ const { newsEmail } = require("./templates/news");
 const { passwordResetOtpEmail } = require("./templates/passwordReset");
 const { passwordChangedEmail } = require("./templates/passwordChanged");
 const { twoFactorChangedEmail } = require("./templates/twoFactorChanged");
+const { phoneChangedEmail } = require("./templates/phoneChanged");
+const { accountDeletionEmail } = require("./templates/accountDeletion");
+const { accountRecoveryOtpEmail } = require("./templates/accountRecoveryOtp");
 
 async function sendLoginDetectedEmail(to, data) {
   const { subject, html } = loginDetectedEmail(data);
@@ -48,6 +51,21 @@ async function sendTwoFactorChangedEmail(to, data) {
   return sendMail({ to, subject, html });
 }
 
+async function sendPhoneChangedEmail(to, data) {
+  const { subject, html } = phoneChangedEmail(data);
+  return sendMail({ to, subject, html });
+}
+
+async function sendAccountDeletionEmail(to, data) {
+  const { subject, html } = accountDeletionEmail(data);
+  return sendMail({ to, subject, html });
+}
+
+async function sendAccountRecoveryOtpEmail(to, data) {
+  const { subject, html } = accountRecoveryOtpEmail(data);
+  return sendMail({ to, subject, html });
+}
+
 module.exports = {
   sendLoginDetectedEmail,
   sendOtpLoginEmail,
@@ -57,6 +75,9 @@ module.exports = {
   sendPasswordResetOtpEmail,
   sendPasswordChangedEmail,
   sendTwoFactorChangedEmail,
+  sendPhoneChangedEmail,
+  sendAccountDeletionEmail,
+  sendAccountRecoveryOtpEmail,
   loginDetectedEmail,
   otpLoginEmail,
   paymentReceiptEmail,
@@ -65,4 +86,7 @@ module.exports = {
   passwordResetOtpEmail,
   passwordChangedEmail,
   twoFactorChangedEmail,
+  phoneChangedEmail,
+  accountDeletionEmail,
+  accountRecoveryOtpEmail,
 };

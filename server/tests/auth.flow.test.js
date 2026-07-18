@@ -39,13 +39,22 @@ let refreshToken;
 
 async function getUserField(field) {
   const user = await prisma.user.findFirst({
-    where: { email: TEST_EMAIL.toLowerCase() },
+    where: { emails: { some: { email: TEST_EMAIL.toLowerCase() } } },
   });
   return user ? user[field] : null;
 }
 
+async function getUserEmailField(field) {
+  const userEmail = await prisma.userEmail.findFirst({
+    where: { email: TEST_EMAIL.toLowerCase() },
+  });
+  return userEmail ? userEmail[field] : null;
+}
+
 afterAll(async () => {
-  await prisma.user.deleteMany({ where: { email: TEST_EMAIL.toLowerCase() } });
+  await prisma.user.deleteMany({
+    where: { emails: { some: { email: TEST_EMAIL.toLowerCase() } } },
+  });
   await prisma.$disconnect();
 });
 
@@ -73,7 +82,7 @@ describe("Full auth flow", () => {
 
     expect(res.status).toBe(201);
     const count = await prisma.user.count({
-      where: { email: TEST_EMAIL.toLowerCase() },
+      where: { emails: { some: { email: TEST_EMAIL.toLowerCase() } } },
     });
     expect(count).toBe(1);
   });
@@ -89,7 +98,7 @@ describe("Full auth flow", () => {
   });
 
   test("POST /verify-email succeeds with the real code", async () => {
-    const code = await getUserField("emailVerificationCode");
+    const code = await getUserEmailField("verificationCode");
     expect(code).toBeTruthy();
 
     const res = await req("post", "/api/v1/auth/verify-email").send({

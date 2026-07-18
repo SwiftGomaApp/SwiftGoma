@@ -19,22 +19,20 @@ enum Role {
 }
 
 model User {
-  id        String  @id @default(uuid())
-  googleId  String? @unique
-  name      String
-  phone     String?
-  email     String?
-  password  String?
-  role      Role    @default(BUYER)
-  avatarUrl String?
+  id           String  @id @default(uuid())
+  name         String
+  phone        String?
+  pendingPhone String?
+  password     String?
+  role         Role    @default(BUYER)
+  avatarUrl    String?
 
-  isActive        Boolean @default(true)
-  isEmailVerified Boolean @default(false)
   isPhoneVerified Boolean @default(false)
   isBlocked       Boolean @default(false)
 
-  emailVerificationCode          String?
-  emailVerificationCodeExpiresAt DateTime?
+  deletedAt      DateTime?
+  deletionReason String?
+
   phoneVerificationCode          String?
   phoneVerificationCodeExpiresAt DateTime?
 
@@ -44,14 +42,64 @@ model User {
   passwordResetCode          String?
   passwordResetCodeExpiresAt DateTime?
 
-  sessions Session[]
-  passkeys Passkey[]
+  accountRecoveryCode          String?
+  accountRecoveryCodeExpiresAt DateTime?
 
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  googleId String? @unique
+
+  emails        UserEmail[]
+  sessions      Session[]
   twoFactorAuth TwoFactorAuth?
+  passkeys      Passkey[]
+
+  actionsReceived  AccountActionLog[] @relation("TargetUser")
+  actionsPerformed AccountActionLog[] @relation("ActorUser")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("users")
+}
+
+model UserEmail {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  email      String  @unique
+  isPrimary  Boolean @default(false)
+  isVerified Boolean @default(false)
+
+  verificationCode          String?
+  verificationCodeExpiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("user_emails")
+}
+
+model AccountActionLog {
+  id String @id @default(uuid())
+
+  actorId   String?
+  actor     User?   @relation("ActorUser", fields: [actorId], references: [id])
+  actorRole String?
+
+  targetUserId    String?
+  targetUser      User?   @relation("TargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+  targetUserEmail String
+
+  action   String
+  reason   String?
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([targetUserId])
+  @@index([actorId])
+  @@map("account_action_logs")
 }
 
 model Session {
