@@ -118,6 +118,7 @@ async function verifyPhoneUpdate(req, res) {
   });
   res.status(200).json({ success: true, data: user });
 }
+
 async function requestSecondaryEmail(req, res) {
   const { email, locale } = req.body;
   const result = await userService.requestSecondaryEmail({
@@ -138,6 +139,147 @@ async function verifySecondaryEmail(req, res) {
   res.status(200).json({ success: true, data: user });
 }
 
+async function postLinkGoogle(req, res, next) {
+  try {
+    const result = await userService.linkGoogleAccount(
+      req.user.id,
+      req.body.idToken,
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postUnlinkGoogle(req, res, next) {
+  try {
+    const result = await userService.unlinkGoogleAccount(req.user.id);
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function getUsers(req, res, next) {
+  try {
+    const result = await userService.listUsers(req.query);
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function getUserById(req, res, next) {
+  try {
+    const result = await userService.getUserDetail(req.params.id);
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postBlockUser(req, res, next) {
+  try {
+    const result = await userService.blockUser(
+      req.user,
+      req.params.id,
+      req.body.reason,
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postUnblockUser(req, res, next) {
+  try {
+    const result = await userService.unblockUser(
+      req.user,
+      req.params.id,
+      req.body.reason,
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postForceLogout(req, res, next) {
+  try {
+    const result = await userService.forceLogout(
+      req.user,
+      req.params.id,
+      req.body.sessionId,
+      req.body.reason,
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postVerifyEmail(req, res, next) {
+  try {
+    const result = await verifyUserEmail(
+      req.user,
+      req.params.id,
+      req.body.emailId,
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postVerifyPhone(req, res, next) {
+  try {
+    const result = await userService.verifyUserPhone(req.user, req.params.id);
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postDeleteUser(req, res, next) {
+  try {
+    const result = await userService.adminDeleteUser(
+      req.user,
+      req.params.id,
+      req.body.reason,
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postRestoreUser(req, res, next) {
+  try {
+    const result = await userService.adminRestoreUser(
+      req.user,
+      req.params.id,
+      req.body.reason,
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postChangeRole(req, res, next) {
+  try {
+    const result = await changeUserRole(
+      req.user,
+      req.params.id,
+      req.body.role,
+      req.body.reason,
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   updateProfile,
   deleteAccount,
@@ -150,4 +292,16 @@ module.exports = {
   verifyPhoneUpdate,
   requestSecondaryEmail,
   verifySecondaryEmail,
+  postLinkGoogle,
+  postUnlinkGoogle,
+  getUsers,
+  getUserById,
+  postBlockUser,
+  postUnblockUser,
+  postForceLogout,
+  postVerifyEmail,
+  postVerifyPhone,
+  postDeleteUser,
+  postRestoreUser,
+  postChangeRole,
 };

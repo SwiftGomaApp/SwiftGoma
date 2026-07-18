@@ -10,6 +10,8 @@ const { twoFactorChangedEmail } = require("./templates/twoFactorChanged");
 const { phoneChangedEmail } = require("./templates/phoneChanged");
 const { accountDeletionEmail } = require("./templates/accountDeletion");
 const { accountRecoveryOtpEmail } = require("./templates/accountRecoveryOtp");
+const { accountStatusEmail } = require("./templates/accountStatus");
+const { sessionsRevokedEmail } = require("./templates/sessionsRevoked");
 
 async function sendLoginDetectedEmail(to, data) {
   const { subject, html } = loginDetectedEmail(data);
@@ -66,6 +68,16 @@ async function sendAccountRecoveryOtpEmail(to, data) {
   return sendMail({ to, subject, html });
 }
 
+async function sendAccountStatusEmail(to, data) {
+  const { subject, html } = accountStatusEmail(data);
+  return sendMail({ to, subject, html });
+}
+
+async function sendSessionsRevokedEmail(to, data) {
+  const { subject, html } = sessionsRevokedEmail(data);
+  return sendMail({ to, subject, html });
+}
+
 module.exports = {
   sendLoginDetectedEmail,
   sendOtpLoginEmail,
@@ -89,4 +101,6 @@ module.exports = {
   phoneChangedEmail,
   accountDeletionEmail,
   accountRecoveryOtpEmail,
+  sendAccountStatusEmail,
+  sendSessionsRevokedEmail,
 };

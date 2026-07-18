@@ -5,6 +5,9 @@ const {
   sendPhoneChangedEmail,
   sendAccountDeletionEmail,
   sendAccountRecoveryOtpEmail,
+  sendAccountStatusEmail,
+  sendSessionsRevokedEmail,
+  accountDeletionEmail,
 } = require("../../../common/emails");
 const { sendSms } = require("../../../config/sms");
 const { uploadImage } = require("../../../common/services/cloudinaryUpload");
@@ -17,6 +20,9 @@ const {
   ConflictError,
   NotFoundError,
   TooManyRequestsError,
+  ForbiddenError,
+  BadRequestError,
+  UnauthorizedError,
 } = require("../../../common/errors");
 const {
   isValidName,
@@ -33,14 +39,76 @@ const {
 } = require("../../auth/services/auth.service");
 const { ACCOUNT_DELETION_CONFIG } = require("../config/accountDeletion.config");
 const { isWithinRecoveryGracePeriod } = require("../utils/accountDeletion");
+const { verifyGoogleIdToken } = require("../../auth/config/google.config");
 const { maskPhone } = require("../utils/phone");
 
 const PHONE_OTP_TTL_MINUTES = 10;
 const PHONE_OTP_RESEND_COOLDOWN_SECONDS = 30;
+const MAX_LIMIT = 100;
+const PRIVILEGED_ROLES = ["ADMIN", "SUPPORT"];
+const VALID_ROLES = ["BUYER", "SELLER", "RIDER", "ADMIN", "SUPPORT"];
 const SECONDARY_EMAIL_OTP_TTL_MINUTES = 10;
+
+const SENSITIVE_FIELDS = [
+  "password",
+  "phoneVerificationCode",
+  "phoneVerificationCodeExpiresAt",
+  "loginOtp",
+  "loginOtpExpiresAt",
+  "passwordResetCode",
+  "passwordResetCodeExpiresAt",
+  "accountRecoveryCode",
+  "accountRecoveryCodeExpiresAt",
+];
+
+const prisma = getPrismaClient();
 
 function getPrimaryEmail(user) {
   return (user.emails || []).find((e) => e.isPrimary) || null;
+}
+
+function parsePagination(query) {
+  const page = Math.max(parseInt(query.page, 10) || 1, 1);
+  const limit = Math.min(
+    Math.max(parseInt(query.limit, 10) || 20, 1),
+    MAX_LIMIT,
+  );
+  return { page, limit, skip: (page - 1) * limit };
+}
+
+function buildStatusFilter(status) {
+  switch (status) {
+    case "blocked":
+      return { isBlocked: true, deletedAt: null };
+    case "deleted":
+      return { deletedAt: { not: null } };
+    case "active":
+      return { isBlocked: false, deletedAt: null };
+    default:
+      return {};
+  }
+}
+
+function assertCanActOnTarget(actor, targetUser) {
+  if (targetUser.id === actor.id) {
+    throw new BadRequestError(
+      "You cannot perform this action on your own account.",
+    );
+  }
+  if (actor.role === "SUPPORT" && PRIVILEGED_ROLES.includes(targetUser.role)) {
+    throw new ForbiddenError(
+      "SUPPORT cannot act on ADMIN or SUPPORT accounts.",
+    );
+  }
+}
+
+async function getTargetUserOrThrow(targetUserId) {
+  const targetUser = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    include: { emails: { where: { isPrimary: true }, take: 1 } },
+  });
+  if (!targetUser) throw new NotFoundError("User not found.");
+  return { ...targetUser, email: targetUser.emails[0]?.email ?? "" };
 }
 
 async function updateProfile({ userId, name, avatarUrl }) {
@@ -718,6 +786,559 @@ async function verifySecondaryEmail({ userId, code, locale = "en" }) {
   return sanitizeUser(updated);
 }
 
+async function linkGoogleAccount(userId, idToken) {
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+
+  if (!user) throw new NotFoundError("Account not found.");
+  if (user.deletedAt) throw new BadRequestError("This account is deleted.");
+  if (user.googleId)
+    throw new ConflictError("A Google account is already linked.");
+
+  const payload = await verifyGoogleIdToken(idToken);
+  if (!payload?.sub) throw new UnauthorizedError("Invalid Google token.");
+
+  const existing = await prisma.user.findUnique({
+    where: { googleId: payload.sub },
+  });
+  if (existing) {
+    throw new ConflictError(
+      "This Google account is already linked to another user.",
+    );
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { googleId: payload.sub },
+  });
+
+  return { message: "Compte Google lié avec succès.", googleLinked: true };
+}
+
+async function unlinkGoogleAccount(userId) {
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { emails: { where: { isPrimary: true }, take: 1 } },
+  });
+
+  if (!user) throw new NotFoundError("Account not found.");
+  if (!user.googleId) throw new BadRequestError("No Google account is linked.");
+
+  const hasPassword = Boolean(user.password);
+  const hasVerifiedEmail = Boolean(user.emails[0]?.isVerified);
+
+  if (!hasPassword && !hasVerifiedEmail) {
+    throw new BadRequestError(
+      "Ajoutez un mot de passe ou vérifiez votre e-mail avant de délier Google, pour éviter d'être bloqué hors de votre compte.",
+    );
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { googleId: null },
+  });
+
+  return { message: "Compte Google délié avec succès.", googleLinked: false };
+}
+
+// =============================  ADMIN / SUPPORT ACTIONS ON USER ================================================
+
+async function listUsers(query) {
+  const { page, limit, skip } = parsePagination(query);
+  const { role, status, search } = query;
+
+  const prisma = getPrismaClient();
+
+  if (
+    role &&
+    !["BUYER", "SELLER", "RIDER", "ADMIN", "SUPPORT"].includes(role)
+  ) {
+    throw new BadRequestError("Invalid role filter.");
+  }
+
+  const where = {
+    ...(role ? { role } : {}),
+    ...buildStatusFilter(status),
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { phone: { contains: search, mode: "insensitive" } },
+            { emails: { some: { email: { contains: search.toLowerCase() } } } },
+          ],
+        }
+      : {}),
+  };
+
+  const [total, users] = await prisma.$transaction([
+    prisma.user.count({ where }),
+    prisma.user.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        role: true,
+        isBlocked: true,
+        isPhoneVerified: true,
+        deletedAt: true,
+        createdAt: true,
+        emails: {
+          select: {
+            id: true,
+            email: true,
+            isPrimary: true,
+            isVerified: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  return {
+    users: users.map((u) => {
+      const primary = u.emails.find((e) => e.isPrimary);
+      return {
+        id: u.id,
+        name: u.name,
+        email: primary?.email ?? null,
+        isEmailVerified: primary?.isVerified ?? false,
+        emails: u.emails,
+        phone: u.phone,
+        isPhoneVerified: u.isPhoneVerified,
+        role: u.role,
+        isBlocked: u.isBlocked,
+        deletedAt: u.deletedAt,
+        createdAt: u.createdAt,
+      };
+    }),
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit) || 1,
+    },
+  };
+}
+
+async function getUserDetail(userId) {
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      emails: {
+        select: {
+          id: true,
+          email: true,
+          isPrimary: true,
+          isVerified: true,
+          createdAt: true,
+        },
+      },
+      sessions: {
+        select: {
+          id: true,
+          userAgent: true,
+          ipAddress: true,
+          deviceName: true,
+          isRevoked: true,
+          lastUsedAt: true,
+          expiresAt: true,
+          createdAt: true,
+        },
+        orderBy: { lastUsedAt: "desc" },
+      },
+      actionsReceived: {
+        select: {
+          id: true,
+          action: true,
+          reason: true,
+          actorId: true,
+          actorRole: true,
+          metadata: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      },
+    },
+  });
+
+  if (!user) throw new NotFoundError("User not found.");
+
+  const clean = { ...user };
+  for (const field of SENSITIVE_FIELDS) delete clean[field];
+  return clean;
+}
+
+async function blockUser(actor, targetUserId, reason) {
+  const targetUser = await getTargetUserOrThrow(targetUserId);
+  if (targetUser.deletedAt)
+    throw new BadRequestError("Cannot block a deleted account.");
+  if (targetUser.isBlocked)
+    throw new BadRequestError("User is already blocked.");
+
+  assertCanActOnTarget(actor, targetUser);
+
+  const [updated] = await prisma.$transaction([
+    prisma.user.update({
+      where: { id: targetUserId },
+      data: { isBlocked: true },
+    }),
+    prisma.session.updateMany({
+      where: { userId: targetUserId, isRevoked: false },
+      data: { isRevoked: true },
+    }),
+    prisma.accountActionLog.create({
+      data: {
+        actorId: actor.id,
+        actorRole: actor.role,
+        targetUserId,
+        targetUserEmail: targetUser.email ?? "",
+        action: "USER_BLOCKED",
+        reason: reason || null,
+      },
+    }),
+  ]);
+
+  try {
+    await sendAccountStatusEmail(targetUser.email, {
+      name: targetUser.name,
+      action: "blocked",
+      reason,
+      actionUrl: `mailto:${require("../../../common/constants/brand").BRAND.supportEmail}`,
+      locale: "fr",
+    });
+  } catch (err) {
+    console.error(
+      "[admin] Failed to send account-blocked notification:",
+      err.message,
+    );
+  }
+
+  return { id: updated.id, isBlocked: updated.isBlocked };
+}
+
+async function unblockUser(actor, targetUserId, reason) {
+  const targetUser = await getTargetUserOrThrow(targetUserId);
+  if (!targetUser.isBlocked) throw new BadRequestError("User is not blocked.");
+
+  assertCanActOnTarget(actor, targetUser);
+
+  const [updated] = await prisma.$transaction([
+    prisma.user.update({
+      where: { id: targetUserId },
+      data: { isBlocked: false },
+    }),
+    prisma.accountActionLog.create({
+      data: {
+        actorId: actor.id,
+        actorRole: actor.role,
+        targetUserId,
+        targetUserEmail: targetUser.email ?? "",
+        action: "USER_UNBLOCKED",
+        reason: reason || null,
+      },
+    }),
+  ]);
+
+  try {
+    await sendAccountStatusEmail(targetUser.email, {
+      name: targetUser.name,
+      action: "unblocked",
+      actionUrl: `${env.appUrl}/login`,
+      locale: "fr",
+    });
+  } catch (err) {
+    console.error(
+      "[admin] Failed to send account-unblocked notification:",
+      err.message,
+    );
+  }
+
+  return { id: updated.id, isBlocked: updated.isBlocked };
+}
+
+async function forceLogout(actor, targetUserId, sessionId, reason) {
+  const targetUser = await getTargetUserOrThrow(targetUserId);
+
+  assertCanActOnTarget(actor, targetUser);
+
+  const where = sessionId
+    ? { id: sessionId, userId: targetUserId, isRevoked: false }
+    : { userId: targetUserId, isRevoked: false };
+
+  const result = await prisma.session.updateMany({
+    where,
+    data: { isRevoked: true },
+  });
+
+  if (sessionId && result.count === 0) {
+    throw new NotFoundError("Session not found or already revoked.");
+  }
+
+  await prisma.accountActionLog.create({
+    data: {
+      actorId: actor.id,
+      actorRole: actor.role,
+      targetUserId,
+      targetUserEmail: targetUser.email ?? "",
+      action: sessionId ? "SESSION_REVOKED" : "ALL_SESSIONS_REVOKED",
+      reason: reason || null,
+      metadata: sessionId ? { sessionId } : { revokedCount: result.count },
+    },
+  });
+
+  try {
+    await sendSessionsRevokedEmail(targetUser.email, {
+      name: targetUser.name,
+      scope: sessionId ? "single" : "all",
+      actionUrl: `${env.appUrl}/login`,
+      locale: "fr",
+    });
+  } catch (err) {
+    console.error(
+      "[admin] Failed to send sessions-revoked notification:",
+      err.message,
+    );
+  }
+
+  return { revokedCount: result.count };
+}
+
+async function verifyUserEmail(actor, targetUserId, emailId) {
+  const targetUser = await getTargetUserOrThrow(targetUserId);
+
+  const userEmail = await prisma.userEmail.findFirst({
+    where: { id: emailId, userId: targetUserId },
+  });
+  if (!userEmail) throw new NotFoundError("Email not found for this user.");
+  if (userEmail.isVerified) {
+    throw new BadRequestError("Email is already verified.");
+  }
+
+  assertCanActOnTarget(actor, targetUser);
+
+  await prisma.$transaction([
+    prisma.userEmail.update({
+      where: { id: userEmail.id },
+      data: {
+        isVerified: true,
+        verificationCode: null,
+        verificationCodeExpiresAt: null,
+      },
+    }),
+    prisma.accountActionLog.create({
+      data: {
+        actorId: actor.id,
+        actorRole: actor.role,
+        targetUserId,
+        targetUserEmail: targetUser.email,
+        action: "EMAIL_MANUALLY_VERIFIED",
+        reason: null,
+        metadata: {
+          verifiedEmail: userEmail.email,
+          isPrimary: userEmail.isPrimary,
+        },
+      },
+    }),
+  ]);
+
+  return {
+    email: userEmail.email,
+    isPrimary: userEmail.isPrimary,
+    isVerified: true,
+  };
+}
+
+async function verifyUserPhone(actor, targetUserId) {
+  const targetUser = await getTargetUserOrThrow(targetUserId);
+
+  if (!targetUser.phone)
+    throw new BadRequestError("This user has no phone number on file.");
+  if (targetUser.isPhoneVerified) {
+    throw new BadRequestError("Phone is already verified.");
+  }
+
+  assertCanActOnTarget(actor, targetUser);
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: targetUserId },
+      data: {
+        isPhoneVerified: true,
+        phoneVerificationCode: null,
+        phoneVerificationCodeExpiresAt: null,
+      },
+    }),
+    prisma.accountActionLog.create({
+      data: {
+        actorId: actor.id,
+        actorRole: actor.role,
+        targetUserId,
+        targetUserEmail: targetUser.email,
+        action: "PHONE_MANUALLY_VERIFIED",
+        reason: null,
+      },
+    }),
+  ]);
+
+  return { phone: targetUser.phone, isPhoneVerified: true };
+}
+
+async function adminDeleteUser(actor, targetUserId, reason) {
+  const targetUser = await getTargetUserOrThrow(targetUserId);
+
+  if (targetUser.deletedAt) {
+    throw new BadRequestError("This account is already deleted.");
+  }
+  if (targetUser.id === actor.id) {
+    throw new BadRequestError("You cannot delete your own account this way.");
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: targetUserId },
+      data: { deletedAt: new Date(), deletionReason: reason || null },
+    }),
+    prisma.session.updateMany({
+      where: { userId: targetUserId, isRevoked: false },
+      data: { isRevoked: true },
+    }),
+    prisma.accountActionLog.create({
+      data: {
+        actorId: actor.id,
+        actorRole: actor.role,
+        targetUserId,
+        targetUserEmail: targetUser.email,
+        action: "USER_DELETED_BY_ADMIN",
+        reason: reason || null,
+      },
+    }),
+  ]);
+
+  try {
+    await sendAccountDeletionEmail(targetUser.email, {
+      name: targetUser.name,
+      action: "deleted",
+      actionUrl: `${env.appUrl}/account/recovery`,
+      recoveryDays: ACCOUNT_DELETION_CONFIG.RECOVERY_GRACE_PERIOD_DAYS,
+      locale: "fr",
+    });
+  } catch (err) {
+    console.error(
+      "[admin] Failed to send account-deletion notification:",
+      err.message,
+    );
+  }
+
+  return {
+    id: targetUserId,
+    deletedAt: new Date(),
+    recoveryDays: ACCOUNT_DELETION_CONFIG.RECOVERY_GRACE_PERIOD_DAYS,
+  };
+}
+
+async function adminRestoreUser(actor, targetUserId, reason) {
+  const targetUser = await getTargetUserOrThrow(targetUserId);
+
+  if (!targetUser.deletedAt) {
+    throw new BadRequestError("This account is not deleted.");
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: targetUserId },
+      data: { deletedAt: null, deletionReason: null },
+    }),
+    prisma.accountActionLog.create({
+      data: {
+        actorId: actor.id,
+        actorRole: actor.role,
+        targetUserId,
+        targetUserEmail: targetUser.email,
+        action: "USER_RESTORED_BY_ADMIN",
+        reason: reason || null,
+      },
+    }),
+  ]);
+
+  try {
+    await sendAccountDeletionEmail(targetUser.email, {
+      name: targetUser.name,
+      action: "restored",
+      actionUrl: `${env.appUrl}/account/activity`,
+      locale: "fr",
+    });
+  } catch (err) {
+    console.error(
+      "[admin] Failed to send account-restored notification:",
+      err.message,
+    );
+  }
+
+  return { id: targetUserId, deletedAt: null };
+}
+
+async function changeUserRole(actor, targetUserId, newRole, reason) {
+  if (!VALID_ROLES.includes(newRole)) {
+    throw new BadRequestError("Invalid role.");
+  }
+
+  const targetUser = await getTargetUserOrThrow(targetUserId);
+
+  if (targetUser.deletedAt) {
+    throw new BadRequestError("Cannot change the role of a deleted account.");
+  }
+  if (targetUser.id === actor.id) {
+    throw new BadRequestError("You cannot change your own role.");
+  }
+  if (targetUser.role === newRole) {
+    throw new BadRequestError(`User already has the role "${newRole}".`);
+  }
+
+  const oldRole = targetUser.role;
+
+  const [updated] = await prisma.$transaction([
+    prisma.user.update({
+      where: { id: targetUserId },
+      data: { role: newRole },
+    }),
+    prisma.accountActionLog.create({
+      data: {
+        actorId: actor.id,
+        actorRole: actor.role,
+        targetUserId,
+        targetUserEmail: targetUser.email,
+        action: "USER_ROLE_CHANGED",
+        reason: reason || null,
+        metadata: { fromRole: oldRole, toRole: newRole },
+      },
+    }),
+  ]);
+
+  try {
+    await sendAccountStatusEmail(targetUser.email, {
+      name: targetUser.name,
+      action: "roleChanged",
+      reason: `${oldRole} → ${newRole}`,
+      actionUrl: `${env.appUrl}/login`,
+      locale: "fr",
+    });
+  } catch (err) {
+    console.error(
+      "[admin] Failed to send role-change notification:",
+      err.message,
+    );
+  }
+
+  return { id: updated.id, role: updated.role, previousRole: oldRole };
+}
+
 module.exports = {
   updateProfile,
   deleteAccount,
@@ -730,4 +1351,16 @@ module.exports = {
   uploadProfilePicture,
   requestSecondaryEmail,
   verifySecondaryEmail,
+  linkGoogleAccount,
+  unlinkGoogleAccount,
+  listUsers,
+  getUserDetail,
+  blockUser,
+  unblockUser,
+  forceLogout,
+  verifyUserEmail,
+  verifyUserPhone,
+  adminDeleteUser,
+  adminRestoreUser,
+  changeUserRole,
 };

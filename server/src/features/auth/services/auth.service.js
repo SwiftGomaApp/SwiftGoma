@@ -80,6 +80,13 @@ const SENSITIVE_FIELDS = [
   "accountRecoveryCodeExpiresAt",
 ];
 
+const EMAIL_SENSITIVE_FIELDS = [
+  "verificationCode",
+  "verificationCodeExpiresAt",
+];
+
+const PASSKEY_SENSITIVE_FIELDS = ["publicKey", "credentialId", "counter"];
+
 function getPrimaryEmail(user) {
   return (user.emails || []).find((e) => e.isPrimary) || null;
 }
@@ -92,10 +99,19 @@ function sanitizeUser(user) {
   clean.twoFactorEnabled = Boolean(user.twoFactorAuth?.isEnabled);
   clean.email = primaryEmail ? primaryEmail.email : null;
   clean.isEmailVerified = primaryEmail ? primaryEmail.isVerified : false;
+  clean.emails = (user.emails ?? []).map((e) => {
+    const cleanEmail = { ...e };
+    for (const field of EMAIL_SENSITIVE_FIELDS) delete cleanEmail[field];
+    return cleanEmail;
+  });
+  clean.passkeys = (user.passkeys ?? []).map((p) => {
+    const cleanPasskey = { ...p };
+    for (const field of PASSKEY_SENSITIVE_FIELDS) delete cleanPasskey[field];
+    return cleanPasskey;
+  });
 
   for (const field of SENSITIVE_FIELDS) delete clean[field];
   delete clean.twoFactorAuth;
-  delete clean.emails;
 
   return clean;
 }
