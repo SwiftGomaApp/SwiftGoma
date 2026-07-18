@@ -33,10 +33,12 @@ const {
 } = require("../utils/deviceInfo");
 const { encryptSecret, decryptSecret } = require("../utils/totpEncryption");
 const { TOTP_CONFIG } = require("../config/totp.config");
-const { verifyGoogleIdToken } = require("../config/google");
+const { verifyGoogleIdToken } = require("../config/google.config");
 const { WEBAUTHN_CONFIG } = require("../config/webauthn.config");
 const cache = require("../../../common/services/cache");
-const { assertAccountNotDeleted } = require("../../users/utils/accountDeletion");
+const {
+  assertAccountNotDeleted,
+} = require("../../users/utils/accountDeletion");
 const {
   AppError,
   ValidationError,
