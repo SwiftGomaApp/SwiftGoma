@@ -33,9 +33,10 @@ const {
 } = require("../utils/deviceInfo");
 const { encryptSecret, decryptSecret } = require("../utils/totpEncryption");
 const { TOTP_CONFIG } = require("../config/totp.config");
-const { verifyGoogleIdToken } = require("../config/google.config");
+const { verifyGoogleIdToken } = require("../config/google");
 const { WEBAUTHN_CONFIG } = require("../config/webauthn.config");
 const cache = require("../../../common/services/cache");
+const { assertAccountNotDeleted } = require("../../users/utils/accountDeletion");
 const {
   AppError,
   ValidationError,
@@ -65,29 +66,35 @@ function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-// Every function below that returns a user for the client MUST include
-// the twoFactorAuth relation on its query (include: { twoFactorAuth: true })
-// — sanitizeUser() can only compute twoFactorEnabled from data that's
-// actually present on the object it receives. Forgetting the include
-// doesn't error, it just silently reports twoFactorEnabled: false.
 const SENSITIVE_FIELDS = [
   "password",
-  "emailVerificationCode",
-  "emailVerificationCodeExpiresAt",
   "phoneVerificationCode",
   "phoneVerificationCodeExpiresAt",
   "loginOtp",
   "loginOtpExpiresAt",
   "passwordResetCode",
   "passwordResetCodeExpiresAt",
+  "accountRecoveryCode",
+  "accountRecoveryCodeExpiresAt",
 ];
 
+function getPrimaryEmail(user) {
+  return (user.emails || []).find((e) => e.isPrimary) || null;
+}
+
 function sanitizeUser(user) {
+  const primaryEmail = getPrimaryEmail(user);
+
   const clean = { ...user };
   clean.hasPassword = Boolean(user.password);
   clean.twoFactorEnabled = Boolean(user.twoFactorAuth?.isEnabled);
+  clean.email = primaryEmail ? primaryEmail.email : null;
+  clean.isEmailVerified = primaryEmail ? primaryEmail.isVerified : false;
+
   for (const field of SENSITIVE_FIELDS) delete clean[field];
   delete clean.twoFactorAuth;
+  delete clean.emails;
+
   return clean;
 }
 
@@ -102,11 +109,11 @@ async function createAccount({ name, email, locale = "en", role }) {
   const normalizedEmail = email.trim().toLowerCase();
   const prisma = getPrismaClient();
 
-  const existing = await prisma.user.findFirst({
+  const existingEmail = await prisma.userEmail.findUnique({
     where: { email: normalizedEmail },
   });
 
-  if (existing && existing.isEmailVerified) {
+  if (existingEmail && existingEmail.isVerified) {
     throw new ConflictError("An account with this email already exists.");
   }
 
@@ -114,31 +121,43 @@ async function createAccount({ name, email, locale = "en", role }) {
   const expiresAt = getOtpExpiry(EMAIL_VERIFICATION_OTP_TTL_MINUTES);
 
   let user;
-  if (existing) {
+  if (existingEmail) {
     user = await prisma.user.update({
-      where: { id: existing.id },
+      where: { id: existingEmail.userId },
       data: {
         name: name.trim(),
         role,
-        emailVerificationCode: code,
-        emailVerificationCodeExpiresAt: expiresAt,
+        emails: {
+          update: {
+            where: { id: existingEmail.id },
+            data: {
+              verificationCode: code,
+              verificationCodeExpiresAt: expiresAt,
+            },
+          },
+        },
       },
-      include: { twoFactorAuth: true },
+      include: { emails: true, twoFactorAuth: true },
     });
   } else {
     user = await prisma.user.create({
       data: {
         name: name.trim(),
-        email: normalizedEmail,
         role,
-        emailVerificationCode: code,
-        emailVerificationCodeExpiresAt: expiresAt,
+        emails: {
+          create: {
+            email: normalizedEmail,
+            isPrimary: true,
+            verificationCode: code,
+            verificationCodeExpiresAt: expiresAt,
+          },
+        },
       },
-      include: { twoFactorAuth: true },
+      include: { emails: true, twoFactorAuth: true },
     });
   }
 
-  await sendOtpLoginEmail(user.email, {
+  await sendOtpLoginEmail(normalizedEmail, {
     name: user.name,
     code,
     expiresInMinutes: EMAIL_VERIFICATION_OTP_TTL_MINUTES,
@@ -158,24 +177,24 @@ async function verifyEmail({ email, code }) {
 
   const normalizedEmail = email.trim().toLowerCase();
   const prisma = getPrismaClient();
-  const user = await prisma.user.findFirst({
+  const userEmail = await prisma.userEmail.findUnique({
     where: { email: normalizedEmail },
   });
 
-  if (!user) {
+  if (!userEmail) {
     throw new NotFoundError("No account found with this email.");
   }
-  if (user.isEmailVerified) {
+  if (userEmail.isVerified) {
     throw new ConflictError("This email is already verified.");
   }
-  if (isOtpExpired(user.emailVerificationCodeExpiresAt)) {
+  if (isOtpExpired(userEmail.verificationCodeExpiresAt)) {
     throw new AppError(
       "Your verification code has expired. Request a new one.",
       422,
       "OTP_EXPIRED",
     );
   }
-  if (user.emailVerificationCode !== code.trim().toUpperCase()) {
+  if (userEmail.verificationCode !== code.trim().toUpperCase()) {
     throw new AppError(
       "The verification code is incorrect.",
       422,
@@ -184,13 +203,20 @@ async function verifyEmail({ email, code }) {
   }
 
   const verifiedUser = await prisma.user.update({
-    where: { id: user.id },
+    where: { id: userEmail.userId },
     data: {
-      isEmailVerified: true,
-      emailVerificationCode: null,
-      emailVerificationCodeExpiresAt: null,
+      emails: {
+        update: {
+          where: { id: userEmail.id },
+          data: {
+            isVerified: true,
+            verificationCode: null,
+            verificationCodeExpiresAt: null,
+          },
+        },
+      },
     },
-    include: { twoFactorAuth: true },
+    include: { emails: true, twoFactorAuth: true },
   });
 
   return sanitizeUser(verifiedUser);
@@ -203,14 +229,14 @@ async function resendEmailVerification({ email, locale = "en" }) {
 
   const normalizedEmail = email.trim().toLowerCase();
   const prisma = getPrismaClient();
-  const user = await prisma.user.findFirst({
+  const userEmail = await prisma.userEmail.findUnique({
     where: { email: normalizedEmail },
   });
 
-  if (!user) {
+  if (!userEmail) {
     throw new NotFoundError("No account found with this email.");
   }
-  if (user.isEmailVerified) {
+  if (userEmail.isVerified) {
     throw new ConflictError("This email is already verified.");
   }
 
@@ -218,15 +244,22 @@ async function resendEmailVerification({ email, locale = "en" }) {
   const expiresAt = getOtpExpiry(EMAIL_VERIFICATION_OTP_TTL_MINUTES);
 
   const updated = await prisma.user.update({
-    where: { id: user.id },
+    where: { id: userEmail.userId },
     data: {
-      emailVerificationCode: code,
-      emailVerificationCodeExpiresAt: expiresAt,
+      emails: {
+        update: {
+          where: { id: userEmail.id },
+          data: {
+            verificationCode: code,
+            verificationCodeExpiresAt: expiresAt,
+          },
+        },
+      },
     },
-    include: { twoFactorAuth: true },
+    include: { emails: true, twoFactorAuth: true },
   });
 
-  await sendOtpLoginEmail(updated.email, {
+  await sendOtpLoginEmail(normalizedEmail, {
     name: updated.name,
     code,
     expiresInMinutes: EMAIL_VERIFICATION_OTP_TTL_MINUTES,
@@ -243,17 +276,20 @@ async function requestLoginOtp({ email, locale = "en" }) {
 
   const normalizedEmail = email.trim().toLowerCase();
   const prisma = getPrismaClient();
-  const user = await prisma.user.findFirst({
+  const userEmail = await prisma.userEmail.findUnique({
     where: { email: normalizedEmail },
+    include: { user: true },
   });
 
-  if (!user) {
+  if (!userEmail) {
     throw new NotFoundError("No account found with this email.");
   }
+  const user = userEmail.user;
   if (user.isBlocked) {
     throw new ForbiddenError("This account has been blocked. Contact support.");
   }
-  if (!user.isEmailVerified) {
+  assertAccountNotDeleted(user);
+  if (!userEmail.isVerified) {
     throw new AppError(
       "Please verify your email before logging in.",
       403,
@@ -285,7 +321,7 @@ async function requestLoginOtp({ email, locale = "en" }) {
     data: { loginOtp: code, loginOtpExpiresAt: expiresAt },
   });
 
-  await sendOtpLoginEmail(user.email, {
+  await sendOtpLoginEmail(normalizedEmail, {
     name: user.name,
     code,
     expiresInMinutes: LOGIN_OTP_TTL_MINUTES,
@@ -330,21 +366,29 @@ async function issueSessionAndNotify(
     data: { refreshTokenHash: hashToken(refreshToken) },
   });
 
-  try {
-    const { browser, device } = parseUserAgent(userAgent);
-    await sendLoginDetectedEmail(user.email, {
-      name: user.name,
-      email: user.email,
-      location: getLocationLabel(ipAddress),
-      time: formatLoginTime(locale),
-      browser,
-      device,
-      ip: ipAddress || "Unknown",
-      reviewActivityUrl: `${env.appUrl}/account/activity`,
-      locale,
-    });
-  } catch (err) {
-    console.error("[auth] Failed to send login-detected email:", err.message);
+  const primaryEmail = getPrimaryEmail(user);
+
+  if (primaryEmail) {
+    try {
+      const { browser, device } = parseUserAgent(userAgent);
+      await sendLoginDetectedEmail(primaryEmail.email, {
+        name: user.name,
+        email: primaryEmail.email,
+        location: getLocationLabel(ipAddress),
+        time: formatLoginTime(locale),
+        browser,
+        device,
+        ip: ipAddress || "Unknown",
+        reviewActivityUrl: `${env.appUrl}/account/activity`,
+        locale,
+      });
+    } catch (err) {
+      console.error("[auth] Failed to send login-detected email:", err.message);
+    }
+  } else {
+    console.error(
+      `[auth] issueSessionAndNotify: no primary email found for user ${user.id} — was "emails" included in the query?`,
+    );
   }
 
   return { accessToken, refreshToken, sessionId: session.id };
@@ -366,17 +410,19 @@ async function verifyLoginOtp({
 
   const normalizedEmail = email.trim().toLowerCase();
   const prisma = getPrismaClient();
-  const user = await prisma.user.findFirst({
+  const userEmail = await prisma.userEmail.findUnique({
     where: { email: normalizedEmail },
-    include: { twoFactorAuth: true },
+    include: { user: { include: { emails: true, twoFactorAuth: true } } },
   });
 
-  if (!user) {
+  if (!userEmail) {
     throw new NotFoundError("No account found with this email.");
   }
+  const user = userEmail.user;
   if (user.isBlocked) {
     throw new ForbiddenError("This account has been blocked. Contact support.");
   }
+  assertAccountNotDeleted(user);
   if (isOtpExpired(user.loginOtpExpiresAt)) {
     throw new AppError(
       "Your login code has expired. Request a new one.",
@@ -422,18 +468,20 @@ async function loginWithPassword({
 
   const normalizedEmail = email.trim().toLowerCase();
   const prisma = getPrismaClient();
-  const user = await prisma.user.findFirst({
+  const userEmail = await prisma.userEmail.findUnique({
     where: { email: normalizedEmail },
-    include: { twoFactorAuth: true },
+    include: { user: { include: { emails: true, twoFactorAuth: true } } },
   });
 
-  if (!user) {
+  if (!userEmail) {
     throw new NotFoundError("No account found with this email.");
   }
+  const user = userEmail.user;
   if (user.isBlocked) {
     throw new ForbiddenError("This account has been blocked. Contact support.");
   }
-  if (!user.isEmailVerified) {
+  assertAccountNotDeleted(user);
+  if (!userEmail.isVerified) {
     throw new AppError(
       "Please verify your email before logging in.",
       403,
@@ -453,9 +501,6 @@ async function loginWithPassword({
     throw new UnauthorizedError("Incorrect email or password.");
   }
 
-  // Reusing the included relation instead of a separate
-  // prisma.twoFactorAuth.findUnique() call — one less query, since the
-  // user fetch above already brought this along.
   if (user.twoFactorAuth && user.twoFactorAuth.isEnabled) {
     return { requiresTotp: true, userId: user.id };
   }
@@ -503,7 +548,7 @@ async function refreshAccessToken({ refreshToken }) {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    include: { twoFactorAuth: true },
+    include: { emails: true, twoFactorAuth: true },
   });
   if (!user) {
     throw new UnauthorizedError(
@@ -543,7 +588,7 @@ async function getCurrentUser(userId) {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { twoFactorAuth: true },
+    include: { emails: true, twoFactorAuth: true },
   });
 
   if (!user) {
@@ -604,16 +649,19 @@ async function createPassword({ userId, password, locale = "en" }) {
   const updated = await prisma.user.update({
     where: { id: userId },
     data: { password: passwordHash },
-    include: { twoFactorAuth: true },
+    include: { emails: true, twoFactorAuth: true },
   });
 
   try {
-    await sendPasswordChangedEmail(updated.email, {
-      name: updated.name,
-      action: "created",
-      reviewActivityUrl: `${env.appUrl}/account/activity`,
-      locale,
-    });
+    const primaryEmail = getPrimaryEmail(updated);
+    if (primaryEmail) {
+      await sendPasswordChangedEmail(primaryEmail.email, {
+        name: updated.name,
+        action: "created",
+        reviewActivityUrl: `${env.appUrl}/account/activity`,
+        locale,
+      });
+    }
   } catch (err) {
     console.error(
       "[auth] Failed to send password-created notification:",
@@ -661,16 +709,19 @@ async function updatePassword({
   const updated = await prisma.user.update({
     where: { id: userId },
     data: { password: passwordHash },
-    include: { twoFactorAuth: true },
+    include: { emails: true, twoFactorAuth: true },
   });
 
   try {
-    await sendPasswordChangedEmail(updated.email, {
-      name: updated.name,
-      action: "updated",
-      reviewActivityUrl: `${env.appUrl}/account/activity`,
-      locale,
-    });
+    const primaryEmail = getPrimaryEmail(updated);
+    if (primaryEmail) {
+      await sendPasswordChangedEmail(primaryEmail.email, {
+        name: updated.name,
+        action: "updated",
+        reviewActivityUrl: `${env.appUrl}/account/activity`,
+        locale,
+      });
+    }
   } catch (err) {
     console.error(
       "[auth] Failed to send password-updated notification:",
@@ -695,13 +746,15 @@ async function forgotPassword({ email, locale = "en" }) {
 
   const normalizedEmail = email.trim().toLowerCase();
   const prisma = getPrismaClient();
-  const user = await prisma.user.findFirst({
+  const userEmail = await prisma.userEmail.findUnique({
     where: { email: normalizedEmail },
+    include: { user: true },
   });
 
-  if (!user || user.isBlocked) {
+  if (!userEmail || userEmail.user.isBlocked || userEmail.user.deletedAt) {
     return GENERIC_RESPONSE;
   }
+  const user = userEmail.user;
 
   if (user.passwordResetCode && user.passwordResetCodeExpiresAt) {
     const requestedAt = new Date(
@@ -712,9 +765,6 @@ async function forgotPassword({ email, locale = "en" }) {
       requestedAt.getTime() + PASSWORD_RESET_RESEND_COOLDOWN_SECONDS * 1000,
     );
     if (cooldownEndsAt > new Date()) {
-      // Still the generic response — silently skip re-sending rather than
-      // exposing a distinct "please wait" response that would confirm
-      // this email is registered and recently requested a reset.
       return GENERIC_RESPONSE;
     }
   }
@@ -727,7 +777,7 @@ async function forgotPassword({ email, locale = "en" }) {
     data: { passwordResetCode: code, passwordResetCodeExpiresAt: expiresAt },
   });
 
-  await sendPasswordResetOtpEmail(user.email, {
+  await sendPasswordResetOtpEmail(normalizedEmail, {
     name: user.name,
     code,
     expiresInMinutes: PASSWORD_RESET_OTP_TTL_MINUTES,
@@ -757,17 +807,19 @@ async function resetPassword({ email, code, newPassword, locale = "en" }) {
 
   const normalizedEmail = email.trim().toLowerCase();
   const prisma = getPrismaClient();
-  const user = await prisma.user.findFirst({
+  const userEmail = await prisma.userEmail.findUnique({
     where: { email: normalizedEmail },
+    include: { user: true },
   });
 
   if (
-    !user ||
-    isOtpExpired(user.passwordResetCodeExpiresAt) ||
-    user.passwordResetCode !== code.trim().toUpperCase()
+    !userEmail ||
+    isOtpExpired(userEmail.user.passwordResetCodeExpiresAt) ||
+    userEmail.user.passwordResetCode !== code.trim().toUpperCase()
   ) {
     throw INVALID_CODE_ERROR;
   }
+  const user = userEmail.user;
   if (user.isBlocked) {
     throw new ForbiddenError("This account has been blocked. Contact support.");
   }
@@ -780,18 +832,21 @@ async function resetPassword({ email, code, newPassword, locale = "en" }) {
       passwordResetCode: null,
       passwordResetCodeExpiresAt: null,
     },
-    include: { twoFactorAuth: true },
+    include: { emails: true, twoFactorAuth: true },
   });
 
   await logoutAll(user.id);
 
   try {
-    await sendPasswordChangedEmail(updated.email, {
-      name: updated.name,
-      action: "reset",
-      reviewActivityUrl: `${env.appUrl}/account/activity`,
-      locale,
-    });
+    const primaryEmail = getPrimaryEmail(updated);
+    if (primaryEmail) {
+      await sendPasswordChangedEmail(primaryEmail.email, {
+        name: updated.name,
+        action: "reset",
+        reviewActivityUrl: `${env.appUrl}/account/activity`,
+        locale,
+      });
+    }
   } catch (err) {
     console.error(
       "[auth] Failed to send password-reset notification:",
@@ -802,10 +857,10 @@ async function resetPassword({ email, code, newPassword, locale = "en" }) {
   return sanitizeUser(updated);
 }
 
-function buildTotp(user, secret) {
+function buildTotp(email, secret) {
   return new TOTP({
     issuer: TOTP_CONFIG.issuer,
-    label: user.email,
+    label: email,
     algorithm: TOTP_CONFIG.algorithm,
     digits: TOTP_CONFIG.digits,
     period: TOTP_CONFIG.period,
@@ -832,7 +887,7 @@ async function verifyTotpOrBackupCode(prisma, twoFactorRecord, code) {
   if (!trimmedCode) return false;
 
   const secret = Secret.fromBase32(decryptSecret(twoFactorRecord.secret));
-  const totp = buildTotp({ email: "" }, secret);
+  const totp = buildTotp("", secret);
   const delta = totp.validate({
     token: trimmedCode,
     window: TOTP_CONFIG.verificationWindow,
@@ -856,7 +911,10 @@ async function verifyTotpOrBackupCode(prisma, twoFactorRecord, code) {
 
 async function setupTotp({ userId }) {
   const prisma = getPrismaClient();
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { emails: true },
+  });
 
   if (!user) {
     throw new NotFoundError("Account not found.");
@@ -870,7 +928,8 @@ async function setupTotp({ userId }) {
   }
 
   const secret = new Secret();
-  const totp = buildTotp(user, secret);
+  const primaryEmail = getPrimaryEmail(user);
+  const totp = buildTotp(primaryEmail ? primaryEmail.email : "", secret);
   const encryptedSecret = encryptSecret(secret.base32);
 
   if (existing) {
@@ -909,7 +968,7 @@ async function confirmTotp({ userId, code }) {
   }
 
   const secret = Secret.fromBase32(decryptSecret(record.secret));
-  const totp = buildTotp({ email: "" }, secret);
+  const totp = buildTotp("", secret);
   const delta = totp.validate({
     token: code.trim(),
     window: TOTP_CONFIG.verificationWindow,
@@ -952,16 +1011,22 @@ async function disableTotp({ userId, code, locale = "en" }) {
     throw new AppError("Invalid verification code.", 422, "TOTP_INVALID");
   }
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { emails: true },
+  });
   await prisma.twoFactorAuth.delete({ where: { userId } });
 
   try {
-    await sendTwoFactorChangedEmail(user.email, {
-      name: user.name,
-      action: "disabled",
-      reviewActivityUrl: `${env.appUrl}/account/activity`,
-      locale,
-    });
+    const primaryEmail = getPrimaryEmail(user);
+    if (primaryEmail) {
+      await sendTwoFactorChangedEmail(primaryEmail.email, {
+        name: user.name,
+        action: "disabled",
+        reviewActivityUrl: `${env.appUrl}/account/activity`,
+        locale,
+      });
+    }
   } catch (err) {
     console.error(
       "[auth] Failed to send 2FA-disabled notification:",
@@ -990,7 +1055,7 @@ async function loginWithTotp({
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { twoFactorAuth: true },
+    include: { emails: true, twoFactorAuth: true },
   });
 
   if (!user) {
@@ -1042,7 +1107,10 @@ async function regenerateBackupCodes({ userId, code, locale = "en" }) {
     throw new AppError("Invalid verification code.", 422, "TOTP_INVALID");
   }
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { emails: true },
+  });
   const backupCodes = generateBackupCodes();
 
   await prisma.$transaction([
@@ -1058,12 +1126,15 @@ async function regenerateBackupCodes({ userId, code, locale = "en" }) {
   ]);
 
   try {
-    await sendTwoFactorChangedEmail(user.email, {
-      name: user.name,
-      action: "backup_codes_regenerated",
-      reviewActivityUrl: `${env.appUrl}/account/activity`,
-      locale,
-    });
+    const primaryEmail = getPrimaryEmail(user);
+    if (primaryEmail) {
+      await sendTwoFactorChangedEmail(primaryEmail.email, {
+        name: user.name,
+        action: "backup_codes_regenerated",
+        reviewActivityUrl: `${env.appUrl}/account/activity`,
+        locale,
+      });
+    }
   } catch (err) {
     console.error(
       "[auth] Failed to send backup-codes-regenerated notification:",
@@ -1074,22 +1145,6 @@ async function regenerateBackupCodes({ userId, code, locale = "en" }) {
   return { backupCodes };
 }
 
-/**
- * Creates a new account from a verified Google identity. No auto-linking —
- * if either the Google account or the email is already registered, this
- * rejects rather than silently attaching to an existing user. Email is
- * marked verified immediately (Google already proved it), so unlike
- * createAccount there's no OTP step: this logs the user straight in.
- *
- * @param {object} data
- * @param {string} data.idToken  Google ID token from the client's sign-in SDK.
- * @param {string} data.role
- * @param {string} [data.userAgent]
- * @param {string} [data.ipAddress]
- * @param {string} [data.deviceName]
- * @param {"en"|"fr"} [data.locale="en"]
- * @returns {Promise<{ user: object, accessToken: string, refreshToken: string, sessionId: string }>}
- */
 async function registerWithGoogle({
   idToken,
   role,
@@ -1111,10 +1166,10 @@ async function registerWithGoogle({
   }
 
   const normalizedEmail = profile.email.trim().toLowerCase();
-  const existingByEmail = await prisma.user.findFirst({
+  const existingEmail = await prisma.userEmail.findUnique({
     where: { email: normalizedEmail },
   });
-  if (existingByEmail) {
+  if (existingEmail) {
     throw new AppError(
       "An account with this email already exists. Log in and link your Google account from settings.",
       409,
@@ -1125,13 +1180,18 @@ async function registerWithGoogle({
   const user = await prisma.user.create({
     data: {
       name: profile.name,
-      email: normalizedEmail,
       googleId: profile.googleId,
       avatarUrl: profile.avatarUrl,
       role,
-      isEmailVerified: profile.emailVerified,
+      emails: {
+        create: {
+          email: normalizedEmail,
+          isPrimary: true,
+          isVerified: profile.emailVerified,
+        },
+      },
     },
-    include: { twoFactorAuth: true },
+    include: { emails: true, twoFactorAuth: true },
   });
 
   const { accessToken, refreshToken, sessionId } = await issueSessionAndNotify(
@@ -1147,22 +1207,6 @@ async function registerWithGoogle({
   return { user: sanitizeUser(user), accessToken, refreshToken, sessionId };
 }
 
-/**
- * Logs in an existing user via a verified Google identity. Matched by
- * googleId only — an unlinked account with a matching email is NOT
- * treated as a match (no auto-linking), it gets a distinct error
- * pointing at the settings page instead. Same 2FA short-circuit as
- * loginWithPassword: if 2FA is enabled, this pauses and returns
- * requiresTotp rather than issuing a session.
- *
- * @param {object} data
- * @param {string} data.idToken
- * @param {string} [data.userAgent]
- * @param {string} [data.ipAddress]
- * @param {string} [data.deviceName]
- * @param {"en"|"fr"} [data.locale="en"]
- * @returns {Promise<{ user: object, accessToken: string, refreshToken: string, sessionId: string } | { requiresTotp: true, userId: string }>}
- */
 async function loginWithGoogle({
   idToken,
   userAgent,
@@ -1175,15 +1219,15 @@ async function loginWithGoogle({
 
   const user = await prisma.user.findUnique({
     where: { googleId: profile.googleId },
-    include: { twoFactorAuth: true },
+    include: { emails: true, twoFactorAuth: true },
   });
 
   if (!user) {
     const normalizedEmail = profile.email.trim().toLowerCase();
-    const existingByEmail = await prisma.user.findFirst({
+    const existingEmail = await prisma.userEmail.findUnique({
       where: { email: normalizedEmail },
     });
-    if (existingByEmail) {
+    if (existingEmail) {
       throw new AppError(
         "This email is registered but not linked to Google yet. Log in another way and link your Google account from settings.",
         409,
@@ -1198,6 +1242,7 @@ async function loginWithGoogle({
   if (user.isBlocked) {
     throw new ForbiddenError("This account has been blocked. Contact support.");
   }
+  assertAccountNotDeleted(user);
 
   if (user.twoFactorAuth && user.twoFactorAuth.isEnabled) {
     return { requiresTotp: true, userId: user.id };
@@ -1216,10 +1261,6 @@ async function loginWithGoogle({
   return { user: sanitizeUser(user), accessToken, refreshToken, sessionId };
 }
 
-// ============================================================
-// Passkeys (WebAuthn)
-// ============================================================
-
 const WEBAUTHN_CHALLENGE_TTL_SECONDS = Math.floor(
   WEBAUTHN_CONFIG.timeoutMs / 1000,
 );
@@ -1232,16 +1273,6 @@ function passkeyAuthChallengeKey(email) {
   return `webauthn:auth:${email}`;
 }
 
-/**
- * Step 1 of adding a passkey to an already-logged-in account. Builds the
- * options object the client passes to @simplewebauthn/browser's
- * startRegistration(), and stashes the challenge in Redis so step 2
- * (verifyPasskeyRegistration) can confirm the response was actually
- * signed for THIS challenge, not a replayed one.
- *
- * @param {object} data
- * @param {string} data.userId
- */
 async function generatePasskeyRegistrationOptions({ userId }) {
   if (!cache.isAvailable()) {
     throw new AppError(
@@ -1254,21 +1285,21 @@ async function generatePasskeyRegistrationOptions({ userId }) {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { passkeys: true },
+    include: { passkeys: true, emails: true },
   });
   if (!user) {
     throw new NotFoundError("Account not found.");
   }
+  const primaryEmail = getPrimaryEmail(user);
 
   const options = await generateRegistrationOptions({
     rpName: WEBAUTHN_CONFIG.rpName,
     rpID: WEBAUTHN_CONFIG.rpID,
-    userName: user.email,
+    userName: primaryEmail ? primaryEmail.email : user.id,
     userID: isoUint8Array.fromUTF8String(user.id),
     userDisplayName: user.name,
     timeout: WEBAUTHN_CONFIG.timeoutMs,
     attestationType: "none",
-    // Prevents registering the same authenticator twice.
     excludeCredentials: user.passkeys.map((p) => ({
       id: p.credentialId,
       transports: p.transports ? p.transports.split(",") : undefined,
@@ -1288,17 +1319,6 @@ async function generatePasskeyRegistrationOptions({ userId }) {
   return options;
 }
 
-/**
- * Step 2 — verifies the signed response against the challenge stored in
- * step 1, then persists the new credential. The public key and counter
- * are the only sensitive-ish values here, and unlike a password or TOTP
- * secret, a WebAuthn public key is safe to store as plaintext by design.
- *
- * @param {object} data
- * @param {string} data.userId
- * @param {object} data.response  The RegistrationResponseJSON from the client.
- * @param {string} [data.deviceName]  User-facing label, e.g. "MacBook Pro — Chrome".
- */
 async function verifyPasskeyRegistration({ userId, response, deviceName }) {
   const expectedChallenge = await cache.get(passkeyRegChallengeKey(userId));
   if (!expectedChallenge) {
@@ -1369,15 +1389,6 @@ async function verifyPasskeyRegistration({ userId, response, deviceName }) {
   };
 }
 
-/**
- * Step 1 of passkey login — email-first (not usernameless/discoverable),
- * matching every other login method's shape. Scopes the ceremony to only
- * the credentials already registered to this account via allowCredentials,
- * rather than asking the authenticator "any resident credential you have."
- *
- * @param {object} data
- * @param {string} data.email
- */
 async function generatePasskeyLoginOptions({ email }) {
   if (!isValidEmail(email)) {
     throw new ValidationError("Please enter a valid email address.");
@@ -1392,17 +1403,19 @@ async function generatePasskeyLoginOptions({ email }) {
 
   const normalizedEmail = email.trim().toLowerCase();
   const prisma = getPrismaClient();
-  const user = await prisma.user.findFirst({
+  const userEmail = await prisma.userEmail.findUnique({
     where: { email: normalizedEmail },
-    include: { passkeys: true },
+    include: { user: { include: { passkeys: true } } },
   });
 
-  if (!user || user.passkeys.length === 0) {
+  if (!userEmail || userEmail.user.passkeys.length === 0) {
     throw new NotFoundError("No passkeys found for this account.");
   }
+  const user = userEmail.user;
   if (user.isBlocked) {
     throw new ForbiddenError("This account has been blocked. Contact support.");
   }
+  assertAccountNotDeleted(user);
 
   const options = await generateAuthenticationOptions({
     rpID: WEBAUTHN_CONFIG.rpID,
@@ -1423,26 +1436,6 @@ async function generatePasskeyLoginOptions({ email }) {
   return options;
 }
 
-/**
- * Step 2 of passkey login. The stored credential (public key + counter)
- * is looked up by the response's credential id and passed INTO
- * verifyAuthenticationResponse — the library doesn't look this up itself.
- * The library also handles the anti-clone counter check internally
- * (rejects if the response counter didn't increase, except when both the
- * stored and response counters are 0 — the common case for passkeys,
- * which often don't implement a counter at all) — this function just
- * needs to persist whatever newCounter comes back.
- *
- * Same 2FA short-circuit as every other login method.
- *
- * @param {object} data
- * @param {string} data.email
- * @param {object} data.response  The AuthenticationResponseJSON from the client.
- * @param {string} [data.userAgent]
- * @param {string} [data.ipAddress]
- * @param {string} [data.deviceName]
- * @param {"en"|"fr"} [data.locale="en"]
- */
 async function verifyPasskeyLogin({
   email,
   response,
@@ -1470,15 +1463,18 @@ async function verifyPasskeyLogin({
   const prisma = getPrismaClient();
   const passkey = await prisma.passkey.findUnique({
     where: { credentialId: response.id },
-    include: { user: { include: { twoFactorAuth: true } } },
+    include: { user: { include: { emails: true, twoFactorAuth: true } } },
   });
 
-  if (!passkey || passkey.user.email !== normalizedEmail) {
+  const matchesEmail =
+    passkey && passkey.user.emails.some((e) => e.email === normalizedEmail);
+  if (!matchesEmail) {
     throw new UnauthorizedError("Passkey not recognized.");
   }
   if (passkey.user.isBlocked) {
     throw new ForbiddenError("This account has been blocked. Contact support.");
   }
+  assertAccountNotDeleted(passkey.user);
 
   let verification;
   try {
@@ -1533,15 +1529,6 @@ async function verifyPasskeyLogin({
   return { user: sanitizeUser(user), accessToken, refreshToken, sessionId };
 }
 
-/**
- * Lists a user's registered passkeys for a "manage your passkeys" screen.
- * Deliberately excludes credentialId and publicKey — neither is useful to
- * the client, and there's no reason to expose WebAuthn internals just
- * because they aren't strictly secret.
- *
- * @param {object} data
- * @param {string} data.userId
- */
 async function listPasskeys({ userId }) {
   const prisma = getPrismaClient();
   const passkeys = await prisma.passkey.findMany({
@@ -1560,15 +1547,6 @@ async function listPasskeys({ userId }) {
   }));
 }
 
-/**
- * Removes a passkey — ownership is checked explicitly (the passkey's
- * userId must match the caller), not just "does this id exist," so one
- * user can't delete another's credential by guessing an id.
- *
- * @param {object} data
- * @param {string} data.userId
- * @param {string} data.passkeyId
- */
 async function deletePasskey({ userId, passkeyId }) {
   const prisma = getPrismaClient();
   const passkey = await prisma.passkey.findUnique({ where: { id: passkeyId } });
@@ -1610,4 +1588,6 @@ module.exports = {
   verifyPasskeyLogin,
   listPasskeys,
   deletePasskey,
+  issueSessionAndNotify,
+  sanitizeUser,
 };
