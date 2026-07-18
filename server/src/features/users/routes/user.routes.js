@@ -3,6 +3,7 @@ const express = require("express");
 const userController = require("../controllers/user.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { imageUpload } = require("../../../common/middleware/upload");
+const { authorize } = require("../../../common/middleware/authorize");
 
 const UserRouter = express.Router();
 
@@ -42,5 +43,61 @@ UserRouter.post(
   authenticate,
   userController.verifySecondaryEmail,
 );
+
+UserRouter.post("/google/link", authenticate, userController.postLinkGoogle);
+UserRouter.post(
+  "/google/unlink",
+  authenticate,
+  userController.postUnlinkGoogle,
+);
+
+UserRouter.use(authenticate);
+
+UserRouter.get("/", authorize("ADMIN", "SUPPORT"), userController.getUsers);
+UserRouter.get(
+  "/:id",
+  authorize("ADMIN", "SUPPORT"),
+  userController.getUserById,
+);
+
+UserRouter.post(
+  "/:id/block",
+  authorize("ADMIN", "SUPPORT"),
+  userController.postBlockUser,
+);
+UserRouter.post(
+  "/:id/unblock",
+  authorize("ADMIN", "SUPPORT"),
+  userController.postUnblockUser,
+);
+UserRouter.post(
+  "/:id/force-logout",
+  authorize("ADMIN", "SUPPORT"),
+  userController.postForceLogout,
+);
+
+UserRouter.post(
+  "/:id/verify-email",
+  authorize("ADMIN", "SUPPORT"),
+  userController.postVerifyEmail,
+);
+UserRouter.post(
+  "/:id/verify-phone",
+  authorize("ADMIN", "SUPPORT"),
+  userController.postVerifyPhone,
+);
+
+UserRouter.post(
+  "/:id/delete",
+  authorize("ADMIN"),
+  userController.postDeleteUser,
+);
+UserRouter.post(
+  "/:id/restore",
+  authorize("ADMIN"),
+  userController.postRestoreUser,
+);
+
+UserRouter.post("/:id/role", authorize("ADMIN"), userController.postChangeRole);
 
 module.exports = UserRouter;
