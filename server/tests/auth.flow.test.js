@@ -37,6 +37,13 @@ const TEST_PASSWORD = "FlowTestPassword123";
 let accessToken;
 let refreshToken;
 
+async function getUserField(field) {
+  const user = await prisma.user.findFirst({
+    where: { emails: { some: { email: TEST_EMAIL.toLowerCase() } } },
+  });
+  return user ? user[field] : null;
+}
+
 async function getUserEmailField(field) {
   const userEmail = await prisma.userEmail.findFirst({
     where: { email: TEST_EMAIL.toLowerCase() },
