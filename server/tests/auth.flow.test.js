@@ -39,13 +39,15 @@ let refreshToken;
 
 async function getUserField(field) {
   const user = await prisma.user.findFirst({
-    where: { email: TEST_EMAIL.toLowerCase() },
+    where: { emails: { some: { email: TEST_EMAIL.toLowerCase() } } },
   });
   return user ? user[field] : null;
 }
 
 afterAll(async () => {
-  await prisma.user.deleteMany({ where: { email: TEST_EMAIL.toLowerCase() } });
+  await prisma.user.deleteMany({
+    where: { emails: { some: { email: TEST_EMAIL.toLowerCase() } } },
+  });
   await prisma.$disconnect();
 });
 
@@ -73,7 +75,7 @@ describe("Full auth flow", () => {
 
     expect(res.status).toBe(201);
     const count = await prisma.user.count({
-      where: { email: TEST_EMAIL.toLowerCase() },
+      where: { emails: { some: { email: TEST_EMAIL.toLowerCase() } } },
     });
     expect(count).toBe(1);
   });
