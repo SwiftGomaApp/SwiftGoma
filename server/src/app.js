@@ -14,6 +14,7 @@ const { checkSmsConnection } = require("./config/sms");
 const { botDetection } = require("./common/middleware/botDetection");
 const { errorHandler } = require("./common/middleware/errorHandler");
 const { notFound } = require("./common/middleware/notFound");
+const { checkOneSignalConnection } = require("./config/oneSignal");
 const {
   globalLimiter,
   authLimiter,
@@ -21,6 +22,7 @@ const {
 const { requestId } = require("./common/middleware/requestId");
 const authRoutes = require("./features/auth/routes/auth.routes");
 const UserRouter = require("./features/users/routes/user.routes");
+const NotificationRouter = require("./features/notification/routes/notification.routes");
 
 const createApp = () => {
   const app = express();
@@ -47,17 +49,20 @@ const createApp = () => {
   app.use(globalLimiter);
 
   app.get("/api/v1/health", async (req, res) => {
-    const [db, cloudinaryStatus, mailerStatus, smsStatus] = await Promise.all([
-      checkDatabaseConnection(),
-      checkCloudinaryConnection(),
-      checkMailerConnection(),
-      checkSmsConnection(),
-    ]);
+    const [db, cloudinaryStatus, mailerStatus, smsStatus, oneSignalStatus] =
+      await Promise.all([
+        checkDatabaseConnection(),
+        checkCloudinaryConnection(),
+        checkMailerConnection(),
+        checkSmsConnection(),
+        checkOneSignalConnection(),
+      ]);
     const healthy =
       db.connected &&
       cloudinaryStatus.connected &&
       mailerStatus.connected &&
-      smsStatus.connected;
+      smsStatus.connected &&
+      oneSignalStatus.connected;
 
     res.status(healthy ? 200 : 503).json({
       status: healthy ? "ok" : "degraded",
@@ -67,6 +72,7 @@ const createApp = () => {
       cloudinary: cloudinaryStatus,
       mailer: mailerStatus,
       sms: smsStatus,
+      oneSignal: oneSignalStatus,
     });
   });
   app.use(
@@ -81,6 +87,8 @@ const createApp = () => {
     // authLimiter,
     UserRouter,
   );
+
+  app.use("/api/v1/notifications", NotificationRouter);
 
   app.use(notFound);
 

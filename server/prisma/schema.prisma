@@ -47,10 +47,12 @@ model User {
 
   googleId String? @unique
 
-  emails        UserEmail[]
-  sessions      Session[]
-  twoFactorAuth TwoFactorAuth?
-  passkeys      Passkey[]
+  emails                  UserEmail[]
+  sessions                Session[]
+  twoFactorAuth           TwoFactorAuth?
+  passkeys                Passkey[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
 
   actionsReceived  AccountActionLog[] @relation("TargetUser")
   actionsPerformed AccountActionLog[] @relation("ActorUser")
@@ -173,4 +175,44 @@ model Passkey {
 
   @@index([userId])
   @@map("passkeys")
+}
+
+model Notification {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type  String
+  title String
+  body  String
+  data  Json?
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  channels String[]
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type String
+
+  inApp Boolean @default(true)
+  email Boolean @default(true)
+  sms   Boolean @default(false)
+  push  Boolean @default(true)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, type])
+  @@map("notification_preferences")
 }

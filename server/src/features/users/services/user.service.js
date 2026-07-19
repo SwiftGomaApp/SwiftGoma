@@ -5,8 +5,6 @@ const {
   sendPhoneChangedEmail,
   sendAccountDeletionEmail,
   sendAccountRecoveryOtpEmail,
-  sendAccountStatusEmail,
-  sendSessionsRevokedEmail,
   accountDeletionEmail,
 } = require("../../../common/emails");
 const { sendSms } = require("../../../config/sms");
@@ -41,6 +39,18 @@ const { ACCOUNT_DELETION_CONFIG } = require("../config/accountDeletion.config");
 const { isWithinRecoveryGracePeriod } = require("../utils/accountDeletion");
 const { verifyGoogleIdToken } = require("../../auth/config/google.config");
 const { maskPhone } = require("../utils/phone");
+const {
+  accountStatusEmail,
+} = require("../../../common/emails/templates/accountStatus");
+const {
+  sessionsRevokedEmail,
+} = require("../../../common/emails/templates/sessionsRevoked");
+const {
+  createNotification,
+} = require("../../notification/services/notification.service");
+const {
+  NOTIFICATION_TYPES,
+} = require("../../notification/config/notificationTypes");
 
 const PHONE_OTP_TTL_MINUTES = 10;
 const PHONE_OTP_RESEND_COOLDOWN_SECONDS = 30;
@@ -1006,18 +1016,26 @@ async function blockUser(actor, targetUserId, reason) {
   ]);
 
   try {
-    await sendAccountStatusEmail(targetUser.email, {
+    const emailContent = accountStatusEmail({
       name: targetUser.name,
       action: "blocked",
       reason,
       actionUrl: `mailto:${require("../../../common/constants/brand").BRAND.supportEmail}`,
       locale: "fr",
     });
+
+    await createNotification({
+      userId: targetUserId,
+      type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+      title: emailContent.subject,
+      body: reason
+        ? `Votre compte a été bloqué. Raison : ${reason}`
+        : "Votre compte a été bloqué par notre équipe.",
+      data: { action: "blocked" },
+      emailOverride: emailContent,
+    });
   } catch (err) {
-    console.error(
-      "[admin] Failed to send account-blocked notification:",
-      err.message,
-    );
+    console.error("[admin] Failed to notify account-blocked:", err.message);
   }
 
   return { id: updated.id, isBlocked: updated.isBlocked };
@@ -1047,17 +1065,23 @@ async function unblockUser(actor, targetUserId, reason) {
   ]);
 
   try {
-    await sendAccountStatusEmail(targetUser.email, {
+    const emailContent = accountStatusEmail({
       name: targetUser.name,
       action: "unblocked",
       actionUrl: `${env.appUrl}/login`,
       locale: "fr",
     });
+
+    await createNotification({
+      userId: targetUserId,
+      type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+      title: emailContent.subject,
+      body: "Votre compte a été débloqué. Vous pouvez vous reconnecter dès maintenant.",
+      data: { action: "unblocked" },
+      emailOverride: emailContent,
+    });
   } catch (err) {
-    console.error(
-      "[admin] Failed to send account-unblocked notification:",
-      err.message,
-    );
+    console.error("[admin] Failed to notify account-unblocked:", err.message);
   }
 
   return { id: updated.id, isBlocked: updated.isBlocked };
@@ -1094,17 +1118,27 @@ async function forceLogout(actor, targetUserId, sessionId, reason) {
   });
 
   try {
-    await sendSessionsRevokedEmail(targetUser.email, {
+    const scope = sessionId ? "single" : "all";
+    const emailContent = sessionsRevokedEmail({
       name: targetUser.name,
-      scope: sessionId ? "single" : "all",
+      scope,
       actionUrl: `${env.appUrl}/login`,
       locale: "fr",
     });
+
+    await createNotification({
+      userId: targetUserId,
+      type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+      title: emailContent.subject,
+      body:
+        scope === "single"
+          ? "Une de vos sessions a été déconnectée par notre équipe."
+          : "Toutes vos sessions ont été déconnectées par notre équipe.",
+      data: { action: "sessionsRevoked", scope },
+      emailOverride: emailContent,
+    });
   } catch (err) {
-    console.error(
-      "[admin] Failed to send sessions-revoked notification:",
-      err.message,
-    );
+    console.error("[admin] Failed to notify sessions-revoked:", err.message);
   }
 
   return { revokedCount: result.count };
@@ -1222,18 +1256,24 @@ async function adminDeleteUser(actor, targetUserId, reason) {
   ]);
 
   try {
-    await sendAccountDeletionEmail(targetUser.email, {
+    const emailContent = accountDeletionEmail({
       name: targetUser.name,
       action: "deleted",
       actionUrl: `${env.appUrl}/account/recovery`,
       recoveryDays: ACCOUNT_DELETION_CONFIG.RECOVERY_GRACE_PERIOD_DAYS,
       locale: "fr",
     });
+
+    await createNotification({
+      userId: targetUserId,
+      type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+      title: emailContent.subject,
+      body: `Votre compte a été supprimé par notre équipe. Vous pouvez le récupérer dans les ${ACCOUNT_DELETION_CONFIG.RECOVERY_GRACE_PERIOD_DAYS} jours.`,
+      data: { action: "deleted" },
+      emailOverride: emailContent,
+    });
   } catch (err) {
-    console.error(
-      "[admin] Failed to send account-deletion notification:",
-      err.message,
-    );
+    console.error("[admin] Failed to notify account-deletion:", err.message);
   }
 
   return {
@@ -1268,17 +1308,23 @@ async function adminRestoreUser(actor, targetUserId, reason) {
   ]);
 
   try {
-    await sendAccountDeletionEmail(targetUser.email, {
+    const emailContent = accountDeletionEmail({
       name: targetUser.name,
       action: "restored",
       actionUrl: `${env.appUrl}/account/activity`,
       locale: "fr",
     });
+
+    await createNotification({
+      userId: targetUserId,
+      type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+      title: emailContent.subject,
+      body: "Votre compte a été restauré par notre équipe.",
+      data: { action: "restored" },
+      emailOverride: emailContent,
+    });
   } catch (err) {
-    console.error(
-      "[admin] Failed to send account-restored notification:",
-      err.message,
-    );
+    console.error("[admin] Failed to notify account-restored:", err.message);
   }
 
   return { id: targetUserId, deletedAt: null };
@@ -1322,18 +1368,24 @@ async function changeUserRole(actor, targetUserId, newRole, reason) {
   ]);
 
   try {
-    await sendAccountStatusEmail(targetUser.email, {
+    const emailContent = accountStatusEmail({
       name: targetUser.name,
       action: "roleChanged",
       reason: `${oldRole} → ${newRole}`,
       actionUrl: `${env.appUrl}/login`,
       locale: "fr",
     });
+
+    await createNotification({
+      userId: targetUserId,
+      type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+      title: emailContent.subject,
+      body: `Le rôle de votre compte a changé : ${oldRole} → ${newRole}.`,
+      data: { action: "roleChanged", fromRole: oldRole, toRole: newRole },
+      emailOverride: emailContent,
+    });
   } catch (err) {
-    console.error(
-      "[admin] Failed to send role-change notification:",
-      err.message,
-    );
+    console.error("[admin] Failed to notify role-change:", err.message);
   }
 
   return { id: updated.id, role: updated.role, previousRole: oldRole };
