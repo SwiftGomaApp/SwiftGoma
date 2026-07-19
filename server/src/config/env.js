@@ -59,6 +59,27 @@ const env = {
     restApiKey: process.env.API_KEY,
     appId: process.env.APP_ID,
   },
+
+  pawapay: {
+    environment: process.env.PAWAPAY_ENVIRONMENT || "sandbox",
+    callbackBaseUrl: process.env.PAWAPAY_CALLBACK_BASE_URL || "",
+
+    sandbox: {
+      apiToken: process.env.PAWAPAY_SANDBOX_API_TOKEN || "",
+      privateKeyPem: process.env.PAWAPAY_SANDBOX_PRIVATE_KEY_PEM || "",
+      keyId: process.env.PAWAPAY_SANDBOX_KEY_ID || "",
+      publicKeyPem: process.env.PAWAPAY_SANDBOX_PUBLIC_KEY_PEM || "",
+    },
+
+    production: {
+      apiToken: process.env.PAWAPAY_PRODUCTION_API_TOKEN || "",
+      privateKeyPem: process.env.PAWAPAY_PRODUCTION_PRIVATE_KEY_PEM || "",
+      keyId: process.env.PAWAPAY_PRODUCTION_KEY_ID || "",
+      publicKeyPem: process.env.PAWAPAY_PRODUCTION_PUBLIC_KEY_PEM || "",
+    },
+
+    signingEnabled: process.env.PAWAPAY_SIGNING_ENABLED === "true",
+  },
 };
 
 const isProduction = env.nodeEnv === "production";
