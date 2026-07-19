@@ -20,7 +20,7 @@ describe("pawapay.service (mocked)", () => {
         currency: "RWF",
         country: "RWA",
         provider: "MTN_MOMO_RWA",
-        payerPhoneNumber: "+250792398833", // invalide, a un +
+        payerPhoneNumber: "250792398833", // invalide, a un +
         customerMessage: "Test",
       }),
     ).rejects.toThrow();

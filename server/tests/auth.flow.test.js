@@ -11,6 +11,15 @@ jest.mock("../src/common/emails", () => ({
   sendPasswordResetOtpEmail: jest.fn().mockResolvedValue(true),
   sendPasswordChangedEmail: jest.fn().mockResolvedValue(true),
   sendTwoFactorChangedEmail: jest.fn().mockResolvedValue(true),
+  loginDetectedEmail: jest.fn(() => ({ subject: "Test", html: "<p>test</p>" })),
+  passwordChangedEmail: jest.fn(() => ({
+    subject: "Test",
+    html: "<p>test</p>",
+  })),
+  twoFactorChangedEmail: jest.fn(() => ({
+    subject: "Test",
+    html: "<p>test</p>",
+  })),
 }));
 jest.mock("../src/config/sms", () => ({
   sendSms: jest.fn().mockResolvedValue(true),
