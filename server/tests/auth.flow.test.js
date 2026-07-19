@@ -3,24 +3,41 @@ process.env.NODE_ENV = "test";
 const request = require("supertest");
 
 jest.mock("../src/common/emails", () => ({
-  sendLoginDetectedEmail: jest.fn().mockResolvedValue(true),
   sendOtpLoginEmail: jest.fn().mockResolvedValue(true),
-  sendPaymentReceiptEmail: jest.fn().mockResolvedValue(true),
-  sendSubscriptionEmail: jest.fn().mockResolvedValue(true),
-  sendNewsEmail: jest.fn().mockResolvedValue(true),
   sendPasswordResetOtpEmail: jest.fn().mockResolvedValue(true),
-  sendPasswordChangedEmail: jest.fn().mockResolvedValue(true),
-  sendTwoFactorChangedEmail: jest.fn().mockResolvedValue(true),
-  loginDetectedEmail: jest.fn(() => ({ subject: "Test", html: "<p>test</p>" })),
+  loginDetectedEmail: jest.fn(() => ({
+    subject: "Test - New sign-in",
+    html: "<p>test</p>",
+  })),
   passwordChangedEmail: jest.fn(() => ({
-    subject: "Test",
+    subject: "Test - Password changed",
     html: "<p>test</p>",
   })),
   twoFactorChangedEmail: jest.fn(() => ({
-    subject: "Test",
+    subject: "Test - 2FA changed",
     html: "<p>test</p>",
   })),
 }));
+jest.mock("../src/config/sms", () => ({
+  sendSms: jest.fn().mockResolvedValue(true),
+  checkSmsConnection: jest
+    .fn()
+    .mockResolvedValue({ connected: true, latencyMs: 1, error: null }),
+}));
+jest.mock(
+  "../src/features/notifications/services/notification.service",
+  () => ({
+    createNotification: jest.fn().mockResolvedValue({
+      id: "test-notification-id",
+      type: "ACCOUNT_SECURITY",
+      title: "Test",
+      body: "Test",
+      data: {},
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    }),
+  }),
+);
 jest.mock("../src/config/sms", () => ({
   sendSms: jest.fn().mockResolvedValue(true),
   checkSmsConnection: jest
