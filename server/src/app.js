@@ -23,6 +23,7 @@ const { requestId } = require("./common/middleware/requestId");
 const authRoutes = require("./features/auth/routes/auth.routes");
 const UserRouter = require("./features/users/routes/user.routes");
 const NotificationRouter = require("./features/notification/routes/notification.routes");
+const SellerRouter = require("./features/seller/routes/seller.routes");
 
 const createApp = () => {
   const app = express();
@@ -89,6 +90,7 @@ const createApp = () => {
   );
 
   app.use("/api/v1/notifications", NotificationRouter);
+  app.use("/api/v1/seller", SellerRouter);
 
   app.use(notFound);
 
