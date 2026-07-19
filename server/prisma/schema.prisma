@@ -18,6 +18,25 @@ enum Role {
   SUPPORT
 }
 
+enum SellerProfileStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+}
+
+enum KycStatus {
+  PENDING
+  SUPPORT_REVIEWED
+  APPROVED
+  REJECTED
+}
+
+enum IdDocumentType {
+  NATIONAL_ID
+  VOTER_CARD
+  PASSPORT
+}
+
 model User {
   id           String  @id @default(uuid())
   name         String
@@ -53,6 +72,7 @@ model User {
   passkeys                Passkey[]
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
+  sellerProfile           SellerProfile?
 
   actionsReceived  AccountActionLog[] @relation("TargetUser")
   actionsPerformed AccountActionLog[] @relation("ActorUser")
@@ -215,4 +235,68 @@ model NotificationPreference {
 
   @@unique([userId, type])
   @@map("notification_preferences")
+}
+
+model SellerProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  businessName        String
+  businessDescription String
+  logoUrl             String
+  logoPublicId        String
+  bannerUrl           String
+  bannerPublicId      String
+
+  contactPhone   String
+  contactEmail   String
+  whatsappNumber String
+
+  address String
+  city    String @default("Goma")
+
+  status SellerProfileStatus @default(DRAFT)
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  kyc       SellerKyc?
+
+  @@index([status])
+  @@map("seller_profiles")
+}
+
+model SellerKyc {
+  id              String        @id @default(uuid())
+  sellerProfileId String        @unique
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+
+  idDocumentType     IdDocumentType
+  idDocumentUrl      String
+  idDocumentPublicId String
+
+  proofOfAddressUrl      String
+  proofOfAddressPublicId String
+
+  rccmNumber           String?
+  rccmDocumentUrl      String?
+  rccmDocumentPublicId String?
+
+  status KycStatus @default(PENDING)
+
+  supportReviewedBy String?
+  supportReviewedAt DateTime?
+
+  adminReviewedBy String?
+  adminReviewedAt DateTime?
+
+  rejectedBy      String?
+  rejectedAt      DateTime?
+  rejectionReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("seller_kyc")
 }

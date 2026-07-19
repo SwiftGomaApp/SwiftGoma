@@ -12,6 +12,8 @@ const { accountDeletionEmail } = require("./templates/accountDeletion");
 const { accountRecoveryOtpEmail } = require("./templates/accountRecoveryOtp");
 const { accountStatusEmail } = require("./templates/accountStatus");
 const { sessionsRevokedEmail } = require("./templates/sessionsRevoked");
+const { sellerProfileStatusEmail } = require("./templates/sellerProfileStatus");
+const { sellerKycStatusEmail } = require("./templates/sellerKycStatus");
 
 async function sendLoginDetectedEmail(to, data) {
   const { subject, html } = loginDetectedEmail(data);
@@ -103,4 +105,6 @@ module.exports = {
   accountRecoveryOtpEmail,
   sendAccountStatusEmail,
   sendSessionsRevokedEmail,
+  sellerProfileStatusEmail,
+  sellerKycStatusEmail,
 };

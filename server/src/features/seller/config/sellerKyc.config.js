@@ -1,0 +1,18 @@
+const SELLER_KYC_CONFIG = {
+  ID_DOCUMENT_TYPES: ["NATIONAL_ID", "VOTER_CARD", "PASSPORT"],
+
+  REQUIRED_FIELDS: ["idDocumentType", "idDocumentUrl", "proofOfAddressUrl"],
+
+  RCCM_PAIRED_FIELDS: ["rccmNumber", "rccmDocumentUrl"],
+
+  ALLOWED_STATUS_TRANSITIONS: {
+    PENDING: ["SUPPORT_REVIEWED", "REJECTED"],
+    SUPPORT_REVIEWED: ["APPROVED", "REJECTED"],
+    REJECTED: ["PENDING"],
+    APPROVED: [],
+  },
+
+  RESUBMITTABLE_STATUSES: ["REJECTED"],
+};
+
+module.exports = { SELLER_KYC_CONFIG };
