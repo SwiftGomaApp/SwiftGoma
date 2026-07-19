@@ -53,6 +53,12 @@ const env = {
     rpId: process.env.WEBAUTHN_RP_ID || "localhost",
     rpName: process.env.WEBAUTHN_RP_NAME || "SwiftGoma",
   },
+
+  oneSignal: {
+    baseUrl: process.env.BASE_URL,
+    restApiKey: process.env.API_KEY,
+    appId: process.env.APP_ID,
+  },
 };
 
 const isProduction = env.nodeEnv === "production";

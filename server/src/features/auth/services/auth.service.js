@@ -21,10 +21,10 @@ const {
 } = require("../../../config/jwt");
 const {
   sendOtpLoginEmail,
-  sendLoginDetectedEmail,
   sendPasswordResetOtpEmail,
-  sendPasswordChangedEmail,
-  sendTwoFactorChangedEmail,
+  loginDetectedEmail,
+  passwordChangedEmail,
+  twoFactorChangedEmail,
 } = require("../../../common/emails");
 const {
   parseUserAgent,
@@ -59,6 +59,12 @@ const {
   hashPassword,
   comparePassword,
 } = require("../utils/auth");
+const {
+  createNotification,
+} = require("../../notification/services/notification.service");
+const {
+  NOTIFICATION_TYPES,
+} = require("../../notification/config/notificationTypes");
 
 const EMAIL_VERIFICATION_OTP_TTL_MINUTES = 10;
 const LOGIN_OTP_TTL_MINUTES = 10;
@@ -389,7 +395,7 @@ async function issueSessionAndNotify(
   if (primaryEmail) {
     try {
       const { browser, device } = parseUserAgent(userAgent);
-      await sendLoginDetectedEmail(primaryEmail.email, {
+      const emailContent = loginDetectedEmail({
         name: user.name,
         email: primaryEmail.email,
         location: getLocationLabel(ipAddress),
@@ -400,8 +406,17 @@ async function issueSessionAndNotify(
         reviewActivityUrl: `${env.appUrl}/account/activity`,
         locale,
       });
+
+      await createNotification({
+        userId: user.id,
+        type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+        title: emailContent.subject,
+        body: `Nouvelle connexion détectée depuis ${device || "un appareil"} (${browser || "navigateur inconnu"}).`,
+        data: { action: "loginDetected", ip: ipAddress || null },
+        emailOverride: emailContent,
+      });
     } catch (err) {
-      console.error("[auth] Failed to send login-detected email:", err.message);
+      console.error("[auth] Failed to notify login-detected:", err.message);
     }
   } else {
     console.error(
@@ -673,18 +688,24 @@ async function createPassword({ userId, password, locale = "en" }) {
   try {
     const primaryEmail = getPrimaryEmail(updated);
     if (primaryEmail) {
-      await sendPasswordChangedEmail(primaryEmail.email, {
+      const emailContent = passwordChangedEmail({
         name: updated.name,
         action: "created",
         reviewActivityUrl: `${env.appUrl}/account/activity`,
         locale,
       });
+
+      await createNotification({
+        userId: updated.id,
+        type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+        title: emailContent.subject,
+        body: "Un mot de passe a été créé pour votre compte.",
+        data: { action: "passwordCreated" },
+        emailOverride: emailContent,
+      });
     }
   } catch (err) {
-    console.error(
-      "[auth] Failed to send password-created notification:",
-      err.message,
-    );
+    console.error("[auth] Failed to notify password-created:", err.message);
   }
 
   return sanitizeUser(updated);
@@ -733,18 +754,24 @@ async function updatePassword({
   try {
     const primaryEmail = getPrimaryEmail(updated);
     if (primaryEmail) {
-      await sendPasswordChangedEmail(primaryEmail.email, {
+      const emailContent = passwordChangedEmail({
         name: updated.name,
         action: "updated",
         reviewActivityUrl: `${env.appUrl}/account/activity`,
         locale,
       });
+
+      await createNotification({
+        userId: updated.id,
+        type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+        title: emailContent.subject,
+        body: "Votre mot de passe a été modifié.",
+        data: { action: "passwordUpdated" },
+        emailOverride: emailContent,
+      });
     }
   } catch (err) {
-    console.error(
-      "[auth] Failed to send password-updated notification:",
-      err.message,
-    );
+    console.error("[auth] Failed to notify password-updated:", err.message);
   }
 
   await logoutAll(userId, { exceptSessionId: currentSessionId });
@@ -858,18 +885,24 @@ async function resetPassword({ email, code, newPassword, locale = "en" }) {
   try {
     const primaryEmail = getPrimaryEmail(updated);
     if (primaryEmail) {
-      await sendPasswordChangedEmail(primaryEmail.email, {
+      const emailContent = passwordChangedEmail({
         name: updated.name,
         action: "reset",
         reviewActivityUrl: `${env.appUrl}/account/activity`,
         locale,
       });
+
+      await createNotification({
+        userId: updated.id,
+        type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+        title: emailContent.subject,
+        body: "Votre mot de passe a été réinitialisé.",
+        data: { action: "passwordReset" },
+        emailOverride: emailContent,
+      });
     }
   } catch (err) {
-    console.error(
-      "[auth] Failed to send password-reset notification:",
-      err.message,
-    );
+    console.error("[auth] Failed to notify password-reset:", err.message);
   }
 
   return sanitizeUser(updated);
@@ -966,7 +999,7 @@ async function setupTotp({ userId }) {
   return { qrCodeDataUrl, manualEntryKey: secret.base32 };
 }
 
-async function confirmTotp({ userId, code }) {
+async function confirmTotp({ userId, code, locale = "en" }) {
   if (!code || typeof code !== "string" || !code.trim()) {
     throw new ValidationError(
       "Please enter the code from your authenticator app.",
@@ -1011,6 +1044,33 @@ async function confirmTotp({ userId, code }) {
     }),
   ]);
 
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { emails: true },
+    });
+    const primaryEmail = getPrimaryEmail(user);
+    if (primaryEmail) {
+      const emailContent = twoFactorChangedEmail({
+        name: user.name,
+        action: "enabled",
+        reviewActivityUrl: `${env.appUrl}/account/activity`,
+        locale,
+      });
+
+      await createNotification({
+        userId,
+        type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+        title: emailContent.subject,
+        body: "L'authentification à deux facteurs a été activée sur votre compte.",
+        data: { action: "twoFactorEnabled" },
+        emailOverride: emailContent,
+      });
+    }
+  } catch (err) {
+    console.error("[auth] Failed to notify 2FA-enabled:", err.message);
+  }
+
   return { backupCodes };
 }
 
@@ -1038,18 +1098,24 @@ async function disableTotp({ userId, code, locale = "en" }) {
   try {
     const primaryEmail = getPrimaryEmail(user);
     if (primaryEmail) {
-      await sendTwoFactorChangedEmail(primaryEmail.email, {
+      const emailContent = twoFactorChangedEmail({
         name: user.name,
         action: "disabled",
         reviewActivityUrl: `${env.appUrl}/account/activity`,
         locale,
       });
+
+      await createNotification({
+        userId,
+        type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+        title: emailContent.subject,
+        body: "L'authentification à deux facteurs a été désactivée sur votre compte.",
+        data: { action: "twoFactorDisabled" },
+        emailOverride: emailContent,
+      });
     }
   } catch (err) {
-    console.error(
-      "[auth] Failed to send 2FA-disabled notification:",
-      err.message,
-    );
+    console.error("[auth] Failed to notify 2FA-disabled:", err.message);
   }
 
   return { message: "Two-factor authentication has been disabled." };
@@ -1146,16 +1212,25 @@ async function regenerateBackupCodes({ userId, code, locale = "en" }) {
   try {
     const primaryEmail = getPrimaryEmail(user);
     if (primaryEmail) {
-      await sendTwoFactorChangedEmail(primaryEmail.email, {
+      const emailContent = twoFactorChangedEmail({
         name: user.name,
         action: "backup_codes_regenerated",
         reviewActivityUrl: `${env.appUrl}/account/activity`,
         locale,
       });
+
+      await createNotification({
+        userId,
+        type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+        title: emailContent.subject,
+        body: "De nouveaux codes de secours ont été générés pour votre compte.",
+        data: { action: "backupCodesRegenerated" },
+        emailOverride: emailContent,
+      });
     }
   } catch (err) {
     console.error(
-      "[auth] Failed to send backup-codes-regenerated notification:",
+      "[auth] Failed to notify backup-codes-regenerated:",
       err.message,
     );
   }
