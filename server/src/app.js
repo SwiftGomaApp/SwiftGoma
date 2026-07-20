@@ -29,6 +29,8 @@ const NotificationRouter = require("./features/notification/routes/notification.
 const SellerRouter = require("./features/seller/routes/seller.routes");
 const PawapayRouter = require("./features/payments/routes/pawapay.routes");
 const PlansRouter = require("./features/plans/routes/plans.routes");
+const PawapayCallbackRouter = require("./features/payments/routes/pawapayCallback.routes");
+const SubscriptionRouter = require("./features/subscriptions/routes/subscription.routes");
 
 const createApp = () => {
   const app = express();
@@ -51,6 +53,12 @@ const createApp = () => {
   app.use(morgan(isProduction ? "combined" : "dev"));
 
   app.use(botDetection({ mode: "flag" }));
+
+  // if (isProduction) {
+  //   app.set("trust proxy", 1);
+  // }
+
+  app.set("trust proxy", 1);
 
   app.use(globalLimiter);
 
@@ -91,6 +99,8 @@ const createApp = () => {
     });
   });
 
+  app.use("/api/v1/pawapay/callbacks", PawapayCallbackRouter);
+
   app.use(
     "/api/v1/auth",
     // botDetection({ mode: "block" }),
@@ -108,6 +118,8 @@ const createApp = () => {
   app.use("/api/v1/seller", SellerRouter);
   app.use("/api/v1/pawapay", PawapayRouter);
   app.use("/api/v1/plans", PlansRouter);
+  app.use("/api/v1/pawapay/callbacks", PawapayCallbackRouter);
+  app.use("/api/v1/subscriptions", SubscriptionRouter);
 
   app.use(notFound);
 
