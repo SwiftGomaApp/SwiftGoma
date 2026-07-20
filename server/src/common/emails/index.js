@@ -14,6 +14,7 @@ const { accountStatusEmail } = require("./templates/accountStatus");
 const { sessionsRevokedEmail } = require("./templates/sessionsRevoked");
 const { sellerProfileStatusEmail } = require("./templates/sellerProfileStatus");
 const { sellerKycStatusEmail } = require("./templates/sellerKycStatus");
+const { subscriptionStatusEmail } = require("./templates/subscriptionStatus");
 
 async function sendLoginDetectedEmail(to, data) {
   const { subject, html } = loginDetectedEmail(data);
@@ -107,4 +108,5 @@ module.exports = {
   sendSessionsRevokedEmail,
   sellerProfileStatusEmail,
   sellerKycStatusEmail,
+  subscriptionStatusEmail,
 };

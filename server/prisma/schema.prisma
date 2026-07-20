@@ -42,6 +42,21 @@ enum BillingCycle {
   YEARLY
 }
 
+enum SubscriptionStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  FAILED_PAYMENT
+  PAST_DUE
+  EXPIRED
+  CANCELED
+}
+
+enum SubscriptionPaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
 model User {
   id           String  @id @default(uuid())
   name         String
@@ -263,9 +278,10 @@ model SellerProfile {
 
   status SellerProfileStatus @default(DRAFT)
 
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  kyc       SellerKyc?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  kyc          SellerKyc?
+  subscription Subscription?
 
   @@index([status])
   @@map("seller_profiles")
@@ -323,6 +339,9 @@ model Plan {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  subscriptions Subscription[]
+  payments      SubscriptionPayment[]
+
   @@map("plans")
 }
 
@@ -340,4 +359,62 @@ model PlanPrice {
 
   @@unique([planId, billingCycle, currency])
   @@map("plan_prices")
+}
+
+model Subscription {
+  id              String        @id @default(uuid())
+  sellerProfileId String        @unique
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  billingCycle BillingCycle
+  currency     String
+
+  status SubscriptionStatus @default(ACTIVE)
+
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  autoRenew          Boolean   @default(true)
+  canceledAt         DateTime?
+
+  payments SubscriptionPayment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@map("subscriptions")
+}
+
+model SubscriptionPayment {
+  id             String       @id @default(uuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  billingCycle BillingCycle
+  currency     String
+  amount       Decimal      @db.Decimal(12, 2)
+
+  provider  String  @default("PAWAPAY")
+  depositId String? @unique
+
+  status        SubscriptionPaymentStatus @default(PENDING)
+  failureReason String?
+  paidAt        DateTime?
+
+  periodStart DateTime
+  periodEnd   DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([subscriptionId])
+  @@map("subscription_payments")
 }

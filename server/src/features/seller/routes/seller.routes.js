@@ -66,7 +66,7 @@ SellerRouter.post(
 
 SellerRouter.post(
   "/kyc/:id/support-review",
-  authorize("SUPPORT"),
+  authorize("SUPPORT", "ADMIN"),
   postSupportReview,
 );
 
