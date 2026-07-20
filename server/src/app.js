@@ -28,6 +28,7 @@ const UserRouter = require("./features/users/routes/user.routes");
 const NotificationRouter = require("./features/notification/routes/notification.routes");
 const SellerRouter = require("./features/seller/routes/seller.routes");
 const PawapayRouter = require("./features/payments/routes/pawapay.routes");
+const PlansRouter = require("./features/plans/routes/plans.routes");
 
 const createApp = () => {
   const app = express();
@@ -106,6 +107,7 @@ const createApp = () => {
   app.use("/api/v1/notifications", NotificationRouter);
   app.use("/api/v1/seller", SellerRouter);
   app.use("/api/v1/pawapay", PawapayRouter);
+  app.use("/api/v1/plans", PlansRouter);
 
   app.use(notFound);
 
