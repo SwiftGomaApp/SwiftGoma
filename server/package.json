@@ -8,6 +8,7 @@
     "start": "node server.js",
     "postinstall": "prisma generate",
     "seed:admin": "node scripts/createAdminOrSupport.js",
+    "seed:plans": "node scripts/seedPlans.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
