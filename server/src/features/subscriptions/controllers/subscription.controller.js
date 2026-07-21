@@ -8,6 +8,7 @@ const {
   reactivateCanceledSubscription,
   upgradeSubscription,
   getSubscriptionStats,
+  getSubscriptionRevenue,
 } = require("../services/subscription.service");
 const {
   checkDepositStatus,
@@ -161,12 +162,22 @@ async function getStats(req, res, next) {
   }
 }
 
+async function getRevenue(req, res, next) {
+  try {
+    const revenue = await getSubscriptionRevenue();
+    res.status(200).json({ success: true, data: revenue });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   postSubscribe,
   postUpgrade,
   getMySubscription,
   getMyPaymentHistory,
   postCancelMySubscription,
+  getRevenue,
   postCheckPaymentStatus,
   postReactivateMySubscription,
   getStats,

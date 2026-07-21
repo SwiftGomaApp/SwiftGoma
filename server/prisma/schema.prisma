@@ -57,6 +57,11 @@ enum SubscriptionPaymentStatus {
   FAILED
 }
 
+enum InvoiceDocumentType {
+  INVOICE
+  RECEIPT
+}
+
 model User {
   id           String  @id @default(uuid())
   name         String
@@ -282,6 +287,7 @@ model SellerProfile {
   updatedAt    DateTime      @updatedAt
   kyc          SellerKyc?
   subscription Subscription?
+  invoices     Invoice[]
 
   @@index([status])
   @@map("seller_profiles")
@@ -374,10 +380,15 @@ model Subscription {
 
   status SubscriptionStatus @default(ACTIVE)
 
-  currentPeriodStart DateTime
-  currentPeriodEnd   DateTime
-  autoRenew          Boolean   @default(true)
-  canceledAt         DateTime?
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  autoRenew            Boolean   @default(true)
+  renewalPhoneNumber   String?
+  renewalProvider      String?
+  renewalCountry       String?
+  lastRenewalAttemptAt DateTime?
+
+  canceledAt DateTime?
 
   payments SubscriptionPayment[]
 
@@ -401,8 +412,11 @@ model SubscriptionPayment {
   currency     String
   amount       Decimal      @db.Decimal(12, 2)
 
-  provider  String  @default("PAWAPAY")
-  depositId String? @unique
+  provider            String  @default("PAWAPAY")
+  mobileMoneyProvider String?
+  payerPhoneNumber    String?
+  country             String?
+  depositId           String? @unique
 
   status        SubscriptionPaymentStatus @default(PENDING)
   failureReason String?
@@ -411,10 +425,42 @@ model SubscriptionPayment {
   periodStart DateTime
   periodEnd   DateTime
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  invoices  Invoice[]
 
   @@index([status])
   @@index([subscriptionId])
   @@map("subscription_payments")
+}
+
+model Invoice {
+  id             String              @id @default(uuid())
+  documentNumber String              @unique
+  type           InvoiceDocumentType
+
+  subscriptionPaymentId String
+  subscriptionPayment   SubscriptionPayment @relation(fields: [subscriptionPaymentId], references: [id], onDelete: Cascade)
+
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id])
+
+  pdfUrl      String
+  pdfPublicId String
+
+  issuedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([subscriptionPaymentId, type])
+  @@index([sellerProfileId])
+  @@map("invoices")
+}
+
+model DocumentSequence {
+  id    String @id
+  value Int    @default(0)
+
+  @@map("document_sequences")
 }

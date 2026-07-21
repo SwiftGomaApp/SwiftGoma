@@ -1,0 +1,10 @@
+const INVOICING_CONFIG = {
+  DOCUMENT_NUMBER_PREFIXES: {
+    INVOICE: "SWG-INV",
+    RECEIPT: "SWG-REC",
+  },
+  DOCUMENT_NUMBER_PADDING: 6, // ex: 000123
+  CLOUDINARY_FOLDER: "swiftgoma/invoices",
+};
+
+module.exports = { INVOICING_CONFIG };

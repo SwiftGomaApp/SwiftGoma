@@ -8,6 +8,7 @@ const {
   postReactivateMySubscription,
   postUpgrade,
   getStats,
+  getRevenue,
 } = require("../controllers/subscription.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
@@ -27,5 +28,6 @@ SubscriptionRouter.post(
   postCheckPaymentStatus,
 );
 SubscriptionRouter.get("/stats", authorize("ADMIN"), getStats);
+SubscriptionRouter.get("/revenue", authorize("ADMIN"), getRevenue);
 
 module.exports = SubscriptionRouter;
