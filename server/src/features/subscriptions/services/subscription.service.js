@@ -18,6 +18,12 @@ const {
   subscriptionStatusEmail,
 } = require("../../../common/emails/templates/subscriptionStatus");
 
+const {
+  generateInvoiceDocument,
+  generateReceiptDocument,
+} = require("../../invoicing/services/invoice.service");
+const { formatDate } = require("../../invoicing/utils/invoicing.utils");
+
 const prisma = getPrismaClient();
 
 async function assertSellerProfileExists(sellerProfileId) {
@@ -37,6 +43,8 @@ async function getPlanOrThrow(planId) {
   if (!plan.isActive) throw new ConflictError("Ce plan n'est plus disponible.");
   return plan;
 }
+
+const { SUBSCRIPTION_CONFIG } = require("../config/subscription.config");
 
 async function subscribeToPlan({
   sellerProfileId,
@@ -81,6 +89,9 @@ async function subscribeToPlan({
           status: "PENDING_PAYMENT",
           currentPeriodStart: periodStart,
           currentPeriodEnd: periodEnd,
+          renewalPhoneNumber: payerPhoneNumber,
+          renewalProvider: provider,
+          renewalCountry: country,
           autoRenew: true,
           canceledAt: null,
         },
@@ -92,6 +103,9 @@ async function subscribeToPlan({
           billingCycle,
           currency,
           status: "PENDING_PAYMENT",
+          renewalPhoneNumber: payerPhoneNumber,
+          renewalProvider: provider,
+          renewalCountry: country,
           currentPeriodStart: periodStart,
           currentPeriodEnd: periodEnd,
         },
@@ -104,11 +118,63 @@ async function subscribeToPlan({
       billingCycle,
       currency,
       amount: price.amount,
+      mobileMoneyProvider: provider,
+      payerPhoneNumber,
+      country,
       status: "PENDING",
       periodStart,
       periodEnd,
     },
   });
+
+  // Génère + envoie la Facture dès maintenant — le montant est dû à cet
+  // instant, indépendamment du succès du deposit PawaPay qui suit.
+  try {
+    const { record: invoiceRecord, pdfBuffer: invoiceBuffer } =
+      await generateInvoiceDocument(payment.id);
+
+    const sellerProfile = await prisma.sellerProfile.findUnique({
+      where: { id: sellerProfileId },
+      include: { user: true },
+    });
+
+    const emailContent = subscriptionStatusEmail({
+      name: sellerProfile.businessName,
+      action: "invoiceIssued",
+      planName: plan.name,
+      actionUrl: `${env.appUrl}/seller/subscription`,
+      locale: "fr",
+    });
+
+    await createNotification({
+      userId: sellerProfile.user.id,
+      type: NOTIFICATION_TYPES.PAYMENT,
+      title: emailContent.subject,
+      body: `Votre facture pour l'abonnement ${plan.name} est disponible.`,
+      data: {
+        action: "invoiceIssued",
+        subscriptionId: subscription.id,
+        subscriptionPaymentId: payment.id,
+      },
+      emailOverride: {
+        ...emailContent,
+        attachments: invoiceBuffer
+          ? [
+              {
+                filename: `${invoiceRecord.documentNumber}.pdf`,
+                content: invoiceBuffer,
+                contentType: "application/pdf",
+              },
+            ]
+          : undefined,
+      },
+    });
+  } catch (err) {
+    console.error(
+      "[subscription] Failed to generate/notify invoice:",
+      err.message,
+    );
+  }
 
   try {
     const deposit = await initiateDeposit({
@@ -146,6 +212,39 @@ async function subscribeToPlan({
       where: { id: subscription.id },
       data: { status: "FAILED_PAYMENT" },
     });
+
+    try {
+      const sellerProfile = await prisma.sellerProfile.findUnique({
+        where: { id: sellerProfileId },
+        include: { user: true },
+      });
+
+      const emailContent = subscriptionStatusEmail({
+        name: sellerProfile.businessName,
+        action: "paymentFailed",
+        planName: plan.name,
+        actionUrl: `${env.appUrl}/seller/subscription`,
+        locale: "fr",
+      });
+
+      await createNotification({
+        userId: sellerProfile.user.id,
+        type: NOTIFICATION_TYPES.PAYMENT,
+        title: emailContent.subject,
+        body: `Le paiement pour votre abonnement ${plan.name} a échoué. Merci de réessayer.`,
+        data: {
+          action: "subscriptionPaymentFailed",
+          subscriptionId: subscription.id,
+        },
+        emailOverride: emailContent,
+      });
+    } catch (notifyErr) {
+      console.error(
+        "[subscription] Failed to notify initial deposit failure:",
+        notifyErr.message,
+      );
+    }
+
     throw err;
   }
 }
@@ -203,15 +302,68 @@ async function upgradeSubscription({
   const payment = await prisma.subscriptionPayment.create({
     data: {
       subscriptionId: subscription.id,
-      planId: newPlan.id,
+      planId: plan.id,
       billingCycle,
       currency,
-      amount: newPrice.amount,
+      amount: price.amount,
+      mobileMoneyProvider: provider,
+      payerPhoneNumber,
+      country,
       status: "PENDING",
       periodStart,
       periodEnd,
     },
   });
+
+  // Génère + envoie la Facture dès maintenant — même logique que
+  // subscribeToPlan : le montant de l'upgrade est dû à cet instant,
+  // indépendamment du succès du deposit PawaPay qui suit.
+  try {
+    const { record: invoiceRecord, pdfBuffer: invoiceBuffer } =
+      await generateInvoiceDocument(payment.id);
+
+    const sellerProfile = await prisma.sellerProfile.findUnique({
+      where: { id: sellerProfileId },
+      include: { user: true },
+    });
+
+    const emailContent = subscriptionStatusEmail({
+      name: sellerProfile.businessName,
+      action: "invoiceIssued",
+      planName: newPlan.name,
+      actionUrl: `${env.appUrl}/seller/subscription`,
+      locale: "fr",
+    });
+
+    await createNotification({
+      userId: sellerProfile.user.id,
+      type: NOTIFICATION_TYPES.PAYMENT,
+      title: emailContent.subject,
+      body: `Votre facture pour l'upgrade vers ${newPlan.name} est disponible.`,
+      data: {
+        action: "invoiceIssued",
+        subscriptionId: subscription.id,
+        subscriptionPaymentId: payment.id,
+      },
+      emailOverride: {
+        ...emailContent,
+        attachments: invoiceBuffer
+          ? [
+              {
+                filename: `${invoiceRecord.documentNumber}.pdf`,
+                content: invoiceBuffer,
+                contentType: "application/pdf",
+              },
+            ]
+          : undefined,
+      },
+    });
+  } catch (err) {
+    console.error(
+      "[subscription] Failed to generate/notify invoice (upgrade):",
+      err.message,
+    );
+  }
 
   try {
     const deposit = await initiateDeposit({
@@ -249,6 +401,39 @@ async function upgradeSubscription({
       where: { id: payment.id },
       data: { status: "FAILED", failureReason: err.message },
     });
+
+    try {
+      const sellerProfile = await prisma.sellerProfile.findUnique({
+        where: { id: sellerProfileId },
+        include: { user: true },
+      });
+
+      const emailContent = subscriptionStatusEmail({
+        name: sellerProfile.businessName,
+        action: "paymentFailed",
+        planName: newPlan.name,
+        actionUrl: `${env.appUrl}/seller/subscription`,
+        locale: "fr",
+      });
+
+      await createNotification({
+        userId: sellerProfile.user.id,
+        type: NOTIFICATION_TYPES.PAYMENT,
+        title: emailContent.subject,
+        body: `Le paiement pour l'upgrade vers ${newPlan.name} a échoué. Merci de réessayer.`,
+        data: {
+          action: "subscriptionPaymentFailed",
+          subscriptionId: subscription.id,
+        },
+        emailOverride: emailContent,
+      });
+    } catch (notifyErr) {
+      console.error(
+        "[subscription] Failed to notify initial deposit failure (upgrade):",
+        notifyErr.message,
+      );
+    }
+
     throw err;
   }
 }
@@ -289,8 +474,23 @@ async function confirmSubscriptionPayment(depositId) {
       currency: payment.currency,
       currentPeriodStart: payment.periodStart,
       currentPeriodEnd: payment.periodEnd,
+      renewalPhoneNumber: payment.payerPhoneNumber,
+      renewalProvider: payment.mobileMoneyProvider,
+      renewalCountry: payment.country,
     },
   });
+
+  let receiptBuffer = null;
+  let receiptRecord = null;
+  try {
+    const { record, pdfBuffer } = await generateReceiptDocument(
+      updatedPayment.id,
+    );
+    receiptRecord = record;
+    receiptBuffer = pdfBuffer;
+  } catch (err) {
+    console.error("[subscription] Failed to generate receipt:", err.message);
+  }
 
   try {
     const userId = payment.subscription.sellerProfile.user.id;
@@ -314,7 +514,19 @@ async function confirmSubscriptionPayment(depositId) {
         action: "subscriptionPaymentSucceeded",
         subscriptionId: payment.subscriptionId,
       },
-      emailOverride: emailContent,
+      emailOverride: {
+        ...emailContent,
+        attachments:
+          receiptBuffer && receiptRecord
+            ? [
+                {
+                  filename: `${receiptRecord.documentNumber}.pdf`,
+                  content: receiptBuffer,
+                  contentType: "application/pdf",
+                },
+              ]
+            : undefined,
+      },
     });
   } catch (err) {
     console.error(
@@ -433,7 +645,12 @@ async function listPaymentHistory(
       skip,
       take: safeLimit,
       orderBy: { createdAt: "desc" },
-      include: { plan: { select: { name: true, slug: true } } },
+      include: {
+        plan: { select: { name: true, slug: true } },
+        invoices: {
+          select: { type: true, documentNumber: true, pdfUrl: true },
+        },
+      },
     }),
   ]);
 
@@ -574,6 +791,9 @@ async function getSubscriptionStats() {
               sellerProfile: { select: { businessName: true } },
             },
           },
+          invoices: {
+            select: { type: true, documentNumber: true, pdfUrl: true },
+          },
         },
       }),
     ]);
@@ -630,9 +850,310 @@ async function getSubscriptionStats() {
   };
 }
 
+async function findSubscriptionsDueForRenewal() {
+  const cutoff = new Date();
+  cutoff.setDate(
+    cutoff.getDate() + SUBSCRIPTION_CONFIG.RENEWAL_ATTEMPT_DAYS_BEFORE_EXPIRY,
+  );
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  return prisma.subscription.findMany({
+    where: {
+      status: { in: ["ACTIVE", "PAST_DUE"] },
+      autoRenew: true,
+      currentPeriodEnd: { lte: cutoff },
+      OR: [
+        { lastRenewalAttemptAt: null },
+        { lastRenewalAttemptAt: { lt: startOfToday } },
+      ],
+    },
+    include: {
+      plan: { include: { prices: true } },
+      sellerProfile: { include: { user: true } },
+    },
+  });
+}
+
+async function renewSubscription(subscription) {
+  await prisma.subscription.update({
+    where: { id: subscription.id },
+    data: { lastRenewalAttemptAt: new Date() },
+  });
+
+  if (
+    !subscription.renewalPhoneNumber ||
+    !subscription.renewalProvider ||
+    !subscription.renewalCountry
+  ) {
+    console.error(
+      `[renewal] Subscription ${subscription.id} missing renewal payment info — skipping, marking PAST_DUE.`,
+    );
+    await markPastDue(subscription);
+    return;
+  }
+
+  const price = resolvePlanPrice(
+    subscription.plan,
+    subscription.billingCycle,
+    subscription.currency,
+  );
+
+  const periodStart = new Date(subscription.currentPeriodEnd);
+  const periodEnd = calculatePeriodEnd(periodStart, subscription.billingCycle);
+
+  const payment = await prisma.subscriptionPayment.create({
+    data: {
+      subscriptionId: subscription.id,
+      planId: subscription.planId,
+      billingCycle: subscription.billingCycle,
+      currency: subscription.currency,
+      amount: price.amount,
+      mobileMoneyProvider: subscription.renewalProvider,
+      payerPhoneNumber: subscription.renewalPhoneNumber,
+      country: subscription.renewalCountry,
+      status: "PENDING",
+      periodStart,
+      periodEnd,
+    },
+  });
+
+  // Génère + envoie la Facture dès maintenant — même logique que
+  // subscribeToPlan/upgradeSubscription : le montant du renouvellement
+  // est dû à cet instant, et confirmSubscriptionPayment exige que la
+  // facture existe déjà avant de pouvoir générer le reçu.
+  try {
+    const { record: invoiceRecord, pdfBuffer: invoiceBuffer } =
+      await generateInvoiceDocument(payment.id);
+
+    const emailContent = subscriptionStatusEmail({
+      name: subscription.sellerProfile.businessName,
+      action: "invoiceIssued",
+      planName: subscription.plan.name,
+      actionUrl: `${env.appUrl}/seller/subscription`,
+      locale: "fr",
+    });
+
+    await createNotification({
+      userId: subscription.sellerProfile.user.id,
+      type: NOTIFICATION_TYPES.PAYMENT,
+      title: emailContent.subject,
+      body: `Votre facture pour le renouvellement de l'abonnement ${subscription.plan.name} est disponible.`,
+      data: {
+        action: "invoiceIssued",
+        subscriptionId: subscription.id,
+        subscriptionPaymentId: payment.id,
+      },
+      emailOverride: {
+        ...emailContent,
+        attachments: invoiceBuffer
+          ? [
+              {
+                filename: `${invoiceRecord.documentNumber}.pdf`,
+                content: invoiceBuffer,
+                contentType: "application/pdf",
+              },
+            ]
+          : undefined,
+      },
+    });
+  } catch (err) {
+    console.error("[renewal] Failed to generate/notify invoice:", err.message);
+  }
+
+  try {
+    const deposit = await initiateDeposit({
+      amount: price.amount,
+      currency: subscription.currency,
+      country: subscription.renewalCountry,
+      provider: subscription.renewalProvider,
+      payerPhoneNumber: subscription.renewalPhoneNumber,
+      customerMessage: `Renouv ${subscription.plan.name}`.slice(0, 22),
+      clientReferenceId: payment.id,
+      metadata: {
+        type: "SUBSCRIPTION",
+        subscriptionId: subscription.id,
+        subscriptionPaymentId: payment.id,
+        sellerProfileId: subscription.sellerProfileId,
+        isRenewal: "true",
+      },
+    });
+
+    await prisma.subscriptionPayment.update({
+      where: { id: payment.id },
+      data: { depositId: deposit.depositId },
+    });
+  } catch (err) {
+    await prisma.subscriptionPayment.update({
+      where: { id: payment.id },
+      data: { status: "FAILED", failureReason: err.message },
+    });
+    await markPastDue(subscription);
+  }
+}
+
+async function markPastDue(subscription) {
+  const updated = await prisma.subscription.update({
+    where: { id: subscription.id },
+    data: { status: "PAST_DUE" },
+  });
+
+  try {
+    const emailContent = subscriptionStatusEmail({
+      name: subscription.sellerProfile.businessName,
+      action: "renewalFailed",
+      planName: subscription.plan.name,
+      graceDays: SUBSCRIPTION_CONFIG.PAST_DUE_GRACE_PERIOD_DAYS,
+      actionUrl: `${env.appUrl}/seller/subscription`,
+      locale: "fr",
+    });
+
+    await createNotification({
+      userId: subscription.sellerProfile.user.id,
+      type: NOTIFICATION_TYPES.PAYMENT,
+      title: emailContent.subject,
+      body: `Le renouvellement de votre abonnement ${subscription.plan.name} a échoué. Vous avez ${SUBSCRIPTION_CONFIG.PAST_DUE_GRACE_PERIOD_DAYS} jours pour régulariser.`,
+      data: {
+        action: "subscriptionRenewalFailed",
+        subscriptionId: subscription.id,
+      },
+      emailOverride: emailContent,
+    });
+  } catch (err) {
+    console.error("[renewal] Failed to notify renewal-failed:", err.message);
+  }
+
+  return updated;
+}
+
+async function expireOverdueSubscriptions() {
+  const graceThreshold = new Date();
+  graceThreshold.setDate(
+    graceThreshold.getDate() - SUBSCRIPTION_CONFIG.PAST_DUE_GRACE_PERIOD_DAYS,
+  );
+
+  const overdue = await prisma.subscription.findMany({
+    where: {
+      status: "PAST_DUE",
+      currentPeriodEnd: { lte: graceThreshold },
+    },
+    include: { plan: true, sellerProfile: { include: { user: true } } },
+  });
+
+  for (const subscription of overdue) {
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: { status: "EXPIRED" },
+    });
+
+    try {
+      const emailContent = subscriptionStatusEmail({
+        name: subscription.sellerProfile.businessName,
+        action: "expired",
+        planName: subscription.plan.name,
+        actionUrl: `${env.appUrl}/seller/subscription`,
+        locale: "fr",
+      });
+
+      await createNotification({
+        userId: subscription.sellerProfile.user.id,
+        type: NOTIFICATION_TYPES.SELLER_ONBOARDING,
+        title: emailContent.subject,
+        body: `Votre abonnement ${subscription.plan.name} a expiré.`,
+        data: {
+          action: "subscriptionExpired",
+          subscriptionId: subscription.id,
+        },
+        emailOverride: emailContent,
+      });
+    } catch (err) {
+      console.error("[renewal] Failed to notify expiration:", err.message);
+    }
+  }
+
+  return overdue.length;
+}
+
+async function runRenewalCycle() {
+  const dueSubscriptions = await findSubscriptionsDueForRenewal();
+  console.log(
+    `[renewal] ${dueSubscriptions.length} subscription(s) à renouveler.`,
+  );
+  for (const subscription of dueSubscriptions) {
+    try {
+      await renewSubscription(subscription);
+    } catch (err) {
+      console.error(
+        `[renewal] Error renewing subscription ${subscription.id}:`,
+        err.message,
+      );
+    }
+  }
+
+  const expiredCount = await expireOverdueSubscriptions();
+  console.log(`[renewal] ${expiredCount} subscription(s) expirée(s).`);
+}
+
+async function getSubscriptionRevenue() {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const [allTime, thisMonth, last30, pending] = await Promise.all([
+    // Tout ce qui a été effectivement encaissé, depuis le début
+    prisma.subscriptionPayment.groupBy({
+      by: ["currency"],
+      where: { status: "SUCCEEDED" },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+
+    // Encaissé ce mois-ci
+    prisma.subscriptionPayment.groupBy({
+      by: ["currency"],
+      where: { status: "SUCCEEDED", paidAt: { gte: startOfMonth } },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+
+    // Encaissé sur les 30 derniers jours glissants
+    prisma.subscriptionPayment.groupBy({
+      by: ["currency"],
+      where: { status: "SUCCEEDED", paidAt: { gte: last30Days } },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+
+    // Facturé mais PAS ENCORE payé — à ne pas compter comme argent disponible
+    prisma.subscriptionPayment.groupBy({
+      by: ["currency"],
+      where: { status: { in: ["PENDING", "FAILED"] } },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const mapByCurrency = (rows) =>
+    rows.map((row) => ({
+      currency: row.currency,
+      total: row._sum.amount,
+      paymentCount: row._count._all,
+    }));
+
+  return {
+    allTimeCollected: mapByCurrency(allTime),
+    thisMonthCollected: mapByCurrency(thisMonth),
+    last30DaysCollected: mapByCurrency(last30),
+    pendingOrFailed: mapByCurrency(pending),
+    note: "allTimeCollected représente l'argent réellement encaissé (SUCCEEDED). C'est ce montant, par devise, que tu peux demander en settlement PawaPay — cet argent appartient entièrement à SwiftGoma, contrairement aux futurs paiements liés au wallet/commandes vendeurs.",
+  };
+}
+
 module.exports = {
   subscribeToPlan,
   upgradeSubscription,
+  getSubscriptionRevenue,
   confirmSubscriptionPayment,
   failSubscriptionPayment,
   getSubscriptionBySellerId,
@@ -640,4 +1161,5 @@ module.exports = {
   cancelSubscription,
   reactivateCanceledSubscription,
   getSubscriptionStats,
+  runRenewalCycle,
 };

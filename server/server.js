@@ -4,6 +4,9 @@ const createApp = require("./src/app");
 const { env } = require("./src/config/env");
 const { initSocket } = require("./src/config/socket");
 const http = require("http");
+const {
+  startSubscriptionRenewalJob,
+} = require("./src/jobs/subscriptionRenewal.job");
 
 const app = createApp();
 const httpServer = http.createServer(app);
@@ -12,6 +15,8 @@ initSocket(httpServer);
 httpServer.listen(env.port, () => {
   console.log(`Swiftgoma API listening on port ${env.port} [${env.nodeEnv}]`);
 });
+
+startSubscriptionRenewalJob();
 
 function crash(label, err) {
   console.error(`[${label}]`, err);

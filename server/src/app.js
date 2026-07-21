@@ -31,6 +31,8 @@ const PawapayRouter = require("./features/payments/routes/pawapay.routes");
 const PlansRouter = require("./features/plans/routes/plans.routes");
 const PawapayCallbackRouter = require("./features/payments/routes/pawapayCallback.routes");
 const SubscriptionRouter = require("./features/subscriptions/routes/subscription.routes");
+const InvoiceRouter = require("./features/invoicing/routes/invoice.routes");
+const DashboardRouter = require("./features/dashboard/routes/dashboard.routes");
 
 const createApp = () => {
   const app = express();
@@ -120,6 +122,8 @@ const createApp = () => {
   app.use("/api/v1/plans", PlansRouter);
   app.use("/api/v1/pawapay/callbacks", PawapayCallbackRouter);
   app.use("/api/v1/subscriptions", SubscriptionRouter);
+  app.use("/api/v1/invoices", InvoiceRouter);
+  app.use("/api/v1/dashboard", DashboardRouter);
 
   app.use(notFound);
 

@@ -39,6 +39,12 @@ const STATUS_CONTENT = {
         `Your <strong>${planName}</strong> subscription was canceled. You'll keep access until <strong>${periodEnd}</strong>.`,
       ctaText: "Manage subscription",
     },
+    invoiceIssued: {
+      heading: "Your invoice is ready",
+      intro: (planName) =>
+        `An invoice for your <strong>${planName}</strong> subscription has been issued. Pay it to activate your subscription.`,
+      ctaText: "View my invoice",
+    },
     reactivated: {
       heading: "Your subscription has been reactivated",
       intro: (planName, periodEnd) =>
@@ -85,6 +91,12 @@ const STATUS_CONTENT = {
       intro: (planName, periodEnd) =>
         `Votre abonnement <strong>${planName}</strong> a été annulé. Vous garderez l'accès jusqu'au <strong>${periodEnd}</strong>.`,
       ctaText: "Gérer mon abonnement",
+    },
+    invoiceIssued: {
+      heading: "Votre facture est disponible",
+      intro: (planName) =>
+        `Une facture pour votre abonnement <strong>${planName}</strong> a été émise. Réglez-la pour activer votre abonnement.`,
+      ctaText: "Voir ma facture",
     },
     reactivated: {
       heading: "Votre abonnement a été réactivé",

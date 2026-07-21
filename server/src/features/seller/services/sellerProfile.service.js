@@ -15,6 +15,7 @@ const {
   assertValidProfileInput,
   assertProfileEditable,
   assertValidStatusTransition,
+  isValidAddress,
 } = require("../utils/sellerProfile.utils");
 const { env } = require("../../../config/env");
 const {
@@ -45,6 +46,12 @@ async function createSellerProfile({
   });
   if (existing) {
     throw new ConflictError("Un profil vendeur existe déjà pour ce compte.");
+  }
+
+  if (!isValidAddress(input.address)) {
+    throw new ValidationError(
+      "Adresse invalide (pas de retour à la ligne, 5-200 caractères).",
+    );
   }
 
   if (!logoBuffer || !bannerBuffer) {

@@ -15,6 +15,14 @@ function isValidBusinessName(name) {
   );
 }
 
+function isValidAddress(address) {
+  if (!address || typeof address !== "string") return false;
+  const trimmed = address.trim();
+  if (trimmed.length < 5 || trimmed.length > 200) return false;
+  if (/[\r\n]/.test(trimmed)) return false; // pas de retour à la ligne
+  return true;
+}
+
 function isValidBusinessDescription(description) {
   if (!description || typeof description !== "string") return false;
   const trimmed = description.trim();
@@ -89,4 +97,5 @@ module.exports = {
   assertValidProfileInput,
   assertProfileEditable,
   assertValidStatusTransition,
+  isValidAddress,
 };
