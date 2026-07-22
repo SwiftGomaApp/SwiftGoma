@@ -14,6 +14,7 @@ async function createPlan({
   name,
   maxProducts,
   maxPhotosPerProduct,
+  maxShops = 1,
   prioritySupport = false,
   sortOrder = 0,
 }) {
@@ -22,7 +23,7 @@ async function createPlan({
     throw new ConflictError(`Un plan avec le slug "${slug}" existe déjà.`);
   }
 
-  const input = { name, maxProducts, maxPhotosPerProduct };
+  const input = { name, maxProducts, maxPhotosPerProduct, maxShops };
   assertValidPlanInput(input);
 
   return prisma.plan.create({
@@ -31,6 +32,7 @@ async function createPlan({
       name: name.trim(),
       maxProducts,
       maxPhotosPerProduct,
+      maxShops,
       prioritySupport,
       sortOrder,
     },
@@ -78,6 +80,7 @@ async function updatePlan(planId, data) {
   if (data.maxPhotosPerProduct !== undefined) {
     updateData.maxPhotosPerProduct = data.maxPhotosPerProduct;
   }
+  if (data.maxShops !== undefined) updateData.maxShops = data.maxShops;
   if (data.prioritySupport !== undefined) {
     updateData.prioritySupport = data.prioritySupport;
   }

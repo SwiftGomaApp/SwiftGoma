@@ -30,6 +30,14 @@ function isValidBillingCycle(value) {
   return Object.values(BILLING_CYCLES).includes(value);
 }
 
+function isValidMaxShops(value) {
+  return (
+    Number.isInteger(value) &&
+    value >= PLAN_CONFIG.MIN_MAX_SHOPS &&
+    value <= PLAN_CONFIG.MAX_SHOPS_CAP
+  );
+}
+
 function isValidCurrency(value) {
   return SUPPORTED_CURRENCIES.includes(value);
 }
@@ -45,6 +53,13 @@ function assertValidPlanInput(input) {
       `Le nom du plan doit contenir entre ${PLAN_CONFIG.NAME_MIN_LENGTH} et ${PLAN_CONFIG.NAME_MAX_LENGTH} caractères.`,
     );
   }
+
+  if (!isValidMaxShops(input.maxShops)) {
+    throw new ValidationError(
+      `Le nombre maximum de boutiques doit être entre ${PLAN_CONFIG.MIN_MAX_SHOPS} et ${PLAN_CONFIG.MAX_SHOPS_CAP}.`,
+    );
+  }
+
   if (!isValidMaxProducts(input.maxProducts)) {
     throw new ValidationError("Nombre maximum de produits invalide.");
   }
@@ -78,6 +93,7 @@ module.exports = {
   isValidMaxPhotosPerProduct,
   isValidBillingCycle,
   isValidCurrency,
+  isValidMaxShops,
   isValidPriceAmount,
   assertValidPlanInput,
   assertCompletePriceCoverage,

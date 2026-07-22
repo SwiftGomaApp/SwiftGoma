@@ -123,7 +123,21 @@ async function createSellerProfile({
 }
 
 async function getSellerProfile(userId) {
-  const profile = await prisma.sellerProfile.findUnique({ where: { userId } });
+  const profile = await prisma.sellerProfile.findUnique({
+    where: { userId },
+    include: {
+      kyc: true,
+      subscription: {
+        include: { plan: { include: { prices: true } } },
+      },
+      walletSettings: true,
+      shops: true,
+      invoices: {
+        orderBy: { issuedAt: "desc" },
+        take: 10,
+      },
+    },
+  });
   if (!profile) throw new NotFoundError("Profil vendeur introuvable.");
   return profile;
 }
