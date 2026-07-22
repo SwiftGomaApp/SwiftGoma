@@ -48,11 +48,11 @@ async function createSellerProfile({
     throw new ConflictError("Un profil vendeur existe déjà pour ce compte.");
   }
 
-  if (!isValidAddress(input.address)) {
-    throw new ValidationError(
-      "Adresse invalide (pas de retour à la ligne, 5-200 caractères).",
-    );
-  }
+  // if (!isValidAddress(input.address)) {
+  //   throw new ValidationError(
+  //     "Adresse invalide (pas de retour à la ligne, 5-200 caractères).",
+  //   );
+  // }
 
   if (!logoBuffer || !bannerBuffer) {
     throw new ConflictError("Le logo et la bannière sont requis.");

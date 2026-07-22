@@ -62,6 +62,12 @@ enum InvoiceDocumentType {
   RECEIPT
 }
 
+enum PayoutSchedule {
+  MANUAL
+  WEEKLY
+  MONTHLY
+}
+
 model User {
   id           String  @id @default(uuid())
   name         String
@@ -283,11 +289,12 @@ model SellerProfile {
 
   status SellerProfileStatus @default(DRAFT)
 
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  kyc          SellerKyc?
-  subscription Subscription?
-  invoices     Invoice[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  kyc            SellerKyc?
+  subscription   Subscription?
+  invoices       Invoice[]
+  walletSettings WalletSettings?
 
   @@index([status])
   @@map("seller_profiles")
@@ -463,4 +470,25 @@ model DocumentSequence {
   value Int    @default(0)
 
   @@map("document_sequences")
+}
+
+model WalletSettings {
+  id              String        @id @default(uuid())
+  sellerProfileId String        @unique
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+
+  currency String
+
+  payoutPhoneNumber String
+  payoutProvider    String
+  payoutCountry     String
+
+  autoPayoutEnabled   Boolean        @default(false)
+  payoutSchedule      PayoutSchedule @default(MANUAL)
+  minimumPayoutAmount Decimal?       @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("wallet_settings")
 }
