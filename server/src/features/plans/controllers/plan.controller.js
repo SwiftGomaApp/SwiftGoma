@@ -44,6 +44,7 @@ async function postCreatePlan(req, res, next) {
       name: req.body.name,
       maxProducts: req.body.maxProducts,
       maxPhotosPerProduct: req.body.maxPhotosPerProduct,
+      maxShops: req.body.maxShops,
       prioritySupport: req.body.prioritySupport,
       sortOrder: req.body.sortOrder,
     });
@@ -60,6 +61,7 @@ async function putUpdatePlan(req, res, next) {
       name: req.body.name,
       maxProducts: req.body.maxProducts,
       maxPhotosPerProduct: req.body.maxPhotosPerProduct,
+      maxShops: req.body.maxShops,
       prioritySupport: req.body.prioritySupport,
       isActive: req.body.isActive,
       sortOrder: req.body.sortOrder,

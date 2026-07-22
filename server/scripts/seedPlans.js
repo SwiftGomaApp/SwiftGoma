@@ -1,5 +1,25 @@
 const { getPrismaClient } = require("../src/config/prisma");
 
+function guardProduction() {
+  const isProd = process.env.NODE_ENV === "production";
+  const allowed = process.env.ALLOW_PROD_SEED === "true";
+
+  if (isProd && !allowed) {
+    console.error(
+      "\nRefusing to run: NODE_ENV=production without ALLOW_PROD_SEED=true.\n" +
+        "If you really mean to seed plans in production, re-run as:\n" +
+        "  ALLOW_PROD_SEED=true NODE_ENV=production npm run seed:plans\n",
+    );
+    process.exit(1);
+  }
+
+  if (isProd && allowed) {
+    console.warn(
+      "\n⚠️  Running against PRODUCTION (ALLOW_PROD_SEED=true). Proceed carefully.\n",
+    );
+  }
+}
+
 const YEARLY_DISCOUNT_PERCENT = 15;
 const CDF_PER_USD = 2300;
 
@@ -9,6 +29,7 @@ const PLANS = [
     name: "Starter",
     maxProducts: 20,
     maxPhotosPerProduct: 3,
+    maxShops: 1,
     prioritySupport: false,
     sortOrder: 1,
     monthlyUsd: 10,
@@ -18,6 +39,7 @@ const PLANS = [
     name: "Business",
     maxProducts: 100,
     maxPhotosPerProduct: 6,
+    maxShops: 1,
     prioritySupport: false,
     sortOrder: 2,
     monthlyUsd: 15,
@@ -27,6 +49,7 @@ const PLANS = [
     name: "Enterprise",
     maxProducts: 1000,
     maxPhotosPerProduct: 10,
+    maxShops: 3,
     prioritySupport: true,
     sortOrder: 3,
     monthlyUsd: 25,
@@ -53,6 +76,8 @@ function computePrices(monthlyUsd) {
 }
 
 async function main() {
+  guardProduction();
+
   const prisma = getPrismaClient();
 
   for (const planDef of PLANS) {
@@ -62,6 +87,7 @@ async function main() {
         name: planDef.name,
         maxProducts: planDef.maxProducts,
         maxPhotosPerProduct: planDef.maxPhotosPerProduct,
+        maxShops: planDef.maxShops,
         prioritySupport: planDef.prioritySupport,
         sortOrder: planDef.sortOrder,
         isActive: true,
@@ -71,6 +97,7 @@ async function main() {
         name: planDef.name,
         maxProducts: planDef.maxProducts,
         maxPhotosPerProduct: planDef.maxPhotosPerProduct,
+        maxShops: planDef.maxShops,
         prioritySupport: planDef.prioritySupport,
         sortOrder: planDef.sortOrder,
       },

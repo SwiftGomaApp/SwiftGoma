@@ -33,7 +33,7 @@ PawapayRouter.get("/refunds/:refundId", authorize("ADMIN"), getRefundStatus);
 PawapayRouter.get("/wallet-balances", authorize("ADMIN"), getBalances);
 PawapayRouter.get(
   "/active-configuration",
-  authorize("ADMIN"),
+  // authorize("ADMIN"),
   getConfiguration,
 );
 

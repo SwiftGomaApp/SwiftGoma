@@ -10,6 +10,8 @@ datasource db {
   provider = "postgresql"
 }
 
+// ====================================== ENUMS ===============================
+
 enum Role {
   BUYER
   SELLER
@@ -67,6 +69,19 @@ enum PayoutSchedule {
   WEEKLY
   MONTHLY
 }
+
+enum ShopStatus {
+  DRAFT
+  PUBLISHED
+  SUSPENDED
+}
+
+enum ShopSuspendedBy {
+  SELLER
+  ADMIN
+}
+
+// ====================================== MODELS ===============================
 
 model User {
   id           String  @id @default(uuid())
@@ -289,12 +304,14 @@ model SellerProfile {
 
   status SellerProfileStatus @default(DRAFT)
 
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   kyc            SellerKyc?
   subscription   Subscription?
   invoices       Invoice[]
   walletSettings WalletSettings?
+  shops          Shop[]
 
   @@index([status])
   @@map("seller_profiles")
@@ -342,6 +359,7 @@ model Plan {
 
   maxProducts         Int
   maxPhotosPerProduct Int
+  maxShops            Int     @default(1)
   prioritySupport     Boolean @default(false)
 
   isActive  Boolean @default(true)
@@ -491,4 +509,37 @@ model WalletSettings {
   updatedAt DateTime @updatedAt
 
   @@map("wallet_settings")
+}
+
+model Shop {
+  id              String        @id @default(uuid())
+  sellerProfileId String
+  sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+
+  name        String
+  slug        String @unique
+  description String
+
+  logoUrl        String?
+  logoPublicId   String?
+  bannerUrl      String?
+  bannerPublicId String?
+
+  deliveryFee         Decimal @db.Decimal(12, 2)
+  deliveryFeeCurrency String
+
+  status      ShopStatus @default(DRAFT)
+  publishedAt DateTime?
+
+  suspendedBy      ShopSuspendedBy?
+  suspensionReason String?
+
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sellerProfileId])
+  @@index([status])
+  @@map("shops")
 }
