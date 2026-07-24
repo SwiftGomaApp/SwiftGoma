@@ -1,0 +1,39 @@
+const PRODUCT_CONFIG = {
+  NAME_MIN_LENGTH: 2,
+  NAME_MAX_LENGTH: 100,
+
+  DESCRIPTION_MIN_LENGTH: 20,
+  DESCRIPTION_MAX_LENGTH: 1000,
+
+  SUPPORTED_CURRENCIES: ["USD", "CDF"],
+
+  ALLOWED_UNITS: ["piece", "kg", "liter", "pack"],
+  DEFAULT_UNIT: "piece",
+
+  WEIGHT_GRAMS_MIN: 1,
+  WEIGHT_GRAMS_MAX: 500000,
+
+  PRICE_MIN: {
+    USD: 0.1,
+    CDF: 100,
+  },
+  PRICE_MAX: {
+    USD: 5000,
+    CDF: 15000000,
+  },
+
+  STOCK_MIN: 0,
+  STOCK_MAX: 1000000,
+
+  ALLOWED_STATUS_TRANSITIONS: {
+    DRAFT: ["PUBLISHED"],
+    PUBLISHED: ["ARCHIVED", "DRAFT"],
+    ARCHIVED: ["DRAFT"],
+  },
+
+  DEFAULT_VARIANT_NAME: null,
+
+  EXPIRY_REQUIRED_FOR_CATEGORY_SLUG: "alimentation-boissons",
+};
+
+module.exports = { PRODUCT_CONFIG };

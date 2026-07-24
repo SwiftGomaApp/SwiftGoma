@@ -34,6 +34,8 @@ const SubscriptionRouter = require("./features/subscriptions/routes/subscription
 const InvoiceRouter = require("./features/invoicing/routes/invoice.routes");
 const DashboardRouter = require("./features/dashboard/routes/dashboard.routes");
 const WalletSettingsRouter = require("./features/wallet/routes/walletSettings.routes");
+const ProductRouter = require("./features/product/routes/product.routes");
+const RiderRouter = require("./features/seller/routes/rider.routes");
 
 const createApp = () => {
   const app = express();
@@ -126,6 +128,8 @@ const createApp = () => {
   app.use("/api/v1/invoices", InvoiceRouter);
   app.use("/api/v1/dashboard", DashboardRouter);
   app.use("/api/v1/wallet-settings", WalletSettingsRouter);
+  app.use("/api/v1/products", ProductRouter);
+  app.use("/api/v1/riders", RiderRouter);
 
   app.use(notFound);
 

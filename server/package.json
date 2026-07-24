@@ -13,7 +13,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "test": "jest --testPathIgnorePatterns=sandbox.test.js",
-    "test:pawapay:sandbox": "jest pawapay.service.sandbox.test.js"
+    "test:pawapay:sandbox": "jest pawapay.service.sandbox.test.js",
+    "seed:categories": "node scripts/seedCategories.js"
   },
   "keywords": [],
   "author": "",
