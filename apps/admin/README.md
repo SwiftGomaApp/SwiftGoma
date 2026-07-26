@@ -1,63 +1,36 @@
-# Swiftgoma — Admin Dashboard
-
-Next.js web app for the Swiftgoma team to oversee sellers, buyers, orders, disputes, and payouts.
-
-See the [root README](../../README.md) for the full product overview.
-
-## Access Levels
-
-The dashboard has two access levels — build permission checks server-side, not just hidden in the UI.
-
-| Capability                               | Support                           | Admin                  |
-| ---------------------------------------- | --------------------------------- | ---------------------- |
-| View orders, users, tickets              | Yes                               | Yes                    |
-| Respond to tickets/chats                 | Yes                               | Yes                    |
-| Help with stuck orders (e.g. QR issues)  | Yes                               | Yes                    |
-| Flag suspicious accounts/listings        | Yes — flags for review            | Yes — flags and acts   |
-| Issue refunds                            | Up to a set cap                   | Full authority, no cap |
-| Review seller KYC                        | First pass — reviews & recommends | Final approval         |
-| Suspend or ban an account                | No                                | Yes                    |
-| Manage subscription plans/pricing        | No                                | Yes                    |
-| View platform-wide financial reports     | No                                | Yes                    |
-| Resolve escalated/high-value disputes    | No — escalates                    | Yes — final call       |
-| Configure platform settings              | No                                | Yes                    |
-| Manage Support team accounts/permissions | No                                | Yes                    |
-
-## Folder Structure
-
-```
-app/
-├── (support)/       # Support-level routes
-├── (admin)/           # Admin-only routes
-├── sellers/
-├── orders/
-├── disputes/
-└── api/
-components/
-lib/
-public/
-```
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
 
+First, run the development server:
+
 ```bash
-cd apps/admin
-npm install
-cp .env.example .env.local   # fill in real values
 npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-## Environment Variables
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-```
-NEXT_PUBLIC_API_BASE_URL=
-DATABASE_URL=
-JWT_SECRET=
-SENTRY_DSN=
-```
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-## Key Concepts
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-- **Dispute flow:** Trigger (reported in-app) → ticket created → Support reviews (resolves within refund cap, or escalates) → Admin decision (final call) → resolution communicated → closed.
-- **KYC flow:** Support reviews submitted documents first and recommends approve/reject; Admin gives the final approval before a seller can go live.
-- **Every permission boundary in the table above must be enforced in the API layer**, since this is a web app and client-side checks alone aren't sufficient protection.
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
