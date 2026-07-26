@@ -21,13 +21,12 @@ async function postCreateWalletSettings(req, res, next) {
     const sellerProfileId = await getSellerProfileIdForUser(req.user.id);
     const settings = await createWalletSettings({
       sellerProfileId,
-      currency: req.body.currency,
       payoutPhoneNumber: req.body.payoutPhoneNumber,
       payoutProvider: req.body.payoutProvider,
       payoutCountry: req.body.payoutCountry,
       autoPayoutEnabled: req.body.autoPayoutEnabled,
       payoutSchedule: req.body.payoutSchedule,
-      minimumPayoutAmount: req.body.minimumPayoutAmount,
+      minimumPayoutAmounts: req.body.minimumPayoutAmounts,
     });
     res.status(201).json({ success: true, data: settings });
   } catch (err) {
@@ -49,13 +48,12 @@ async function putUpdateWalletSettings(req, res, next) {
   try {
     const sellerProfileId = await getSellerProfileIdForUser(req.user.id);
     const settings = await updateWalletSettings(sellerProfileId, {
-      currency: req.body.currency,
       payoutPhoneNumber: req.body.payoutPhoneNumber,
       payoutProvider: req.body.payoutProvider,
       payoutCountry: req.body.payoutCountry,
       autoPayoutEnabled: req.body.autoPayoutEnabled,
       payoutSchedule: req.body.payoutSchedule,
-      minimumPayoutAmount: req.body.minimumPayoutAmount,
+      minimumPayoutAmounts: req.body.minimumPayoutAmounts,
     });
     res.status(200).json({ success: true, data: settings });
   } catch (err) {

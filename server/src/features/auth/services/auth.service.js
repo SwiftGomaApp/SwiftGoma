@@ -130,6 +130,12 @@ async function createAccount({ name, email, locale = "en", role }) {
     throw new ValidationError("Please enter a valid email address.");
   }
 
+  if (role === "ADMIN" || role === "SUPPORT") {
+    throw new ValidationError(
+      "This role cannot be assigned through public registration.",
+    );
+  }
+
   const normalizedEmail = email.trim().toLowerCase();
   const prisma = getPrismaClient();
 

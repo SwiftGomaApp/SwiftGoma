@@ -1,8 +1,13 @@
 const PDFDocument = require("pdfkit");
 const axios = require("axios");
 const { INVOICE_BRAND } = require("./pdfBrand");
+const PAGE_MARGIN = 50;
+const PAGE_WIDTH = 612;
+const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN * 2;
+const FOOTER_RESERVE = 85;
 
 let logoBufferPromise = null;
+
 function getLogoBuffer() {
   if (!logoBufferPromise) {
     logoBufferPromise = axios
@@ -17,11 +22,6 @@ function getLogoBuffer() {
   return logoBufferPromise;
 }
 
-const PAGE_MARGIN = 50;
-const PAGE_WIDTH = 612;
-const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN * 2;
-const FOOTER_RESERVE = 85;
-
 function registerFonts(doc) {
   doc.registerFont("Geist", INVOICE_BRAND.fonts.regular);
   doc.registerFont("Geist-Medium", INVOICE_BRAND.fonts.medium);
@@ -35,18 +35,6 @@ function ensureSpace(doc, neededHeight) {
     doc.y = PAGE_MARGIN;
   }
 }
-
-// function formatMoney(amount, currency) {
-//   const num = Number(amount);
-
-//   if (currency === "CDF") {
-//     const rounded = Math.round(num);
-//     const withSpaces = String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-//     return `${withSpaces} ${currency}`;
-//   }
-
-//   return `${num.toFixed(2)} ${currency}`;
-// }
 
 function formatDate(date) {
   return new Date(date).toLocaleDateString("fr-FR", {
@@ -144,11 +132,8 @@ function drawAmountHeadline(doc, label) {
   doc.moveDown(1);
 }
 
-function drawLineItemsTable(
-  doc,
-  { description, subDescription, quantity, unitPrice, amount, currency },
-) {
-  ensureSpace(doc, 60);
+function drawLineItemsTable(doc, items, currency) {
+  ensureSpace(doc, 40 + items.length * 30);
 
   const colDescX = PAGE_MARGIN;
   const colQtyX = PAGE_MARGIN + CONTENT_WIDTH - 220;
@@ -170,30 +155,43 @@ function drawLineItemsTable(
     .lineWidth(1)
     .stroke();
 
-  const rowY = tableTop + 22;
-  doc.fontSize(10).font("Geist").fillColor(INVOICE_BRAND.colors.text);
-  doc.text(description, colDescX, rowY, { width: colQtyX - colDescX - 10 });
-  if (subDescription) {
-    doc
-      .fontSize(9)
-      .fillColor(INVOICE_BRAND.colors.muted)
-      .text(subDescription, colDescX, doc.y, {
-        width: colQtyX - colDescX - 10,
-      });
-  }
+  let rowY = tableTop + 22;
 
-  doc.fontSize(10).fillColor(INVOICE_BRAND.colors.text);
-  doc.text(String(quantity), colQtyX, rowY, { width: 40, align: "right" });
-  doc.text(formatMoney(unitPrice, currency), colUnitX, rowY, {
-    width: 80,
-    align: "right",
-  });
-  doc.text(formatMoney(amount, currency), colAmountX, rowY, {
-    width: 100,
-    align: "right",
+  items.forEach((item) => {
+    doc.fontSize(10).font("Geist").fillColor(INVOICE_BRAND.colors.text);
+    doc.text(item.description, colDescX, rowY, {
+      width: colQtyX - colDescX - 10,
+    });
+
+    let itemBottom = doc.y;
+    if (item.subDescription) {
+      doc
+        .fontSize(9)
+        .fillColor(INVOICE_BRAND.colors.muted)
+        .text(item.subDescription, colDescX, doc.y, {
+          width: colQtyX - colDescX - 10,
+        });
+      itemBottom = doc.y;
+    }
+
+    doc.fontSize(10).fillColor(INVOICE_BRAND.colors.text);
+    doc.text(String(item.quantity), colQtyX, rowY, {
+      width: 40,
+      align: "right",
+    });
+    doc.text(formatMoney(item.unitPrice, currency), colUnitX, rowY, {
+      width: 80,
+      align: "right",
+    });
+    doc.text(formatMoney(item.subtotal, currency), colAmountX, rowY, {
+      width: 100,
+      align: "right",
+    });
+
+    rowY = Math.max(itemBottom, rowY + 20) + 8;
   });
 
-  doc.y = Math.max(doc.y, rowY + 20) + 10;
+  doc.y = rowY + 5;
 }
 
 function drawTotalsBlock(doc, rows) {
@@ -279,17 +277,7 @@ function drawFooter(doc) {
 }
 
 async function generateInvoicePdf(data) {
-  const {
-    documentNumber,
-    issuedAt,
-    seller,
-    planName,
-    periodLabel,
-    quantity = 1,
-    unitPrice,
-    amount,
-    currency,
-  } = data;
+  const { documentNumber, issuedAt, seller, items, amount, currency } = data;
 
   const logoBuffer = await getLogoBuffer();
 
@@ -317,14 +305,7 @@ async function generateInvoicePdf(data) {
 
     drawAmountHeadline(doc, `${formatMoney(amount, currency)} dû`);
 
-    drawLineItemsTable(doc, {
-      description: `Abonnement ${planName}`,
-      subDescription: periodLabel,
-      quantity,
-      unitPrice,
-      amount,
-      currency,
-    });
+    drawLineItemsTable(doc, items, currency);
 
     drawTotalsBlock(doc, [
       ["Sous-total", formatMoney(amount, currency)],
@@ -342,10 +323,7 @@ async function generateReceiptPdf(data) {
     invoiceNumber,
     paidAt,
     seller,
-    planName,
-    periodLabel,
-    quantity = 1,
-    unitPrice,
+    items,
     amount,
     currency,
     paymentMethod,
@@ -381,14 +359,7 @@ async function generateReceiptPdf(data) {
       `${formatMoney(amount, currency)} payé le ${formatDate(paidAt)}`,
     );
 
-    drawLineItemsTable(doc, {
-      description: `Abonnement ${planName}`,
-      subDescription: periodLabel,
-      quantity,
-      unitPrice,
-      amount,
-      currency,
-    });
+    drawLineItemsTable(doc, items, currency);
 
     drawTotalsBlock(doc, [
       ["Sous-total", formatMoney(amount, currency)],

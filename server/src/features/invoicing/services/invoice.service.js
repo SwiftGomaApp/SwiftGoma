@@ -36,6 +36,77 @@ async function getFullPaymentOrThrow(subscriptionPaymentId) {
   return payment;
 }
 
+async function resolveSubscriptionPaymentContext(subscriptionPaymentId) {
+  const payment = await getFullPaymentOrThrow(subscriptionPaymentId);
+  const { sellerProfile } = payment.subscription;
+
+  return {
+    paymentIdField: "subscriptionPaymentId",
+    paymentId: subscriptionPaymentId,
+    status: payment.status,
+    createdAt: payment.createdAt,
+    paidAt: payment.paidAt,
+    amount: payment.amount,
+    currency: payment.currency,
+    sellerProfile,
+    paymentMethodLabel: formatPaymentMethodLabel(payment.mobileMoneyProvider),
+    items: [
+      {
+        description: `Abonnement ${payment.plan.name}`,
+        subDescription: formatPeriodLabel(
+          payment.periodStart,
+          payment.periodEnd,
+        ),
+        quantity: 1,
+        unitPrice: payment.amount,
+        subtotal: payment.amount,
+      },
+    ],
+  };
+}
+
+async function resolveOrderPaymentContext(orderPaymentId) {
+  const payment = await prisma.orderPayment.findUnique({
+    where: { id: orderPaymentId },
+    include: {
+      order: {
+        include: {
+          items: true,
+          shop: { include: { sellerProfile: true } },
+        },
+      },
+    },
+  });
+  if (!payment) throw new NotFoundError("Paiement de commande introuvable.");
+
+  const { sellerProfile } = payment.order.shop;
+
+  return {
+    paymentIdField: "orderPaymentId",
+    paymentId: orderPaymentId,
+    status: payment.status,
+    createdAt: payment.createdAt,
+    paidAt: payment.heldAt,
+    amount: payment.amount,
+    currency: payment.currency,
+    sellerProfile,
+    paymentMethodLabel: formatPaymentMethodLabel(payment.network),
+    items: payment.order.items.map((item) => ({
+      description: item.productName,
+      subDescription: item.variantName || null,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      subtotal: item.subtotal,
+    })),
+  };
+}
+
+async function resolvePaymentContext(type, id) {
+  if (type === "subscription") return resolveSubscriptionPaymentContext(id);
+  if (type === "order") return resolveOrderPaymentContext(id);
+  throw new Error(`resolvePaymentContext: unknown type "${type}"`);
+}
+
 function buildSellerData(sellerProfile) {
   return {
     businessName: sellerProfile.businessName,
@@ -51,29 +122,28 @@ async function uploadInvoiceAsset(buffer, documentNumber) {
   return { url: result.url, publicId: result.publicId };
 }
 
-async function generateInvoiceDocument(subscriptionPaymentId) {
+async function generateInvoiceDocument(type, paymentId) {
+  const context = await resolvePaymentContext(type, paymentId);
+
   const existing = await prisma.invoice.findUnique({
     where: {
-      subscriptionPaymentId_type: { subscriptionPaymentId, type: "INVOICE" },
+      [`${context.paymentIdField}_type`]: {
+        [context.paymentIdField]: context.paymentId,
+        type: "INVOICE",
+      },
     },
   });
   if (existing) return { record: existing, pdfBuffer: null };
-
-  const payment = await getFullPaymentOrThrow(subscriptionPaymentId);
-  const { sellerProfile } = payment.subscription;
 
   const documentNumber = await generateDocumentNumber("INVOICE");
 
   const pdfBuffer = await generateInvoicePdf({
     documentNumber,
-    issuedAt: payment.createdAt,
-    seller: buildSellerData(sellerProfile),
-    planName: payment.plan.name,
-    periodLabel: formatPeriodLabel(payment.periodStart, payment.periodEnd),
-    quantity: 1,
-    unitPrice: payment.amount,
-    amount: payment.amount,
-    currency: payment.currency,
+    issuedAt: context.createdAt,
+    seller: buildSellerData(context.sellerProfile),
+    items: context.items,
+    amount: context.amount,
+    currency: context.currency,
   });
 
   const { url, publicId } = await uploadInvoiceAsset(pdfBuffer, documentNumber);
@@ -82,8 +152,8 @@ async function generateInvoiceDocument(subscriptionPaymentId) {
     data: {
       documentNumber,
       type: "INVOICE",
-      subscriptionPaymentId,
-      sellerProfileId: sellerProfile.id,
+      [context.paymentIdField]: context.paymentId,
+      sellerProfileId: context.sellerProfile.id,
       pdfUrl: url,
       pdfPublicId: publicId,
     },
@@ -92,19 +162,20 @@ async function generateInvoiceDocument(subscriptionPaymentId) {
   return { record, pdfBuffer };
 }
 
-async function generateReceiptDocument(subscriptionPaymentId) {
+async function generateReceiptDocument(type, paymentId) {
+  const context = await resolvePaymentContext(type, paymentId);
+
   const existing = await prisma.invoice.findUnique({
     where: {
-      subscriptionPaymentId_type: {
-        subscriptionPaymentId,
+      [`${context.paymentIdField}_type`]: {
+        [context.paymentIdField]: context.paymentId,
         type: "RECEIPT",
       },
     },
   });
   if (existing) return { record: existing, pdfBuffer: null };
 
-  const payment = await getFullPaymentOrThrow(subscriptionPaymentId);
-  if (payment.status !== "SUCCEEDED") {
+  if (context.status !== "SUCCEEDED") {
     throw new Error(
       "Impossible de générer un reçu pour un paiement qui n'est pas confirmé.",
     );
@@ -112,8 +183,8 @@ async function generateReceiptDocument(subscriptionPaymentId) {
 
   const invoiceDoc = await prisma.invoice.findUnique({
     where: {
-      subscriptionPaymentId_type: {
-        subscriptionPaymentId,
+      [`${context.paymentIdField}_type`]: {
+        [context.paymentIdField]: context.paymentId,
         type: "INVOICE",
       },
     },
@@ -124,21 +195,17 @@ async function generateReceiptDocument(subscriptionPaymentId) {
     );
   }
 
-  const { sellerProfile } = payment.subscription;
   const documentNumber = await generateDocumentNumber("RECEIPT");
 
   const pdfBuffer = await generateReceiptPdf({
     documentNumber,
     invoiceNumber: invoiceDoc.documentNumber,
-    paidAt: payment.paidAt,
-    seller: buildSellerData(sellerProfile),
-    planName: payment.plan.name,
-    periodLabel: formatPeriodLabel(payment.periodStart, payment.periodEnd),
-    quantity: 1,
-    unitPrice: payment.amount,
-    amount: payment.amount,
-    currency: payment.currency,
-    paymentMethod: formatPaymentMethodLabel(payment.mobileMoneyProvider),
+    paidAt: context.paidAt,
+    seller: buildSellerData(context.sellerProfile),
+    items: context.items,
+    amount: context.amount,
+    currency: context.currency,
+    paymentMethod: context.paymentMethodLabel,
   });
 
   const { url, publicId } = await uploadInvoiceAsset(pdfBuffer, documentNumber);
@@ -147,8 +214,8 @@ async function generateReceiptDocument(subscriptionPaymentId) {
     data: {
       documentNumber,
       type: "RECEIPT",
-      subscriptionPaymentId,
-      sellerProfileId: sellerProfile.id,
+      [context.paymentIdField]: context.paymentId,
+      sellerProfileId: context.sellerProfile.id,
       pdfUrl: url,
       pdfPublicId: publicId,
     },
@@ -158,8 +225,20 @@ async function generateReceiptDocument(subscriptionPaymentId) {
 }
 
 async function generateInvoiceAndReceipt(subscriptionPaymentId) {
-  const invoice = await generateInvoiceDocument(subscriptionPaymentId);
-  const receipt = await generateReceiptDocument(subscriptionPaymentId);
+  const invoice = await generateInvoiceDocument(
+    "subscription",
+    subscriptionPaymentId,
+  );
+  const receipt = await generateReceiptDocument(
+    "subscription",
+    subscriptionPaymentId,
+  );
+  return { invoice, receipt };
+}
+
+async function generateOrderInvoiceAndReceipt(orderPaymentId) {
+  const invoice = await generateInvoiceDocument("order", orderPaymentId);
+  const receipt = await generateReceiptDocument("order", orderPaymentId);
   return { invoice, receipt };
 }
 
@@ -180,6 +259,9 @@ async function listInvoicesForSeller(
       orderBy: { issuedAt: "desc" },
       include: {
         subscriptionPayment: {
+          select: { amount: true, currency: true, status: true },
+        },
+        orderPayment: {
           select: { amount: true, currency: true, status: true },
         },
       },
@@ -256,4 +338,5 @@ module.exports = {
   getInvoiceById,
   getInvoiceStats,
   getInvoiceForDownload,
+  generateOrderInvoiceAndReceipt,
 };

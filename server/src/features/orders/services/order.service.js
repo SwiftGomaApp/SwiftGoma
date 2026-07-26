@@ -1,0 +1,1276 @@
+const { getPrismaClient } = require("../../../config/prisma");
+const { env } = require("../../../config/env");
+const QRCode = require("qrcode");
+const { NotFoundError, ConflictError } = require("../../../common/errors");
+const {
+  generateQrToken,
+  assertValidFulfillmentInput,
+  assertValidStatusTransition,
+  assertCancellable,
+  calculateOrderTotals,
+  assertValidCheckoutCurrency,
+} = require("../utils/order.utils");
+const { ORDER_CONFIG } = require("../config/order.config");
+const { getCart, clearCart } = require("./cart.service");
+const {
+  initiatePayin,
+  initiatePayout,
+} = require("../../payments/services/mbioyopay.service");
+const {
+  createNotification,
+} = require("../../notification/services/notification.service");
+const {
+  NOTIFICATION_TYPES,
+} = require("../../notification/config/notificationTypes");
+const {
+  orderStatusEmail,
+} = require("../../../common/emails/templates/orderStatus");
+const { emitToUser, emitToOrder } = require("../../../config/socket");
+const { convertAmount } = require("../../product/utils/exchangeRate.utils");
+const {
+  generateOrderInvoiceAndReceipt,
+} = require("../../invoicing/services/invoice.service");
+
+const prisma = getPrismaClient();
+
+const TERMINAL_ORDER_STATUSES = [
+  "CANCELLED",
+  "EXPIRED",
+  "FAILED",
+  "REJECTED",
+  "COMPLETED",
+];
+
+function formatMoney(amount, currency) {
+  const num = Number(amount);
+  const formatted =
+    currency === "CDF"
+      ? Math.round(num)
+          .toString()
+          .replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+      : num.toFixed(2);
+  return `${formatted} ${currency}`;
+}
+
+async function getShopOrThrow(shopId) {
+  const shop = await prisma.shop.findUnique({
+    where: { id: shopId },
+    include: { sellerProfile: { include: { user: true } } },
+  });
+  if (!shop || shop.deletedAt || shop.status !== "PUBLISHED") {
+    throw new NotFoundError("Boutique introuvable.");
+  }
+  return shop;
+}
+
+async function getFullOrder(orderId) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      items: true,
+      payment: true,
+      shop: { include: { sellerProfile: { include: { user: true } } } },
+      buyer: true,
+      rider: { include: { user: true } },
+    },
+  });
+  if (!order) throw new NotFoundError("Commande introuvable.");
+  return order;
+}
+
+async function assertOrderOwnedByShop(orderId, sellerProfileId) {
+  const order = await getFullOrder(orderId);
+  if (order.shop.sellerProfileId !== sellerProfileId) {
+    throw new NotFoundError("Commande introuvable.");
+  }
+  return order;
+}
+
+async function assertOrderOwnedByBuyer(orderId, buyerId) {
+  const order = await getFullOrder(orderId);
+  if (order.buyerId !== buyerId) {
+    throw new NotFoundError("Commande introuvable.");
+  }
+  return order;
+}
+
+async function assertOrderAssignedToRider(orderId, riderUserId) {
+  const order = await getFullOrder(orderId);
+  if (!order.rider || order.rider.userId !== riderUserId) {
+    throw new NotFoundError("Commande introuvable.");
+  }
+  return order;
+}
+
+async function assertCanViewOrder(orderId, userId) {
+  const order = await getFullOrder(orderId);
+  const isBuyer = order.buyerId === userId;
+  const isSeller = order.shop.sellerProfile.userId === userId;
+  const isRider = order.rider && order.rider.userId === userId;
+
+  if (!isBuyer && !isSeller && !isRider) {
+    throw new NotFoundError("Commande introuvable.");
+  }
+  return order;
+}
+
+function emitOrderUpdate(order) {
+  try {
+    emitToOrder(order.id, "order:status", {
+      orderId: order.id,
+      status: order.status,
+      updatedAt: order.updatedAt || new Date(),
+    });
+    emitToUser(order.buyerId, "order:status", {
+      orderId: order.id,
+      status: order.status,
+    });
+  } catch (err) {
+    console.error("[order] Failed to emit socket update:", err.message);
+  }
+}
+
+async function notifyBuyerWithEmail(order, { action, title, body, reason }) {
+  try {
+    const emailContent = orderStatusEmail({
+      name: order.buyer.name,
+      action,
+      shopName: order.shop.name,
+      reason,
+      actionUrl: `${env.appUrl}/orders/${order.id}`,
+      locale: "fr",
+    });
+
+    await createNotification({
+      userId: order.buyerId,
+      type: NOTIFICATION_TYPES.ORDER_STATUS,
+      title: emailContent.subject,
+      body,
+      data: { action, orderId: order.id },
+      emailOverride: emailContent,
+    });
+  } catch (err) {
+    console.error(`[order] Failed to notify buyer (${action}):`, err.message);
+  }
+}
+
+async function notifySellerWithEmail(shop, order, { action, title, body }) {
+  try {
+    const emailContent = orderStatusEmail({
+      name: shop.sellerProfile.businessName,
+      action,
+      amount: formatMoney(order.total, order.currency),
+      actionUrl: `${env.appUrl}/seller/orders/${order.id}`,
+      locale: "fr",
+    });
+
+    await createNotification({
+      userId: shop.sellerProfile.user.id,
+      type: NOTIFICATION_TYPES.ORDER_STATUS,
+      title: emailContent.subject,
+      body,
+      data: { action, orderId: order.id },
+      emailOverride: emailContent,
+    });
+  } catch (err) {
+    console.error(`[order] Failed to notify seller (${action}):`, err.message);
+  }
+}
+
+async function notifyRiderWithEmail(rider, order, { action, title, body }) {
+  try {
+    const emailContent = orderStatusEmail({
+      name: rider.user.name,
+      action,
+      amount: formatMoney(order.total, order.currency),
+      actionUrl: `${env.appUrl}/rider/deliveries/${order.id}`,
+      locale: "fr",
+    });
+
+    await createNotification({
+      userId: rider.userId,
+      type: NOTIFICATION_TYPES.ORDER_STATUS,
+      title: emailContent.subject,
+      body,
+      data: { action, orderId: order.id },
+      emailOverride: emailContent,
+    });
+  } catch (err) {
+    console.error(`[order] Failed to notify rider (${action}):`, err.message);
+  }
+}
+
+async function notifyBuyer(buyerId, { title, body, action, orderId }) {
+  try {
+    await createNotification({
+      userId: buyerId,
+      type: NOTIFICATION_TYPES.ORDER_STATUS,
+      title,
+      body,
+      data: { action, orderId },
+    });
+  } catch (err) {
+    console.error(`[order] Failed to notify buyer (${action}):`, err.message);
+  }
+}
+
+async function notifyRider(riderUserId, { title, body, action, orderId }) {
+  try {
+    await createNotification({
+      userId: riderUserId,
+      type: NOTIFICATION_TYPES.ORDER_STATUS,
+      title,
+      body,
+      data: { action, orderId },
+    });
+  } catch (err) {
+    console.error(`[order] Failed to notify rider (${action}):`, err.message);
+  }
+}
+
+async function checkout({
+  buyerId,
+  shopId,
+  paymentMethod,
+  fulfillmentMethod,
+  deliveryAddress,
+  deliveryLatitude,
+  deliveryLongitude,
+  payerPhoneNumber,
+  network,
+  countryCode,
+  currency: requestedCurrency, 
+}) {
+  const shop = await getShopOrThrow(shopId);
+
+  assertValidFulfillmentInput(
+    fulfillmentMethod,
+    deliveryAddress,
+    deliveryLatitude,
+    deliveryLongitude,
+  );
+
+  const cart = await getCart(buyerId, shopId);
+  if (!cart.id || cart.items.length === 0) {
+    throw new ConflictError("Le panier est vide.");
+  }
+
+  const pendingOrder = await prisma.order.findFirst({
+    where: {
+      buyerId,
+      shopId,
+      status: "AWAITING_PAYMENT",
+    },
+    select: { id: true },
+  });
+  if (pendingOrder) {
+    throw new ConflictError(
+      "Un paiement est déjà en cours pour cette boutique. Merci d'attendre la confirmation avant de réessayer.",
+    );
+  }
+
+  for (const item of cart.items) {
+    if (item.variant.stock < item.quantity) {
+      throw new ConflictError(
+        `Stock insuffisant pour "${item.variant.product.name}". Disponible : ${item.variant.stock}.`,
+      );
+    }
+    if (item.variant.product.status !== "PUBLISHED") {
+      throw new ConflictError(
+        `Le produit "${item.variant.product.name}" n'est plus disponible.`,
+      );
+    }
+  }
+
+  const currency = requestedCurrency || shop.deliveryFeeCurrency;
+  assertValidCheckoutCurrency(currency);
+
+  const resolvedItems = await Promise.all(
+    cart.items.map(async (item) => {
+      const itemCurrency = item.variant.product.currency;
+      const rawPrice = Number(item.variant.price);
+      const unitPrice =
+        itemCurrency === currency
+          ? rawPrice
+          : await convertAmount(rawPrice, itemCurrency, currency);
+
+      return {
+        productId: item.variant.product.id,
+        variantId: item.variant.id,
+        productName: item.variant.product.name,
+        variantName: item.variant.name,
+        unitPrice,
+        quantity: item.quantity,
+        subtotal: unitPrice * item.quantity,
+      };
+    }),
+  );
+
+  const rawDeliveryFee =
+    fulfillmentMethod === "DELIVERY" ? Number(shop.deliveryFee) : 0;
+  const deliveryFee =
+    fulfillmentMethod === "DELIVERY" && shop.deliveryFeeCurrency !== currency
+      ? await convertAmount(rawDeliveryFee, shop.deliveryFeeCurrency, currency)
+      : rawDeliveryFee;
+
+  const { subtotal, total } = calculateOrderTotals(resolvedItems, deliveryFee);
+
+  const initialStatus =
+    paymentMethod === "ONLINE_PAYMENT"
+      ? "AWAITING_PAYMENT"
+      : "PENDING_SELLER_REVIEW";
+
+  const order = await prisma.order.create({
+    data: {
+      buyerId,
+      shopId,
+      paymentMethod,
+      fulfillmentMethod,
+      status: initialStatus,
+      currency,
+      subtotal,
+      deliveryFee,
+      total,
+      deliveryAddress:
+        fulfillmentMethod === "DELIVERY" ? deliveryAddress : null,
+      deliveryLatitude:
+        fulfillmentMethod === "DELIVERY" ? deliveryLatitude : null,
+      deliveryLongitude:
+        fulfillmentMethod === "DELIVERY" ? deliveryLongitude : null,
+      qrToken: generateQrToken(),
+      items: { create: resolvedItems },
+    },
+    include: { items: true },
+  });
+
+  if (paymentMethod === "CASH_ON_DELIVERY") {
+    await clearCart(buyerId, shopId);
+    const fullOrder = await getFullOrder(order.id);
+    await notifySellerWithEmail(shop, fullOrder, {
+      action: "newOrderReceived",
+      title: "Nouvelle commande reçue",
+      body: `Vous avez reçu une nouvelle commande de ${formatMoney(total, currency)}.`,
+    });
+    return { order };
+  }
+
+  const payinOrderId = `SWG-ORD-${order.id}`;
+
+  const payment = await prisma.orderPayment.create({
+    data: {
+      orderId: order.id,
+      amount: total,
+      currency,
+      network,
+      phoneNumber: payerPhoneNumber,
+      countryCode,
+      status: "PENDING",
+      payinOrderId,
+    },
+  });
+
+  try {
+    const payin = await initiatePayin({
+      amount: total,
+      currency,
+      network,
+      phoneNumber: payerPhoneNumber,
+      countryCode,
+      orderId: payinOrderId,
+    });
+
+    const updatedPayment = await prisma.orderPayment.update({
+      where: { id: payment.id },
+      data: {
+        payinTransactionId: payin.transaction_id,
+      },
+    });
+
+    return { order, payment: updatedPayment, payin };
+  } catch (err) {
+    await prisma.orderPayment.update({
+      where: { id: payment.id },
+      data: { status: "FAILED", failureReason: err.message },
+    });
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { status: "FAILED", failureReason: err.message },
+    });
+    throw err;
+  }
+}
+
+async function findPaymentForCallback({ transactionId, orderId }) {
+  let payment = await prisma.orderPayment.findUnique({
+    where: { payinTransactionId: transactionId },
+    include: {
+      order: {
+        include: {
+          shop: { include: { sellerProfile: { include: { user: true } } } },
+          buyer: true,
+        },
+      },
+    },
+  });
+
+  if (!payment && orderId) {
+    payment = await prisma.orderPayment.findUnique({
+      where: { payinOrderId: orderId },
+      include: {
+        order: {
+          include: {
+            shop: { include: { sellerProfile: { include: { user: true } } } },
+            buyer: true,
+          },
+        },
+      },
+    });
+
+    if (payment && !payment.payinTransactionId) {
+      payment = await prisma.orderPayment.update({
+        where: { id: payment.id },
+        data: { payinTransactionId: transactionId },
+        include: {
+          order: {
+            include: {
+              shop: {
+                include: { sellerProfile: { include: { user: true } } },
+              },
+              buyer: true,
+            },
+          },
+        },
+      });
+    }
+  }
+
+  return payment;
+}
+
+async function confirmOrderPayment(transactionId, orderId) {
+  const payment = await findPaymentForCallback({ transactionId, orderId });
+  if (!payment) throw new NotFoundError("Paiement de commande introuvable.");
+  if (payment.status === "SUCCEEDED") {
+    return { payment, order: payment.order };
+  }
+
+  const updatedPayment = await prisma.orderPayment.update({
+    where: { id: payment.id },
+    data: { status: "SUCCEEDED", heldAt: new Date() },
+  });
+
+  if (TERMINAL_ORDER_STATUSES.includes(payment.order.status)) {
+    console.error(
+      `[order] Payment confirmed for order ${payment.orderId} but order already in terminal state "${payment.order.status}" — refunding.`,
+    );
+    await refundOrderPayment(
+      { ...payment.order, payment: updatedPayment },
+      "late_payment_confirmation",
+    );
+    return { payment: updatedPayment, order: payment.order };
+  }
+
+  if (payment.order.status !== "AWAITING_PAYMENT") {
+    console.error(
+      `[order] Payment confirmed for order ${payment.orderId} but order status is "${payment.order.status}" (expected AWAITING_PAYMENT) — skipping transition.`,
+    );
+    return { payment: updatedPayment, order: payment.order };
+  }
+
+  const updatedOrder = await prisma.order.update({
+    where: { id: payment.orderId },
+    data: { status: "PENDING_SELLER_REVIEW" },
+  });
+  emitOrderUpdate(updatedOrder);
+
+  await clearCart(payment.order.buyerId, payment.order.shopId);
+
+  let invoiceRecord = null;
+  let invoiceBuffer = null;
+  let receiptRecord = null;
+  let receiptBuffer = null;
+
+  try {
+    const { invoice, receipt } = await generateOrderInvoiceAndReceipt(
+      updatedPayment.id,
+    );
+    invoiceRecord = invoice.record;
+    invoiceBuffer = invoice.pdfBuffer;
+    receiptRecord = receipt.record;
+    receiptBuffer = receipt.pdfBuffer;
+  } catch (err) {
+    console.error(
+      `[order] Failed to generate invoice/receipt for order ${payment.orderId}:`,
+      err.message,
+    );
+  }
+
+  const attachments = [
+    ...(invoiceBuffer && invoiceRecord
+      ? [
+          {
+            filename: `${invoiceRecord.documentNumber}.pdf`,
+            content: invoiceBuffer,
+            contentType: "application/pdf",
+          },
+        ]
+      : []),
+    ...(receiptBuffer && receiptRecord
+      ? [
+          {
+            filename: `${receiptRecord.documentNumber}.pdf`,
+            content: receiptBuffer,
+            contentType: "application/pdf",
+          },
+        ]
+      : []),
+  ];
+
+  try {
+    const fullOrder = await getFullOrder(updatedOrder.id);
+    const emailContent = orderStatusEmail({
+      name: fullOrder.buyer.name,
+      action: "orderCompleted",
+      shopName: fullOrder.shop.name,
+      actionUrl: `${env.appUrl}/orders/${fullOrder.id}`,
+      locale: "fr",
+    });
+
+    await createNotification({
+      userId: fullOrder.buyerId,
+      type: NOTIFICATION_TYPES.PAYMENT,
+      title: emailContent.subject,
+      body: `Votre commande chez ${fullOrder.shop.name} a été payée. Facture et reçu ci-joints.`,
+      data: { action: "orderPaymentConfirmed", orderId: fullOrder.id },
+      emailOverride: {
+        ...emailContent,
+        attachments: attachments.length ? attachments : undefined,
+      },
+    });
+  } catch (err) {
+    console.error("[order] Failed to send invoice/receipt email:", err.message);
+  }
+
+  await notifySellerWithEmail(
+    payment.order.shop,
+    await getFullOrder(updatedOrder.id),
+    {
+      action: "newOrderReceived",
+      title: "Nouvelle commande reçue",
+      body: `Vous avez reçu une nouvelle commande de ${formatMoney(payment.amount, payment.currency)}.`,
+    },
+  );
+
+  return { payment: updatedPayment, order: updatedOrder };
+}
+
+async function failOrderPayment(transactionId, failureReason, orderId) {
+  const payment = await findPaymentForCallback({ transactionId, orderId });
+  if (!payment) throw new NotFoundError("Paiement de commande introuvable.");
+  if (payment.status === "FAILED") {
+    return { payment, order: payment.order };
+  }
+
+  const updatedPayment = await prisma.orderPayment.update({
+    where: { id: payment.id },
+    data: { status: "FAILED", failureReason },
+  });
+
+  if (
+    TERMINAL_ORDER_STATUSES.includes(payment.order.status) ||
+    payment.order.status !== "AWAITING_PAYMENT"
+  ) {
+    console.error(
+      `[order] Payment failed for order ${payment.orderId} but order status is already "${payment.order.status}" — skipping transition.`,
+    );
+    return { payment: updatedPayment, order: payment.order };
+  }
+
+  const updatedOrder = await prisma.order.update({
+    where: { id: payment.orderId },
+    data: { status: "FAILED", failureReason },
+  });
+  emitOrderUpdate(updatedOrder);
+
+  const fullOrder = await getFullOrder(updatedOrder.id);
+  await notifyBuyerWithEmail(fullOrder, {
+    action: "paymentFailed",
+    title: "Échec du paiement de votre commande",
+    body: "Le paiement de votre commande a échoué. Merci de réessayer.",
+  });
+
+  return { payment: updatedPayment, order: updatedOrder };
+}
+
+async function acceptOrder(orderId, sellerProfileId) {
+  const order = await assertOrderOwnedByShop(orderId, sellerProfileId);
+  assertValidStatusTransition(
+    order.status,
+    "ACCEPTED",
+    order.fulfillmentMethod,
+  );
+
+  const updated = await prisma.$transaction(async (tx) => {
+    for (const item of order.items) {
+      const variant = await tx.productVariant.findUnique({
+        where: { id: item.variantId },
+      });
+      if (!variant || variant.stock < item.quantity) {
+        throw new ConflictError(
+          `Stock insuffisant pour "${item.productName}" — impossible d'accepter cette commande.`,
+        );
+      }
+
+      const stockBefore = variant.stock;
+      const stockAfter = stockBefore - item.quantity;
+
+      await tx.productVariant.update({
+        where: { id: item.variantId },
+        data: { stock: stockAfter },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          variantId: item.variantId,
+          type: "SALE",
+          amount: -item.quantity,
+          reason: `Commande ${orderId} acceptée`,
+          stockBefore,
+          stockAfter,
+        },
+      });
+    }
+
+    return tx.order.update({
+      where: { id: orderId },
+      data: { status: "ACCEPTED", acceptedAt: new Date() },
+    });
+  });
+  emitOrderUpdate(updated);
+
+  const fullOrder = await getFullOrder(orderId);
+  await notifyBuyerWithEmail(fullOrder, {
+    action: "orderAccepted",
+    title: "Votre commande a été acceptée",
+    body: "Le vendeur prépare votre commande.",
+  });
+
+  return fullOrder;
+}
+
+async function refundOrderPayment(order, reasonLabel) {
+  if (
+    order.paymentMethod !== "ONLINE_PAYMENT" ||
+    order.payment?.status !== "SUCCEEDED"
+  ) {
+    return;
+  }
+
+  try {
+    const refund = await initiatePayout({
+      amount: order.payment.amount,
+      currency: order.payment.currency,
+      network: order.payment.network,
+      phoneNumber: order.payment.phoneNumber,
+      countryCode: order.payment.countryCode,
+      beneficiary: `${order.buyer.name} (remboursement)`,
+      orderId: `SWG-REFUND-${order.id}`,
+    });
+
+    await prisma.orderPayment.update({
+      where: { id: order.payment.id },
+      data: {
+        status: "REFUNDED",
+        refundedAt: new Date(),
+        payoutOrderId: refund.orderId,
+        payoutTransactionId: refund.transaction_id,
+      },
+    });
+  } catch (err) {
+    console.error(
+      `[order] Refund failed on ${reasonLabel} for order ${order.id}:`,
+      err.message,
+    );
+  }
+}
+
+async function rejectOrder(orderId, sellerProfileId, reason) {
+  const order = await assertOrderOwnedByShop(orderId, sellerProfileId);
+  assertValidStatusTransition(
+    order.status,
+    "REJECTED",
+    order.fulfillmentMethod,
+  );
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: "REJECTED",
+      rejectionReason: reason || null,
+      rejectedAt: new Date(),
+    },
+  });
+  emitOrderUpdate(updated);
+
+  await refundOrderPayment(order, "rejection");
+
+  const fullOrder = await getFullOrder(orderId);
+  await notifyBuyerWithEmail(fullOrder, {
+    action: "orderRejected",
+    title: "Votre commande a été refusée",
+    body: reason
+      ? `Le vendeur a refusé votre commande. Raison : ${reason}`
+      : "Le vendeur a refusé votre commande.",
+    reason,
+  });
+
+  return updated;
+}
+
+async function markReadyForPickup(orderId, sellerProfileId) {
+  const order = await assertOrderOwnedByShop(orderId, sellerProfileId);
+  assertValidStatusTransition(
+    order.status,
+    "READY_FOR_PICKUP",
+    order.fulfillmentMethod,
+  );
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: { status: "READY_FOR_PICKUP" },
+  });
+  emitOrderUpdate(updated);
+
+  await notifyBuyer(order.buyerId, {
+    title: "Votre commande est prête",
+    body: "Votre commande vous attend en boutique.",
+    action: "orderReadyForPickup",
+    orderId,
+  });
+
+  return updated;
+}
+
+async function completePickupHandoff(orderId, sellerProfileId, scannedQrToken) {
+  const order = await assertOrderOwnedByShop(orderId, sellerProfileId);
+  assertValidStatusTransition(
+    order.status,
+    "COMPLETED",
+    order.fulfillmentMethod,
+  );
+
+  if (order.qrScannedAt) {
+    throw new ConflictError("Ce QR a déjà été scanné.");
+  }
+  if (order.qrToken !== scannedQrToken) {
+    throw new ConflictError("Code QR invalide.");
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: "COMPLETED",
+      completedAt: new Date(),
+      qrScannedAt: new Date(),
+    },
+  });
+  emitOrderUpdate(updated);
+
+  if (order.paymentMethod === "ONLINE_PAYMENT") {
+    await creditSellerWallet(order);
+  }
+
+  const fullOrder = await getFullOrder(orderId);
+  await notifyBuyerWithEmail(fullOrder, {
+    action: "orderCompleted",
+    title: "Commande récupérée",
+    body: "Merci pour votre achat !",
+  });
+
+  return updated;
+}
+
+async function assignRider(orderId, sellerProfileId, riderId) {
+  const order = await assertOrderOwnedByShop(orderId, sellerProfileId);
+  assertValidStatusTransition(
+    order.status,
+    "RIDER_ASSIGNED",
+    order.fulfillmentMethod,
+  );
+
+  const rider = await prisma.rider.findUnique({
+    where: { id: riderId },
+    include: { user: true },
+  });
+  if (!rider || rider.sellerProfileId !== sellerProfileId || rider.deletedAt) {
+    throw new NotFoundError("Livreur introuvable.");
+  }
+  if (rider.status !== "ACTIVE" || !rider.isAvailable) {
+    throw new ConflictError("Ce livreur n'est pas disponible actuellement.");
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: { status: "RIDER_ASSIGNED", riderId },
+  });
+  emitOrderUpdate(updated);
+
+  const fullOrder = await getFullOrder(orderId);
+  await notifyRiderWithEmail(rider, fullOrder, {
+    action: "deliveryAssigned",
+    title: "Nouvelle livraison assignée",
+    body: `Une commande de ${formatMoney(order.total, order.currency)} vous a été assignée.`,
+  });
+  await notifyBuyer(order.buyerId, {
+    title: "Un livreur a été assigné",
+    body: "Votre commande sera bientôt en route.",
+    action: "riderAssigned",
+    orderId,
+  });
+
+  return updated;
+}
+
+async function markPickedUp(orderId, riderUserId) {
+  const order = await assertOrderAssignedToRider(orderId, riderUserId);
+  assertValidStatusTransition(
+    order.status,
+    "PICKED_UP",
+    order.fulfillmentMethod,
+  );
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: { status: "PICKED_UP", pickedUpAt: new Date() },
+  });
+  emitOrderUpdate(updated);
+
+  await notifyBuyer(order.buyerId, {
+    title: "Votre commande a été récupérée",
+    body: "Le livreur est en route vers vous.",
+    action: "orderPickedUp",
+    orderId,
+  });
+
+  return updated;
+}
+
+async function markOnTheWay(orderId, riderUserId) {
+  const order = await assertOrderAssignedToRider(orderId, riderUserId);
+  assertValidStatusTransition(
+    order.status,
+    "ON_THE_WAY",
+    order.fulfillmentMethod,
+  );
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: { status: "ON_THE_WAY" },
+  });
+  emitOrderUpdate(updated);
+
+  await notifyBuyer(order.buyerId, {
+    title: "Votre commande est en route",
+    body: "Le livreur se dirige vers vous.",
+    action: "orderOnTheWay",
+    orderId,
+  });
+
+  return updated;
+}
+
+async function completeDeliveryHandoff(orderId, riderUserId, scannedQrToken) {
+  const order = await assertOrderAssignedToRider(orderId, riderUserId);
+  assertValidStatusTransition(
+    order.status,
+    "DELIVERED",
+    order.fulfillmentMethod,
+  );
+
+  if (order.qrScannedAt) {
+    throw new ConflictError("Ce QR a déjà été scanné.");
+  }
+  if (order.qrToken !== scannedQrToken) {
+    throw new ConflictError("Code QR invalide.");
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: "DELIVERED",
+      deliveredAt: new Date(),
+      qrScannedAt: new Date(),
+    },
+  });
+  emitOrderUpdate(updated);
+
+  if (order.paymentMethod === "ONLINE_PAYMENT") {
+    await creditSellerWallet(order);
+  }
+
+  const fullOrder = await getFullOrder(orderId);
+  await notifyBuyerWithEmail(fullOrder, {
+    action: "orderCompleted",
+    title: "Commande livrée",
+    body: "Merci pour votre achat !",
+  });
+
+  return updated;
+}
+
+async function markFailedDelivery(orderId, riderUserId, reason) {
+  const order = await assertOrderAssignedToRider(orderId, riderUserId);
+  assertValidStatusTransition(order.status, "FAILED", order.fulfillmentMethod);
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: { status: "FAILED", failureReason: reason || null },
+  });
+  emitOrderUpdate(updated);
+
+  await notifyBuyer(order.buyerId, {
+    title: "Échec de la livraison",
+    body: reason
+      ? `La livraison a échoué. Raison : ${reason}`
+      : "La livraison a échoué.",
+    action: "deliveryFailed",
+    orderId,
+  });
+
+  return updated;
+}
+
+async function scanOrderQr(scannerUserId, scannedQrToken) {
+  const order = await prisma.order.findUnique({
+    where: { qrToken: scannedQrToken },
+    include: { shop: true, rider: true },
+  });
+  if (!order) throw new NotFoundError("Code QR invalide.");
+
+  if (order.fulfillmentMethod === "PICKUP") {
+    const sellerProfile = await prisma.sellerProfile.findUnique({
+      where: { userId: scannerUserId },
+    });
+    if (!sellerProfile || order.shop.sellerProfileId !== sellerProfile.id) {
+      throw new NotFoundError("Commande introuvable.");
+    }
+    return completePickupHandoff(order.id, sellerProfile.id, scannedQrToken);
+  }
+
+  if (order.fulfillmentMethod === "DELIVERY") {
+    if (!order.rider || order.rider.userId !== scannerUserId) {
+      throw new NotFoundError("Commande introuvable.");
+    }
+    return completeDeliveryHandoff(order.id, scannerUserId, scannedQrToken);
+  }
+
+  throw new ConflictError("Mode de fulfillment inconnu pour cette commande.");
+}
+
+async function getOrderQrCode(orderId, requesterId) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { buyerId: true, qrToken: true, qrScannedAt: true },
+  });
+  if (!order || order.buyerId !== requesterId) {
+    throw new NotFoundError("Commande introuvable.");
+  }
+  if (order.qrScannedAt) {
+    throw new ConflictError("Ce QR a déjà été utilisé.");
+  }
+
+  const qrCodeDataUrl = await QRCode.toDataURL(order.qrToken);
+  return { qrCodeDataUrl };
+}
+
+async function creditSellerWallet(order) {
+  if (!order.payment || order.payment.status !== "SUCCEEDED") {
+    console.error(
+      `[order] Cannot credit wallet for order ${order.id} — payment not in SUCCEEDED state.`,
+    );
+    return;
+  }
+
+  const sellerProfileId = order.shop.sellerProfileId;
+  const amount = Number(order.payment.amount);
+  const currency = order.payment.currency;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      let wallet = await tx.wallet.findUnique({ where: { sellerProfileId } });
+
+      if (!wallet) {
+        wallet = await tx.wallet.create({ data: { sellerProfileId } });
+      }
+
+      let walletBalance = await tx.walletBalance.findUnique({
+        where: { walletId_currency: { walletId: wallet.id, currency } },
+      });
+
+      if (!walletBalance) {
+        walletBalance = await tx.walletBalance.create({
+          data: { walletId: wallet.id, currency, balance: 0 },
+        });
+      }
+
+      const balanceBefore = Number(walletBalance.balance);
+      const balanceAfter = balanceBefore + amount;
+
+      await tx.walletBalance.update({
+        where: { id: walletBalance.id },
+        data: { balance: balanceAfter },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          walletBalanceId: walletBalance.id,
+          type: "ORDER_CREDIT",
+          status: "COMPLETED",
+          amount,
+          currency,
+          reason: `Commande ${order.id} livrée/récupérée`,
+          balanceBefore,
+          balanceAfter,
+          orderId: order.id,
+        },
+      });
+    });
+
+    await prisma.orderPayment.update({
+      where: { id: order.payment.id },
+      data: { status: "RELEASED", releasedAt: new Date() },
+    });
+  } catch (err) {
+    console.error(
+      `[order] Failed to credit wallet for order ${order.id}:`,
+      err.message,
+    );
+  }
+}
+
+async function cancelOrder(orderId, buyerId, reason) {
+  const order = await assertOrderOwnedByBuyer(orderId, buyerId);
+  assertCancellable(order.status);
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: "CANCELLED",
+      cancelReason: reason || null,
+      cancelledAt: new Date(),
+    },
+  });
+  emitOrderUpdate(updated);
+
+  await refundOrderPayment(order, "cancellation");
+
+  try {
+    await createNotification({
+      userId: order.shop.sellerProfile.user.id,
+      type: NOTIFICATION_TYPES.ORDER_STATUS,
+      title: "Commande annulée",
+      body: "Une commande a été annulée par l'acheteur.",
+      data: { action: "orderCancelled", orderId },
+    });
+  } catch (err) {
+    console.error(
+      "[order] Failed to notify seller of cancellation:",
+      err.message,
+    );
+  }
+
+  return updated;
+}
+
+async function expireUnansweredOrders() {
+  const threshold = new Date();
+  threshold.setMinutes(
+    threshold.getMinutes() - ORDER_CONFIG.SELLER_REVIEW_TIMEOUT_MINUTES,
+  );
+
+  const staleOrders = await prisma.order.findMany({
+    where: {
+      status: "PENDING_SELLER_REVIEW",
+      createdAt: { lte: threshold },
+    },
+    include: {
+      payment: true,
+      buyer: true,
+      shop: { include: { sellerProfile: { include: { user: true } } } },
+    },
+  });
+
+  for (const order of staleOrders) {
+    assertValidStatusTransition(
+      order.status,
+      "EXPIRED",
+      order.fulfillmentMethod,
+    );
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: "EXPIRED",
+        failureReason: "Aucune réponse du vendeur dans le délai imparti.",
+      },
+    });
+    emitOrderUpdate(updated);
+
+    await refundOrderPayment(order, "seller_timeout");
+
+    const fullOrder = await getFullOrder(order.id);
+    await notifyBuyerWithEmail(fullOrder, {
+      action: "orderExpired",
+      title: "Commande expirée",
+      body: "Le vendeur n'a pas répondu à temps. Votre paiement a été remboursé.",
+    });
+
+    await notifySellerWithEmail(order.shop, fullOrder, {
+      action: "orderExpiredSeller",
+      title: "Commande expirée",
+      body: "Une commande a expiré automatiquement faute de réponse de votre part.",
+    });
+  }
+
+  return staleOrders.length;
+}
+
+async function getOrderById(orderId, requesterId) {
+  return assertCanViewOrder(orderId, requesterId);
+}
+
+async function listOrdersForBuyer(
+  buyerId,
+  { page = 1, limit = 20, status } = {},
+) {
+  const safePage = Math.max(parseInt(page, 10) || 1, 1);
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+  const skip = (safePage - 1) * safeLimit;
+
+  const where = { buyerId, ...(status ? { status } : {}) };
+
+  const [total, orders] = await Promise.all([
+    prisma.order.count({ where }),
+    prisma.order.findMany({
+      where,
+      skip,
+      take: safeLimit,
+      orderBy: { createdAt: "desc" },
+      include: { items: true, shop: { select: { name: true, slug: true } } },
+    }),
+  ]);
+
+  return {
+    orders,
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.ceil(total / safeLimit) || 1,
+    },
+  };
+}
+
+async function listOrdersForShop(
+  shopId,
+  sellerProfileId,
+  { page = 1, limit = 20, status } = {},
+) {
+  const shop = await prisma.shop.findUnique({ where: { id: shopId } });
+  if (!shop || shop.sellerProfileId !== sellerProfileId) {
+    throw new NotFoundError("Boutique introuvable.");
+  }
+
+  const safePage = Math.max(parseInt(page, 10) || 1, 1);
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+  const skip = (safePage - 1) * safeLimit;
+
+  const where = { shopId, ...(status ? { status } : {}) };
+
+  const [total, orders] = await Promise.all([
+    prisma.order.count({ where }),
+    prisma.order.findMany({
+      where,
+      skip,
+      take: safeLimit,
+      orderBy: { createdAt: "desc" },
+      include: { items: true, buyer: { select: { id: true, name: true } } },
+    }),
+  ]);
+
+  return {
+    orders,
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.ceil(total / safeLimit) || 1,
+    },
+  };
+}
+
+async function listOrdersForRider(
+  riderUserId,
+  { page = 1, limit = 20, status } = {},
+) {
+  const rider = await prisma.rider.findUnique({
+    where: { userId: riderUserId },
+  });
+  if (!rider) throw new NotFoundError("Profil livreur introuvable.");
+
+  const safePage = Math.max(parseInt(page, 10) || 1, 1);
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+  const skip = (safePage - 1) * safeLimit;
+
+  const where = { riderId: rider.id, ...(status ? { status } : {}) };
+
+  const [total, orders] = await Promise.all([
+    prisma.order.count({ where }),
+    prisma.order.findMany({
+      where,
+      skip,
+      take: safeLimit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        items: true,
+        shop: { select: { name: true } },
+        buyer: { select: { name: true } },
+      },
+    }),
+  ]);
+
+  return {
+    orders,
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.ceil(total / safeLimit) || 1,
+    },
+  };
+}
+
+module.exports = {
+  checkout,
+  confirmOrderPayment,
+  failOrderPayment,
+  acceptOrder,
+  rejectOrder,
+  markReadyForPickup,
+  completePickupHandoff,
+  assignRider,
+  markPickedUp,
+  markOnTheWay,
+  completeDeliveryHandoff,
+  markFailedDelivery,
+  scanOrderQr,
+  getOrderQrCode,
+  cancelOrder,
+  expireUnansweredOrders,
+  getOrderById,
+  listOrdersForBuyer,
+  listOrdersForShop,
+  listOrdersForRider,
+  emitOrderUpdate,
+};

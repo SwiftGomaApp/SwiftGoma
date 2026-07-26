@@ -7,6 +7,7 @@ const http = require("http");
 const {
   startSubscriptionRenewalJob,
 } = require("./src/jobs/subscriptionRenewal.job");
+const { startOrderReviewJob } = require("./src/jobs/orderReview.job");
 
 const app = createApp();
 const httpServer = http.createServer(app);
@@ -17,6 +18,7 @@ httpServer.listen(env.port, () => {
 });
 
 startSubscriptionRenewalJob();
+startOrderReviewJob();
 
 function crash(label, err) {
   console.error(`[${label}]`, err);

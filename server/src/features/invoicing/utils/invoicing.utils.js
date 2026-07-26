@@ -41,15 +41,27 @@ function formatPeriodLabel(periodStart, periodEnd) {
   return `${startLabel} – ${endLabel}`;
 }
 
-function formatPaymentMethodLabel(mobileMoneyProvider) {
+function formatPaymentMethodLabel(providerCode) {
+  if (!providerCode) return "Mobile Money";
+
+  const normalized = providerCode.toString().toLowerCase();
+
   const providerNames = {
-    AIRTEL_COD: "Mobile Money — Airtel",
-    ORANGE_COD: "Mobile Money — Orange",
-    VODACOM_MPESA_COD: "Mobile Money — Vodacom M-Pesa",
-    MTN_MOMO_RWA: "Mobile Money — MTN",
-    AIRTEL_RWA: "Mobile Money — Airtel",
+    // PawaPay (subscriptions)
+    airtel_cod: "Mobile Money — Airtel",
+    orange_cod: "Mobile Money — Orange",
+    vodacom_mpesa_cod: "Mobile Money — Vodacom M-Pesa",
+    mtn_momo_rwa: "Mobile Money — MTN",
+    airtel_rwa: "Mobile Money — Airtel",
+    // MbiyoPay (commandes)
+    airtel: "Mobile Money — Airtel",
+    orange: "Mobile Money — Orange",
+    vodacom: "Mobile Money — Vodacom",
+    africell: "Mobile Money — Africell",
+    mtn: "Mobile Money — MTN",
   };
-  return providerNames[mobileMoneyProvider] || "Mobile Money";
+
+  return providerNames[normalized] || "Mobile Money";
 }
 
 function formatDate(date) {
