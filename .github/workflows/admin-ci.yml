@@ -59,7 +59,7 @@ jobs:
 
       - name: Type check
         if: steps.scaffolded.outputs.exists == 'true'
-        run: npx tsc --noEmit --if-present
+        run: npx tsc --noEmit
 
       - name: Build
         if: steps.scaffolded.outputs.exists == 'true'
