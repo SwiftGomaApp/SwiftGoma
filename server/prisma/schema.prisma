@@ -948,6 +948,7 @@ model WalletTransaction {
 
   createdAt DateTime @default(now())
 
+  @@unique([orderId, type])
   @@index([walletId])
   @@index([walletBalanceId])
   @@map("wallet_transactions")

@@ -372,17 +372,24 @@ async function adjustStock(
 
   await assertShopOwnedBySeller(variant.product.shopId, sellerProfileId);
 
-  const stockBefore = variant.stock;
-  const stockAfter = stockBefore + amount;
-  if (stockAfter < 0) {
-    throw new ConflictError("Le stock ne peut pas être négatif.");
-  }
-
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.productVariant.update({
-      where: { id: variantId },
-      data: { stock: stockAfter },
+    // Atomic conditional update: guards against negative stock (and against
+    // a lost-update audit trail) even when this races a concurrent order
+    // acceptance decrementing the same variant, instead of checking a
+    // stock value read before this transaction started.
+    const claimed = await tx.productVariant.updateMany({
+      where: { id: variantId, stock: { gte: Math.max(0, -amount) } },
+      data: { stock: { increment: amount } },
     });
+    if (claimed.count !== 1) {
+      throw new ConflictError("Le stock ne peut pas être négatif.");
+    }
+
+    const updated = await tx.productVariant.findUnique({
+      where: { id: variantId },
+    });
+    const stockAfter = updated.stock;
+    const stockBefore = stockAfter - amount;
 
     await tx.stockMovement.create({
       data: {

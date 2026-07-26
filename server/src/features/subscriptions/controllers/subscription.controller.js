@@ -86,6 +86,22 @@ async function postCancelMySubscription(req, res, next) {
 async function postCheckPaymentStatus(req, res, next) {
   try {
     const { depositId } = req.params;
+
+    // Ownership check: a seller must not be able to poll/trigger a
+    // confirm-or-fail sync for another seller's subscription payment by
+    // guessing/reusing a depositId that isn't theirs.
+    const sellerProfileId = await getSellerProfileIdForUser(req.user.id);
+    const prisma = getPrismaClient();
+    const payment = await prisma.subscriptionPayment.findUnique({
+      where: { depositId },
+      select: { subscription: { select: { sellerProfileId: true } } },
+    });
+    if (!payment || payment.subscription.sellerProfileId !== sellerProfileId) {
+      throw new NotFoundError(
+        "Aucun paiement de subscription trouvé pour ce depositId.",
+      );
+    }
+
     const statusResult = await checkDepositStatus(depositId);
 
     const depositStatus = statusResult?.data?.status;

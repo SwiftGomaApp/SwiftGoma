@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const { httpbis } = require("http-message-signatures");
 const {
   getPrivateKeyPem,
+  getPublicKeyPem,
   getKeyId,
   getBaseUrl,
 } = require("../config/pawapay.config");
@@ -66,4 +67,104 @@ async function signFinancialRequest({ method, path, bodyString }) {
   return signedRequest.headers;
 }
 
-module.exports = { computeContentDigest, signFinancialRequest };
+// --- Inbound webhook verification (PawaPay -> us) ---
+// Per https://docs.pawapay.io/v2/docs/signatures.md, PawaPay signs callbacks
+// using the same RFC-9421 HTTP Message Signatures scheme as the one we use
+// to sign our own outbound requests above (Signature / Signature-Input /
+// Signature-Date / Content-Digest headers, ecdsa-p256-sha256, DER-encoded).
+// Verification is done against PawaPay's public key (GET /v2/public-key/http),
+// which must be configured via PAWAPAY_{ENV}_PUBLIC_KEY_PEM.
+
+function verifyContentDigest(headerValue, bodyBuffer) {
+  if (!headerValue) return false;
+  const raw = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+  const match = /^(sha-256|sha-512)=:([^:]+):$/.exec(raw.trim());
+  if (!match) return false;
+
+  const [, algo, base64Digest] = match;
+  const nodeAlgo = algo === "sha-256" ? "sha256" : "sha512";
+  const expected = crypto.createHash(nodeAlgo).update(bodyBuffer).digest();
+
+  let actual;
+  try {
+    actual = Buffer.from(base64Digest, "base64");
+  } catch {
+    return false;
+  }
+
+  return (
+    expected.length === actual.length &&
+    crypto.timingSafeEqual(expected, actual)
+  );
+}
+
+async function verifyInboundSignature({ method, url, headers, bodyBuffer }) {
+  const publicKeyPem = getPublicKeyPem();
+  const configuredKeyId = getKeyId();
+
+  if (!publicKeyPem) {
+    console.error(
+      "[pawapay] Cannot verify webhook signature: no public key configured for this environment.",
+    );
+    return false;
+  }
+
+  const contentDigestHeader = headers["content-digest"];
+  if (!verifyContentDigest(contentDigestHeader, bodyBuffer || Buffer.alloc(0))) {
+    return false;
+  }
+
+  let publicKey;
+  try {
+    publicKey = crypto.createPublicKey(publicKeyPem);
+  } catch (err) {
+    console.error("[pawapay] Configured public key is not valid PEM:", err.message);
+    return false;
+  }
+
+  try {
+    const result = await httpbis.verifyMessage(
+      {
+        keyLookup: async (params) => {
+          if (
+            configuredKeyId &&
+            params.keyid &&
+            params.keyid !== configuredKeyId
+          ) {
+            return null;
+          }
+          return {
+            id: configuredKeyId,
+            algs: ["ecdsa-p256-sha256"],
+            verify: async (data, signature) => {
+              try {
+                return crypto
+                  .createVerify("SHA256")
+                  .update(data)
+                  .verify(publicKey, signature);
+              } catch {
+                return false;
+              }
+            },
+          };
+        },
+        requiredFields: ["@method", "@path", "content-digest"],
+        tolerance: 5 * 60,
+      },
+      { method, url, headers },
+    );
+    return result === true;
+  } catch (err) {
+    console.error(
+      "[pawapay] Webhook signature verification error:",
+      err.message,
+    );
+    return false;
+  }
+}
+
+module.exports = {
+  computeContentDigest,
+  signFinancialRequest,
+  verifyInboundSignature,
+};

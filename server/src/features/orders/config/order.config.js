@@ -13,7 +13,12 @@ const ORDER_CONFIG = {
   ALLOWED_STATUS_TRANSITIONS: {
     AWAITING_PAYMENT: ["PENDING_SELLER_REVIEW", "FAILED", "CANCELLED"],
     PENDING_SELLER_REVIEW: ["ACCEPTED", "REJECTED", "CANCELLED", "EXPIRED"],
-    ACCEPTED: ["PREPARING", "CANCELLED"],
+    // No seller action currently transitions an order into PREPARING (no
+    // route/controller sets it), so an accepted order must be able to go
+    // straight to READY_FOR_PICKUP/RIDER_ASSIGNED — otherwise every accepted
+    // order is stuck forever. PREPARING is kept as a valid target in case a
+    // future "seller marks order as preparing" step is added.
+    ACCEPTED: ["PREPARING", "READY_FOR_PICKUP", "RIDER_ASSIGNED", "CANCELLED"],
     PREPARING: ["READY_FOR_PICKUP", "RIDER_ASSIGNED", "CANCELLED"],
     READY_FOR_PICKUP: ["COMPLETED", "CANCELLED"],
     RIDER_ASSIGNED: ["PICKED_UP", "CANCELLED"],

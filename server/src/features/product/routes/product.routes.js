@@ -71,14 +71,27 @@ ProductRouter.put(
 );
 
 // ----- Products (vendeur) -----
-ProductRouter.post("/", productImages, postCreateProduct);
-ProductRouter.get("/shop/:shopId", getMyShopProducts);
-ProductRouter.put("/:id", putUpdateProduct);
-ProductRouter.post("/:id/status", postSetProductStatus);
+ProductRouter.post(
+  "/",
+  authorize("SELLER"),
+  productImages,
+  postCreateProduct,
+);
+ProductRouter.get("/shop/:shopId", authorize("SELLER"), getMyShopProducts);
+ProductRouter.put("/:id", authorize("SELLER"), putUpdateProduct);
+ProductRouter.post("/:id/status", authorize("SELLER"), postSetProductStatus);
 
 // ----- Stock (vendeur) -----
-ProductRouter.post("/variants/:variantId/stock", postAdjustStock);
-ProductRouter.get("/variants/:variantId/stock/history", getVariantStockHistory);
+ProductRouter.post(
+  "/variants/:variantId/stock",
+  authorize("SELLER"),
+  postAdjustStock,
+);
+ProductRouter.get(
+  "/variants/:variantId/stock/history",
+  authorize("SELLER"),
+  getVariantStockHistory,
+);
 
 // ----- Exchange rates (ADMIN/SUPPORT) -----
 ProductRouter.get(

@@ -20,13 +20,14 @@ const {
 } = require("../controllers/order.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
+const { paymentLimiter } = require("../../../common/middleware/rateLimiters");
 
 const OrderRouter = express.Router();
 
 OrderRouter.use(authenticate);
 
 // ----- Acheteur -----
-OrderRouter.post("/checkout", postCheckout);
+OrderRouter.post("/checkout", paymentLimiter, postCheckout);
 OrderRouter.get("/me", getMyOrders);
 OrderRouter.post("/:id/cancel", postCancelOrder);
 OrderRouter.get("/:id/qr-code", getOrderQr);

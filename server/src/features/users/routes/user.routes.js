@@ -4,6 +4,7 @@ const userController = require("../controllers/user.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { imageUpload } = require("../../../common/middleware/upload");
 const { authorize } = require("../../../common/middleware/authorize");
+const { authLimiter } = require("../../../common/middleware/rateLimiters");
 
 const UserRouter = express.Router();
 
@@ -15,8 +16,16 @@ UserRouter.post(
   userController.uploadProfilePicture,
 );
 UserRouter.post("/delete", authenticate, userController.deleteAccount);
-UserRouter.post("/recovery/request", userController.requestAccountRecovery);
-UserRouter.post("/recovery/verify", userController.verifyAccountRecovery);
+UserRouter.post(
+  "/recovery/request",
+  authLimiter,
+  userController.requestAccountRecovery,
+);
+UserRouter.post(
+  "/recovery/verify",
+  authLimiter,
+  userController.verifyAccountRecovery,
+);
 UserRouter.post(
   "/phone/request",
   authenticate,
@@ -70,6 +79,7 @@ UserRouter.post(
   authorize("ADMIN", "SUPPORT"),
   userController.postUnblockUser,
 );
+
 UserRouter.post(
   "/:id/force-logout",
   authorize("ADMIN", "SUPPORT"),

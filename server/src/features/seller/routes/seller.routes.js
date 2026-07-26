@@ -65,9 +65,19 @@ SellerRouter.get("/shop/slug/:slug", getShopBySlugHandler);
 SellerRouter.use(authenticate);
 
 // ----- Seller Profile -----
-SellerRouter.post("/", sellerProfileImages, postCreateSellerProfile);
-SellerRouter.get("/my-profile", getMySellerProfile);
-SellerRouter.put("/", sellerProfileImages, putSellerProfile);
+SellerRouter.post(
+  "/",
+  authorize("SELLER"),
+  sellerProfileImages,
+  postCreateSellerProfile,
+);
+SellerRouter.get("/my-profile", authorize("SELLER"), getMySellerProfile);
+SellerRouter.put(
+  "/",
+  authorize("SELLER"),
+  sellerProfileImages,
+  putSellerProfile,
+);
 
 SellerRouter.post(
   "/:userId/suspend",
@@ -81,9 +91,14 @@ SellerRouter.post(
 );
 
 // ----- KYC -----
-SellerRouter.post("/kyc", kycFiles, postSubmitKyc);
-SellerRouter.get("/kyc/my-kyc", getMyKyc);
-SellerRouter.post("/kyc/resubmit", kycFiles, postResubmitKyc);
+SellerRouter.post("/kyc", authorize("SELLER"), kycFiles, postSubmitKyc);
+SellerRouter.get("/kyc/my-kyc", authorize("SELLER"), getMyKyc);
+SellerRouter.post(
+  "/kyc/resubmit",
+  authorize("SELLER"),
+  kycFiles,
+  postResubmitKyc,
+);
 
 SellerRouter.get("/kyc", authorize("ADMIN", "SUPPORT"), getKycList);
 SellerRouter.get("/kyc/:id", authorize("ADMIN", "SUPPORT"), getKycDetail);
@@ -100,14 +115,35 @@ SellerRouter.post(
 SellerRouter.post("/kyc/:id/approve", authorize("ADMIN"), postAdminApprove);
 
 // ----- Shop (vendeur) -----
-SellerRouter.post("/shop", shopImages, postCreateShop);
-SellerRouter.get("/shop/me", getMyShops);
-SellerRouter.put("/shop/:id", shopImages, putUpdateShop);
-SellerRouter.post("/shop/:id/publish", postPublishShop);
-SellerRouter.post("/shop/:id/unpublish", postUnpublishShop);
-SellerRouter.post("/shop/:id/suspend", postSuspendMyShop);
-SellerRouter.post("/shop/:id/reactivate", postReactivateMyShop);
-SellerRouter.delete("/shop/:id", deleteMyShop);
+SellerRouter.post("/shop", authorize("SELLER"), shopImages, postCreateShop);
+SellerRouter.get("/shop/me", authorize("SELLER"), getMyShops);
+SellerRouter.put(
+  "/shop/:id",
+  authorize("SELLER"),
+  shopImages,
+  putUpdateShop,
+);
+SellerRouter.post(
+  "/shop/:id/publish",
+  authorize("SELLER"),
+  postPublishShop,
+);
+SellerRouter.post(
+  "/shop/:id/unpublish",
+  authorize("SELLER"),
+  postUnpublishShop,
+);
+SellerRouter.post(
+  "/shop/:id/suspend",
+  authorize("SELLER"),
+  postSuspendMyShop,
+);
+SellerRouter.post(
+  "/shop/:id/reactivate",
+  authorize("SELLER"),
+  postReactivateMyShop,
+);
+SellerRouter.delete("/shop/:id", authorize("SELLER"), deleteMyShop);
 
 // ----- Shop (admin) -----
 SellerRouter.post(

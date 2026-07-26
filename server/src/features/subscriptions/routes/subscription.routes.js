@@ -12,13 +12,14 @@ const {
 } = require("../controllers/subscription.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
+const { paymentLimiter } = require("../../../common/middleware/rateLimiters");
 
 const SubscriptionRouter = express.Router();
 
 SubscriptionRouter.use(authenticate);
 
-SubscriptionRouter.post("/", postSubscribe);
-SubscriptionRouter.post("/upgrade", postUpgrade);
+SubscriptionRouter.post("/", paymentLimiter, postSubscribe);
+SubscriptionRouter.post("/upgrade", paymentLimiter, postUpgrade);
 SubscriptionRouter.get("/me", getMySubscription);
 SubscriptionRouter.get("/me/payments", getMyPaymentHistory);
 SubscriptionRouter.post("/me/cancel", postCancelMySubscription);

@@ -2,18 +2,49 @@ const express = require("express");
 
 const authController = require("../controllers/auth.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
+const { authLimiter } = require("../../../common/middleware/rateLimiters");
 
 const AuthRouter = express.Router();
 
-AuthRouter.post("/create-account", authController.createAccount);
-AuthRouter.post("/verify-email", authController.verifyEmail);
-AuthRouter.post("/resend-verification", authController.resendEmailVerification);
-AuthRouter.post("/login/request-otp", authController.requestLoginOtp);
-AuthRouter.post("/login/verify-otp", authController.verifyLoginOtp);
-AuthRouter.post("/login/password", authController.loginWithPassword);
-AuthRouter.post("/login/totp", authController.loginWithTotp);
-AuthRouter.post("/register/google", authController.registerWithGoogle);
-AuthRouter.post("/login/google", authController.loginWithGoogle);
+// authLimiter is applied only to the endpoints that are actually
+// brute-forceable / abusable (credential guessing, OTP guessing, OTP/SMS
+// spam, registration spam) — NOT to routes like /refresh-token, /logout, or
+// /me, which legitimate clients call routinely per session and which a
+// blanket limiter would throttle for real users without stopping abuse
+// (those require an existing valid token/session already).
+AuthRouter.post(
+  "/create-account",
+  authLimiter,
+  authController.createAccount,
+);
+AuthRouter.post("/verify-email", authLimiter, authController.verifyEmail);
+AuthRouter.post(
+  "/resend-verification",
+  authLimiter,
+  authController.resendEmailVerification,
+);
+AuthRouter.post(
+  "/login/request-otp",
+  authLimiter,
+  authController.requestLoginOtp,
+);
+AuthRouter.post(
+  "/login/verify-otp",
+  authLimiter,
+  authController.verifyLoginOtp,
+);
+AuthRouter.post(
+  "/login/password",
+  authLimiter,
+  authController.loginWithPassword,
+);
+AuthRouter.post("/login/totp", authLimiter, authController.loginWithTotp);
+AuthRouter.post(
+  "/register/google",
+  authLimiter,
+  authController.registerWithGoogle,
+);
+AuthRouter.post("/login/google", authLimiter, authController.loginWithGoogle);
 AuthRouter.post("/refresh-token", authController.refreshAccessToken);
 AuthRouter.get("/me", authenticate, authController.getMe);
 AuthRouter.post("/logout", authenticate, authController.logout);
@@ -28,8 +59,12 @@ AuthRouter.post(
   authenticate,
   authController.updatePassword,
 );
-AuthRouter.post("/password/forgot", authController.forgotPassword);
-AuthRouter.post("/password/reset", authController.resetPassword);
+AuthRouter.post(
+  "/password/forgot",
+  authLimiter,
+  authController.forgotPassword,
+);
+AuthRouter.post("/password/reset", authLimiter, authController.resetPassword);
 AuthRouter.post("/totp/setup", authenticate, authController.setupTotp);
 AuthRouter.post("/totp/confirm", authenticate, authController.confirmTotp);
 AuthRouter.post("/totp/disable", authenticate, authController.disableTotp);
@@ -51,9 +86,14 @@ AuthRouter.post(
 );
 AuthRouter.post(
   "/passkey/login/options",
+  authLimiter,
   authController.generatePasskeyLoginOptions,
 );
-AuthRouter.post("/passkey/login/verify", authController.verifyPasskeyLogin);
+AuthRouter.post(
+  "/passkey/login/verify",
+  authLimiter,
+  authController.verifyPasskeyLogin,
+);
 AuthRouter.get("/passkey", authenticate, authController.listPasskeys);
 AuthRouter.delete(
   "/passkey/:passkeyId",

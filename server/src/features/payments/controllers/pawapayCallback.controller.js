@@ -2,6 +2,8 @@ const {
   confirmSubscriptionPayment,
   failSubscriptionPayment,
 } = require("../../subscriptions/services/subscription.service");
+const { verifyInboundSignature } = require("../utils/pawapay.signature");
+const { env } = require("../../../config/env");
 
 const DEPOSIT_SUCCESS_STATUSES = ["COMPLETED"];
 const DEPOSIT_FAILURE_STATUSES = ["FAILED", "REJECTED"];
@@ -23,6 +25,28 @@ function extractMetadataType(body) {
 
 async function postDepositCallback(req, res, next) {
   try {
+    // Never trust the payload before verifying PawaPay's RFC-9421 request
+    // signature — see docs.pawapay.io/v2/docs/signatures.md. Fail closed:
+    // any verification failure (bad signature, missing headers, missing
+    // public key config) is rejected, never silently accepted.
+    // Reconstruct the exact URL PawaPay was configured to call (rather than
+    // trusting the inbound Host header, which may differ behind a proxy) —
+    // this is the @authority/@path pair PawaPay signed over.
+    const fullUrl = `${env.pawapay.callbackBaseUrl.replace(/\/+$/, "")}${req.originalUrl}`;
+    const verified = await verifyInboundSignature({
+      method: req.method,
+      url: fullUrl,
+      headers: req.headers,
+      bodyBuffer: req.rawBody || Buffer.from(JSON.stringify(req.body || {})),
+    });
+
+    if (!verified) {
+      console.error(
+        `[pawapay-callback] Signature verification failed for request to ${req.originalUrl} — rejecting.`,
+      );
+      return res.status(401).json({ received: false, error: "invalid_signature" });
+    }
+
     const body = req.body;
     const depositId = body.depositId;
     const status = body.status;

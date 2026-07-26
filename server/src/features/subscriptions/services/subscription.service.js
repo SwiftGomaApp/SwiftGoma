@@ -178,6 +178,7 @@ async function subscribeToPlan({
 
   try {
     const deposit = await initiateDeposit({
+      depositId: payment.id,
       amount: price.amount,
       currency,
       country,
@@ -296,16 +297,30 @@ async function upgradeSubscription({
     );
   }
 
+  // An upgrade doesn't move `subscription.status` off ACTIVE while its
+  // payment is in flight (only the initial subscription flow uses
+  // PENDING_PAYMENT for that), so without this check a duplicate/double-tap
+  // upgrade request would create a second, independent SubscriptionPayment
+  // and could end up charging the seller twice for one intended upgrade.
+  const pendingUpgradePayment = await prisma.subscriptionPayment.findFirst({
+    where: { subscriptionId: subscription.id, status: "PENDING" },
+  });
+  if (pendingUpgradePayment) {
+    throw new ConflictError(
+      "Un paiement est déjà en attente pour cet abonnement. Attendez sa confirmation ou son échec avant de relancer un upgrade.",
+    );
+  }
+
   const periodStart = new Date();
   const periodEnd = calculatePeriodEnd(periodStart, billingCycle);
 
   const payment = await prisma.subscriptionPayment.create({
     data: {
       subscriptionId: subscription.id,
-      planId: plan.id,
+      planId: newPlan.id,
       billingCycle,
       currency,
-      amount: price.amount,
+      amount: newPrice.amount,
       mobileMoneyProvider: provider,
       payerPhoneNumber,
       country,
@@ -367,6 +382,7 @@ async function upgradeSubscription({
 
   try {
     const deposit = await initiateDeposit({
+      depositId: payment.id,
       amount: newPrice.amount,
       currency,
       country,
@@ -457,9 +473,20 @@ async function confirmSubscriptionPayment(depositId) {
     return { payment, subscription: payment.subscription }; // idempotent — déjà confirmé
   }
 
-  const updatedPayment = await prisma.subscriptionPayment.update({
-    where: { id: payment.id },
+  // Atomic claim — guards against a duplicate/concurrent webhook delivery
+  // (PawaPay's own retry policy can resend the same callback) both passing
+  // the in-memory check above and both applying the plan change / sending
+  // a duplicate receipt.
+  const claimed = await prisma.subscriptionPayment.updateMany({
+    where: { id: payment.id, status: { not: "SUCCEEDED" } },
     data: { status: "SUCCEEDED", paidAt: new Date() },
+  });
+  if (claimed.count !== 1) {
+    return { payment, subscription: payment.subscription }; // lost the race
+  }
+
+  const updatedPayment = await prisma.subscriptionPayment.findUnique({
+    where: { id: payment.id },
   });
 
   // Applique le plan/cycle/devise/période de CE paiement à la subscription —
@@ -558,9 +585,16 @@ async function failSubscriptionPayment(depositId, failureReason) {
     return { payment, subscription: payment.subscription }; // idempotent
   }
 
-  const updatedPayment = await prisma.subscriptionPayment.update({
-    where: { id: payment.id },
+  const claimed = await prisma.subscriptionPayment.updateMany({
+    where: { id: payment.id, status: { not: "FAILED" } },
     data: { status: "FAILED", failureReason },
+  });
+  if (claimed.count !== 1) {
+    return { payment, subscription: payment.subscription }; // lost the race
+  }
+
+  const updatedPayment = await prisma.subscriptionPayment.findUnique({
+    where: { id: payment.id },
   });
 
   // Un échec d'upgrade ne doit PAS casser la subscription active existante —
@@ -878,10 +912,32 @@ async function findSubscriptionsDueForRenewal() {
 }
 
 async function renewSubscription(subscription) {
-  await prisma.subscription.update({
-    where: { id: subscription.id },
+  // Atomically claim this subscription for today's renewal attempt — guarded
+  // on the exact same condition `findSubscriptionsDueForRenewal` used to
+  // select it. This is what makes the renewal cron safe to run from more
+  // than one process/instance at once: only the caller whose `updateMany`
+  // actually matches a row (count === 1) proceeds; a second instance
+  // racing the same tick gets count 0 and skips it instead of creating a
+  // second SubscriptionPayment/deposit for the same period.
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const claimed = await prisma.subscription.updateMany({
+    where: {
+      id: subscription.id,
+      OR: [
+        { lastRenewalAttemptAt: null },
+        { lastRenewalAttemptAt: { lt: startOfToday } },
+      ],
+    },
     data: { lastRenewalAttemptAt: new Date() },
   });
+  if (claimed.count !== 1) {
+    console.warn(
+      `[renewal] Subscription ${subscription.id} already claimed for renewal today — skipping.`,
+    );
+    return;
+  }
 
   if (
     !subscription.renewalPhoneNumber ||
@@ -895,11 +951,24 @@ async function renewSubscription(subscription) {
     return;
   }
 
-  const price = resolvePlanPrice(
-    subscription.plan,
-    subscription.billingCycle,
-    subscription.currency,
-  );
+  let price;
+  try {
+    price = resolvePlanPrice(
+      subscription.plan,
+      subscription.billingCycle,
+      subscription.currency,
+    );
+  } catch (err) {
+    // Previously this threw before any FAILED/PAST_DUE state was recorded,
+    // so the subscription stayed ACTIVE past its paid period and the cron
+    // silently re-failed on it every day thereafter (see audit finding).
+    console.error(
+      `[renewal] No price found for subscription ${subscription.id} (plan/cycle/currency changed?):`,
+      err.message,
+    );
+    await markPastDue(subscription);
+    return;
+  }
 
   const periodStart = new Date(subscription.currentPeriodEnd);
   const periodEnd = calculatePeriodEnd(periodStart, subscription.billingCycle);
@@ -965,6 +1034,7 @@ async function renewSubscription(subscription) {
 
   try {
     const deposit = await initiateDeposit({
+      depositId: payment.id,
       amount: price.amount,
       currency: subscription.currency,
       country: subscription.renewalCountry,
