@@ -131,7 +131,7 @@ async function subscribeToPlan({
   // instant, indépendamment du succès du deposit PawaPay qui suit.
   try {
     const { record: invoiceRecord, pdfBuffer: invoiceBuffer } =
-      await generateInvoiceDocument(payment.id);
+      await generateInvoiceDocument("subscription", payment.id);
 
     const sellerProfile = await prisma.sellerProfile.findUnique({
       where: { id: sellerProfileId },
@@ -320,7 +320,7 @@ async function upgradeSubscription({
   // indépendamment du succès du deposit PawaPay qui suit.
   try {
     const { record: invoiceRecord, pdfBuffer: invoiceBuffer } =
-      await generateInvoiceDocument(payment.id);
+      await generateInvoiceDocument("subscription", payment.id);
 
     const sellerProfile = await prisma.sellerProfile.findUnique({
       where: { id: sellerProfileId },
@@ -484,6 +484,7 @@ async function confirmSubscriptionPayment(depositId) {
   let receiptRecord = null;
   try {
     const { record, pdfBuffer } = await generateReceiptDocument(
+      "subscription",
       updatedPayment.id,
     );
     receiptRecord = record;

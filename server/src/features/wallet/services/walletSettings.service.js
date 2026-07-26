@@ -17,13 +17,12 @@ async function getSellerProfileOrThrow(sellerProfileId) {
 
 async function createWalletSettings({
   sellerProfileId,
-  currency,
   payoutPhoneNumber,
   payoutProvider,
   payoutCountry,
   autoPayoutEnabled = false,
   payoutSchedule = "MANUAL",
-  minimumPayoutAmount,
+  minimumPayoutAmounts = [], // ex: [{ currency: "USD", amount: 5 }, { currency: "CDF", amount: 10000 }]
 }) {
   await getSellerProfileOrThrow(sellerProfileId);
 
@@ -36,39 +35,43 @@ async function createWalletSettings({
     );
   }
 
-  const input = {
-    currency,
+  const resolvedMinimums = minimumPayoutAmounts.map((entry) => ({
+    currency: entry.currency,
+    amount: resolveMinimumPayoutAmount(entry.amount, entry.currency),
+  }));
+
+  assertValidWalletSettingsInput({
     payoutPhoneNumber,
     payoutProvider,
     payoutCountry,
     autoPayoutEnabled,
     payoutSchedule,
-    minimumPayoutAmount,
-  };
-  assertValidWalletSettingsInput(input);
-
-  const resolvedMinimum = resolveMinimumPayoutAmount(
-    minimumPayoutAmount,
-    currency,
-  );
+    minimumPayoutAmounts: resolvedMinimums,
+  });
 
   return prisma.walletSettings.create({
     data: {
       sellerProfileId,
-      currency,
       payoutPhoneNumber,
       payoutProvider,
       payoutCountry,
       autoPayoutEnabled,
       payoutSchedule,
-      minimumPayoutAmount: resolvedMinimum,
+      minimumPayoutAmounts: {
+        create: resolvedMinimums.map((entry) => ({
+          currency: entry.currency,
+          amount: entry.amount,
+        })),
+      },
     },
+    include: { minimumPayoutAmounts: true },
   });
 }
 
 async function getWalletSettings(sellerProfileId) {
   const settings = await prisma.walletSettings.findUnique({
     where: { sellerProfileId },
+    include: { minimumPayoutAmounts: true },
   });
   if (!settings) {
     throw new NotFoundError(
@@ -82,38 +85,50 @@ async function updateWalletSettings(sellerProfileId, data) {
   const existing = await getWalletSettings(sellerProfileId);
 
   const merged = {
-    currency: data.currency ?? existing.currency,
     payoutPhoneNumber: data.payoutPhoneNumber ?? existing.payoutPhoneNumber,
     payoutProvider: data.payoutProvider ?? existing.payoutProvider,
     payoutCountry: data.payoutCountry ?? existing.payoutCountry,
     autoPayoutEnabled: data.autoPayoutEnabled ?? existing.autoPayoutEnabled,
     payoutSchedule: data.payoutSchedule ?? existing.payoutSchedule,
-    minimumPayoutAmount:
-      data.minimumPayoutAmount !== undefined
-        ? data.minimumPayoutAmount
-        : existing.minimumPayoutAmount,
   };
 
-  assertValidWalletSettingsInput(merged);
+  assertValidWalletSettingsInput({
+    ...merged,
+    minimumPayoutAmounts: data.minimumPayoutAmounts,
+  });
 
-  const minimumPayoutAmount =
-    data.minimumPayoutAmount !== undefined
-      ? data.minimumPayoutAmount
-      : data.currency && data.currency !== existing.currency
-        ? resolveMinimumPayoutAmount(undefined, merged.currency)
-        : merged.minimumPayoutAmount;
+  const updateData = {
+    payoutPhoneNumber: merged.payoutPhoneNumber,
+    payoutProvider: merged.payoutProvider,
+    payoutCountry: merged.payoutCountry,
+    autoPayoutEnabled: merged.autoPayoutEnabled,
+    payoutSchedule: merged.payoutSchedule,
+  };
+
+  // Si des seuils sont fournis, on les upsert un par un (par devise)
+  if (data.minimumPayoutAmounts) {
+    for (const entry of data.minimumPayoutAmounts) {
+      await prisma.minimumPayoutAmount.upsert({
+        where: {
+          walletSettingsId_currency: {
+            walletSettingsId: existing.id,
+            currency: entry.currency,
+          },
+        },
+        update: { amount: entry.amount },
+        create: {
+          walletSettingsId: existing.id,
+          currency: entry.currency,
+          amount: entry.amount,
+        },
+      });
+    }
+  }
 
   return prisma.walletSettings.update({
     where: { sellerProfileId },
-    data: {
-      currency: merged.currency,
-      payoutPhoneNumber: merged.payoutPhoneNumber,
-      payoutProvider: merged.payoutProvider,
-      payoutCountry: merged.payoutCountry,
-      autoPayoutEnabled: merged.autoPayoutEnabled,
-      payoutSchedule: merged.payoutSchedule,
-      minimumPayoutAmount,
-    },
+    data: updateData,
+    include: { minimumPayoutAmounts: true },
   });
 }
 

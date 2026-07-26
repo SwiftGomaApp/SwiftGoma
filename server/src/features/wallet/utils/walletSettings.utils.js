@@ -26,18 +26,14 @@ function resolveMinimumPayoutAmount(minimumPayoutAmount, currency) {
 
 function assertValidWalletSettingsInput(input) {
   const {
-    currency,
     payoutPhoneNumber,
     payoutProvider,
     payoutCountry,
     autoPayoutEnabled,
     payoutSchedule,
-    minimumPayoutAmount,
+    minimumPayoutAmounts,
   } = input;
 
-  if (!isValidCurrency(currency)) {
-    throw new ValidationError("Devise de payout invalide.");
-  }
   if (!payoutPhoneNumber || typeof payoutPhoneNumber !== "string") {
     throw new ValidationError("Numéro de payout requis.");
   }
@@ -55,8 +51,17 @@ function assertValidWalletSettingsInput(input) {
       'Un payout automatique ne peut pas avoir une fréquence "manuelle".',
     );
   }
-  if (!isValidMinimumPayoutAmount(minimumPayoutAmount, currency)) {
-    throw new ValidationError("Montant minimum de payout invalide.");
+  if (minimumPayoutAmounts) {
+    for (const entry of minimumPayoutAmounts) {
+      if (!isValidCurrency(entry.currency)) {
+        throw new ValidationError(`Devise "${entry.currency}" non supportée.`);
+      }
+      if (!isValidMinimumPayoutAmount(entry.amount, entry.currency)) {
+        throw new ValidationError(
+          `Montant minimum invalide pour ${entry.currency}.`,
+        );
+      }
+    }
   }
 }
 

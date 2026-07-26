@@ -36,6 +36,13 @@ const DashboardRouter = require("./features/dashboard/routes/dashboard.routes");
 const WalletSettingsRouter = require("./features/wallet/routes/walletSettings.routes");
 const ProductRouter = require("./features/product/routes/product.routes");
 const RiderRouter = require("./features/seller/routes/rider.routes");
+const {
+  checkMbiyoPayConnection,
+} = require("./features/payments/config/mbiopay.config");
+const MbiyoPayCallbackRouter = require("./features/payments/routes/mbiyopayCallback.routes");
+const MbiyoPayRouter = require("./features/payments/routes/mbiopay.routes");
+const CartRouter = require("./features/orders/routes/cart.routes");
+const OrderRouter = require("./features/orders/routes/order.routes");
 
 const createApp = () => {
   const app = express();
@@ -67,6 +74,9 @@ const createApp = () => {
 
   app.use(globalLimiter);
 
+  app.use("/api/v1/pawapay/callbacks", PawapayCallbackRouter);
+  app.use("/api/v1/mbiyopay/callbacks", MbiyoPayCallbackRouter);
+
   app.get("/api/v1/health", async (req, res) => {
     const [
       db,
@@ -75,6 +85,7 @@ const createApp = () => {
       smsStatus,
       oneSignalStatus,
       pawapayStatus,
+      mbiyopayStatus,
     ] = await Promise.all([
       checkDatabaseConnection(),
       checkCloudinaryConnection(),
@@ -82,6 +93,7 @@ const createApp = () => {
       checkSmsConnection(),
       checkOneSignalConnection(),
       checkPawaPayConnection(),
+      checkMbiyoPayConnection(),
     ]);
     const healthy =
       db.connected &&
@@ -89,7 +101,8 @@ const createApp = () => {
       mailerStatus.connected &&
       smsStatus.connected &&
       oneSignalStatus.connected &&
-      pawapayStatus.connected;
+      pawapayStatus.connected &&
+      mbiyopayStatus.connected;
 
     res.status(healthy ? 200 : 503).json({
       status: healthy ? "ok" : "degraded",
@@ -101,10 +114,9 @@ const createApp = () => {
       sms: smsStatus,
       oneSignal: oneSignalStatus,
       pawapay: pawapayStatus,
+      mbiyopay: mbiyopayStatus,
     });
   });
-
-  app.use("/api/v1/pawapay/callbacks", PawapayCallbackRouter);
 
   app.use(
     "/api/v1/auth",
@@ -123,13 +135,16 @@ const createApp = () => {
   app.use("/api/v1/seller", SellerRouter);
   app.use("/api/v1/pawapay", PawapayRouter);
   app.use("/api/v1/plans", PlansRouter);
-  app.use("/api/v1/pawapay/callbacks", PawapayCallbackRouter);
+  // app.use("/api/v1/pawapay/callbacks", PawapayCallbackRouter);
   app.use("/api/v1/subscriptions", SubscriptionRouter);
   app.use("/api/v1/invoices", InvoiceRouter);
   app.use("/api/v1/dashboard", DashboardRouter);
   app.use("/api/v1/wallet-settings", WalletSettingsRouter);
   app.use("/api/v1/products", ProductRouter);
   app.use("/api/v1/riders", RiderRouter);
+  app.use("/api/v1/mbiyopay", MbiyoPayRouter);
+  app.use("/api/v1/cart", CartRouter);
+  app.use("/api/v1/orders", OrderRouter);
 
   app.use(notFound);
 

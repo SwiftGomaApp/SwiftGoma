@@ -17,6 +17,15 @@ const {
   getProducts,
   getProductBySlugHandler,
 } = require("../controllers/product.controller");
+const {
+  postCreateExchangeRate,
+  putUpdateExchangeRate,
+  putUpsertExchangeRate,
+  getExchangeRateOne,
+  getExchangeRates,
+  deleteExchangeRateOne,
+  postPreviewConversion,
+} = require("../controllers/exchangeRate.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
 const { imageUpload } = require("../../../common/middleware/upload");
@@ -70,5 +79,42 @@ ProductRouter.post("/:id/status", postSetProductStatus);
 // ----- Stock (vendeur) -----
 ProductRouter.post("/variants/:variantId/stock", postAdjustStock);
 ProductRouter.get("/variants/:variantId/stock/history", getVariantStockHistory);
+
+// ----- Exchange rates (ADMIN/SUPPORT) -----
+ProductRouter.get(
+  "/exchange-rates",
+  authorize("ADMIN", "SUPPORT"),
+  getExchangeRates,
+);
+ProductRouter.get(
+  "/exchange-rates/:id",
+  authorize("ADMIN", "SUPPORT"),
+  getExchangeRateOne,
+);
+ProductRouter.post(
+  "/exchange-rates",
+  authorize("ADMIN", "SUPPORT"),
+  postCreateExchangeRate,
+);
+ProductRouter.put(
+  "/exchange-rates/:id",
+  authorize("ADMIN", "SUPPORT"),
+  putUpdateExchangeRate,
+);
+ProductRouter.put(
+  "/exchange-rates",
+  authorize("ADMIN", "SUPPORT"),
+  putUpsertExchangeRate,
+);
+ProductRouter.delete(
+  "/exchange-rates/:id",
+  authorize("ADMIN", "SUPPORT"),
+  deleteExchangeRateOne,
+);
+ProductRouter.post(
+  "/exchange-rates/preview",
+  authorize("ADMIN", "SUPPORT"),
+  postPreviewConversion,
+);
 
 module.exports = ProductRouter;

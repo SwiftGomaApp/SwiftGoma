@@ -80,6 +80,13 @@ const env = {
 
     signingEnabled: process.env.PAWAPAY_SIGNING_ENABLED === "true",
   },
+  mbiyopay: {
+    environment: process.env.MBIYOPAY_ENVIRONMENT || "sandbox",
+    sandboxApiKey: process.env.MBIYOPAY_SANDBOX_API_KEY || "",
+    productionApiKey: process.env.MBIYOPAY_PRODUCTION_API_KEY || "",
+    webhookSecret: process.env.MBIYOPAY_WEBHOOK_SECRET || "",
+    callbackBaseUrl: process.env.MBIYOPAY_CALLBACK_BASE_URL || "",
+  },
 };
 
 const isProduction = env.nodeEnv === "production";

@@ -55,10 +55,6 @@ async function resolveDecimalsInAmount({
   return operationConfig.decimalsInAmount;
 }
 
-// -----------------------------
-// DEPOSITS
-// -----------------------------
-
 async function initiateDeposit({
   amount,
   currency,
@@ -121,7 +117,7 @@ async function initiateDeposit({
 async function checkDepositStatus(depositId) {
   try {
     const res = await client.get(`/v2/deposits/${depositId}`);
-    return res.data; // { status: "FOUND"|..., data: {...} }
+    return res.data;
   } catch (err) {
     console.error(
       "[pawapay] checkDepositStatus failed:",
@@ -134,10 +130,6 @@ async function checkDepositStatus(depositId) {
     );
   }
 }
-
-// -----------------------------
-// PAYOUTS
-// -----------------------------
 
 async function initiatePayout({
   amount,
@@ -215,10 +207,6 @@ async function checkPayoutStatus(payoutId) {
   }
 }
 
-// -----------------------------
-// REFUNDS
-// -----------------------------
-
 async function initiateRefund({
   depositId,
   amount,
@@ -284,10 +272,6 @@ async function checkRefundStatus(refundId) {
   }
 }
 
-// -----------------------------
-// WALLET BALANCES
-// -----------------------------
-
 async function getWalletBalances() {
   try {
     const res = await client.get("/v2/wallet-balances");
@@ -304,10 +288,6 @@ async function getWalletBalances() {
     );
   }
 }
-
-// -----------------------------
-// ACTIVE CONFIGURATION
-// -----------------------------
 
 async function getActiveConfiguration({
   country,
