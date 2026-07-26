@@ -127,8 +127,7 @@ function initSocket(httpServer) {
       socket.leave(`order:${orderId}`);
     });
 
-    socket.on("disconnect", () => {
-    });
+    socket.on("disconnect", () => {});
   });
 
   return io;

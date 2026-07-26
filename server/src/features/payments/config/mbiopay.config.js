@@ -47,12 +47,12 @@ async function checkMbiyoPayConnection(timeoutMs = 3000) {
       error: null,
     };
   } catch (error) {
-    console.error("[mbiyopay] Connection check failed:", err.message);
+    console.error("[mbiyopay] Connection check failed:", error.message);
     return {
       connected: false,
       environment: getActiveEnvironment(),
       latencyMs: null,
-      error: err.message,
+      error: error.message,
     };
   }
 }

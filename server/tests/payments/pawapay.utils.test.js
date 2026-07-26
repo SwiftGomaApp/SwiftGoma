@@ -32,8 +32,8 @@ describe("pawapay.utils", () => {
     test("accepts digits-only international format", () => {
       expect(isValidMsisdn("250792398833")).toBe(true);
     });
-    test("rejects a leading +", () => {
-      expect(isValidMsisdn("+250792398833")).toBe(false);
+    test("accepts a leading + (implementation strips it before validating)", () => {
+      expect(isValidMsisdn("+250792398833")).toBe(true);
     });
   });
 

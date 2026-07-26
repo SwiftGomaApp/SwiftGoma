@@ -59,7 +59,15 @@ const createApp = () => {
   );
 
   app.use(compression());
-  app.use(express.json());
+  app.use(
+    express.json({
+      verify: (req, res, buf) => {
+        // Raw bytes are needed to verify PawaPay/MbiyoPay webhook signatures —
+        // re-serializing req.body would not reproduce the exact signed payload.
+        req.rawBody = buf;
+      },
+    }),
+  );
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
   app.use(morgan(isProduction ? "combined" : "dev"));
@@ -118,18 +126,14 @@ const createApp = () => {
     });
   });
 
-  app.use(
-    "/api/v1/auth",
-    // botDetection({ mode: "block" }),
-    // authLimiter,
-    authRoutes,
-  );
-  app.use(
-    "/api/v1/users",
-    // botDetection({ mode: "block" }),
-    // authLimiter,
-    UserRouter,
-  );
+  // authLimiter is applied per-route inside auth.routes.js/user.routes.js
+  // (only on brute-forceable endpoints — see comments there). botDetection
+  // block-mode is intentionally NOT enabled here: `isbot` flags some
+  // legitimate mobile HTTP clients (e.g. okhttp-based ones) as bots, and
+  // without confirming what User-Agent the production mobile apps send,
+  // enabling block-mode risks locking out real users rather than attackers.
+  app.use("/api/v1/auth", authRoutes);
+  app.use("/api/v1/users", UserRouter);
 
   app.use("/api/v1/notifications", NotificationRouter);
   app.use("/api/v1/seller", SellerRouter);

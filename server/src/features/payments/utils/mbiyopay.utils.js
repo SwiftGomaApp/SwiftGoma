@@ -104,10 +104,12 @@ function assertValidPayoutInput({
 
 function verifyWebhookSignature(rawBody, signatureHeader) {
   if (!env.mbiyopay.webhookSecret) {
-    console.warn(
-      "[mbiyopay] MBIYOPAY_WEBHOOK_SECRET not set — skipping signature verification.",
+    // Fail closed: a missing/misconfigured secret must never be treated as
+    // "verification not required" — that would let anyone forge a callback.
+    console.error(
+      "[mbiyopay] MBIYOPAY_WEBHOOK_SECRET is not configured — rejecting webhook (fail closed).",
     );
-    return true;
+    return false;
   }
   if (!signatureHeader) return false;
 
@@ -116,14 +118,16 @@ function verifyWebhookSignature(rawBody, signatureHeader) {
     .update(rawBody)
     .digest("hex");
 
+  let providedBuffer;
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(expected, "hex"),
-      Buffer.from(signatureHeader, "hex"),
-    );
+    providedBuffer = Buffer.from(signatureHeader, "hex");
   } catch {
     return false;
   }
+  const expectedBuffer = Buffer.from(expected, "hex");
+
+  if (providedBuffer.length !== expectedBuffer.length) return false;
+  return crypto.timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
 module.exports = {

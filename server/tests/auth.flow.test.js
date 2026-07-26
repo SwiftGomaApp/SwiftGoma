@@ -25,7 +25,7 @@ jest.mock("../src/config/sms", () => ({
     .mockResolvedValue({ connected: true, latencyMs: 1, error: null }),
 }));
 jest.mock(
-  "../src/features/notifications/services/notification.service",
+  "../src/features/notification/services/notification.service",
   () => ({
     createNotification: jest.fn().mockResolvedValue({
       id: "test-notification-id",

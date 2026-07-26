@@ -64,6 +64,16 @@ async function initiateDeposit({
   customerMessage,
   clientReferenceId,
   metadata = {},
+  // Per docs.pawapay.io/v2/docs/signatures.md + the deposit/payout/refund
+  // API reference: "This API call is idempotent — it is safe to submit a
+  // request with the same depositId multiple times" (duplicates come back
+  // as DUPLICATE_IGNORED, no new deposit is created). Callers that already
+  // have a stable internal record for this payment (e.g. a
+  // SubscriptionPayment row) should pass its id here so that a retry of
+  // this exact logical operation can't create a second real deposit at
+  // PawaPay — falls back to a fresh UUID for callers with no such record
+  // (e.g. the admin-only direct PawaPay endpoints).
+  depositId: requestedDepositId,
 }) {
   if (!isValidAmount(amount))
     throw new ValidationError("Invalid deposit amount.");
@@ -83,7 +93,7 @@ async function initiateDeposit({
     currency,
     operationType: "DEPOSIT",
   });
-  const depositId = generateTransactionId();
+  const depositId = requestedDepositId || generateTransactionId();
 
   const payload = {
     depositId,
@@ -140,6 +150,9 @@ async function initiatePayout({
   customerMessage,
   clientReferenceId,
   metadata = {},
+  // Same idempotency contract as initiateDeposit's `depositId` override —
+  // pass the internal record id for this payout when one exists.
+  payoutId: requestedPayoutId,
 }) {
   if (!isValidAmount(amount))
     throw new ValidationError("Invalid payout amount.");
@@ -159,7 +172,7 @@ async function initiatePayout({
     currency,
     operationType: "PAYOUT",
   });
-  const payoutId = generateTransactionId();
+  const payoutId = requestedPayoutId || generateTransactionId();
 
   const payload = {
     payoutId,
@@ -214,6 +227,9 @@ async function initiateRefund({
   country,
   provider,
   metadata = {},
+  // Same idempotency contract as initiateDeposit's `depositId` override —
+  // pass the internal record id for this refund when one exists.
+  refundId: requestedRefundId,
 }) {
   if (!depositId) throw new ValidationError("Missing depositId to refund.");
   if (amount !== undefined && !isValidAmount(amount))
@@ -230,7 +246,7 @@ async function initiateRefund({
     formattedAmount = formatAmount(amount, decimalsInAmount);
   }
 
-  const refundId = generateTransactionId();
+  const refundId = requestedRefundId || generateTransactionId();
 
   const payload = {
     refundId,
