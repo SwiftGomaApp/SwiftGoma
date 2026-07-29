@@ -6,16 +6,16 @@ const {
 
 async function postMbiyoPayCallback(req, res, next) {
   try {
-    // Use the exact raw request bytes MbiyoPay signed over — re-serializing
-    // req.body via JSON.stringify is not guaranteed to byte-for-byte match
-    // the original payload (key order/whitespace), which would break HMAC
-    // verification for genuine callbacks.
-    const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
+   
+    const rawBody = JSON.stringify(req.body);
     const signature = req.headers["signature"];
 
     if (!verifyWebhookSignature(rawBody, signature)) {
       console.error("[mbiyopay-callback] Invalid signature — rejecting.");
-      return res.status(401).json({ received: false, error: "invalid_signature" });
+
+      return res
+        .status(401)
+        .json({ received: false, error: "invalid_signature" });
     }
 
     const { transaction_id, order_id, status, type } = req.body;

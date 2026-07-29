@@ -51,9 +51,16 @@ const createApp = () => {
 
   app.use(requestId);
   app.use(helmet());
+
+  if (isProduction && env.clientOrigins.length === 0) {
+    throw new Error(
+      "[app] CLIENT_ORIGINS must be set in production — refusing to start with an open CORS policy.",
+    );
+  }
+
   app.use(
     cors({
-      origin: env.clientOrigins.length ? env.clientOrigins : true,
+      origin: env.clientOrigins,
       credentials: true,
     }),
   );
@@ -62,8 +69,6 @@ const createApp = () => {
   app.use(
     express.json({
       verify: (req, res, buf) => {
-        // Raw bytes are needed to verify PawaPay/MbiyoPay webhook signatures —
-        // re-serializing req.body would not reproduce the exact signed payload.
         req.rawBody = buf;
       },
     }),
@@ -126,20 +131,23 @@ const createApp = () => {
     });
   });
 
-  // authLimiter is applied per-route inside auth.routes.js/user.routes.js
-  // (only on brute-forceable endpoints — see comments there). botDetection
-  // block-mode is intentionally NOT enabled here: `isbot` flags some
-  // legitimate mobile HTTP clients (e.g. okhttp-based ones) as bots, and
-  // without confirming what User-Agent the production mobile apps send,
-  // enabling block-mode risks locking out real users rather than attackers.
-  app.use("/api/v1/auth", authRoutes);
-  app.use("/api/v1/users", UserRouter);
+  app.use(
+    "/api/v1/auth",
+    // botDetection({ mode: "block" }),
+    // authLimiter,
+    authRoutes,
+  );
+  app.use(
+    "/api/v1/users",
+    // botDetection({ mode: "block" }),
+    // authLimiter,
+    UserRouter,
+  );
 
   app.use("/api/v1/notifications", NotificationRouter);
   app.use("/api/v1/seller", SellerRouter);
   app.use("/api/v1/pawapay", PawapayRouter);
   app.use("/api/v1/plans", PlansRouter);
-  // app.use("/api/v1/pawapay/callbacks", PawapayCallbackRouter);
   app.use("/api/v1/subscriptions", SubscriptionRouter);
   app.use("/api/v1/invoices", InvoiceRouter);
   app.use("/api/v1/dashboard", DashboardRouter);

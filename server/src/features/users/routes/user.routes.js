@@ -2,7 +2,10 @@ const express = require("express");
 
 const userController = require("../controllers/user.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
-const { imageUpload } = require("../../../common/middleware/upload");
+const {
+  imageUpload,
+  verifyImageContents,
+} = require("../../../common/middleware/upload");
 const { authorize } = require("../../../common/middleware/authorize");
 const { authLimiter } = require("../../../common/middleware/rateLimiters");
 
@@ -13,6 +16,7 @@ UserRouter.post(
   "/profile/avatar",
   authenticate,
   imageUpload.single("avatar"),
+  verifyImageContents,
   userController.uploadProfilePicture,
 );
 UserRouter.post("/delete", authenticate, userController.deleteAccount);
@@ -51,6 +55,12 @@ UserRouter.post(
   "/email/secondary/verify",
   authenticate,
   userController.verifySecondaryEmail,
+);
+
+UserRouter.delete(
+  "/email/secondary",
+  authenticate,
+  userController.deleteSecondaryEmail,
 );
 
 UserRouter.post("/google/link", authenticate, userController.postLinkGoogle);

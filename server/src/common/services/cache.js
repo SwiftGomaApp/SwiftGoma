@@ -52,4 +52,25 @@ async function getOrSet(key, ttlSeconds, fetchFn) {
   return fresh;
 }
 
-module.exports = { get, set, del, getOrSet, isAvailable };
+async function bumpVersion(namespace) {
+  const client = getRedisClient();
+  if (!client) return;
+  await client.incr(PREFIX + `version:${namespace}`);
+}
+
+async function getVersion(namespace) {
+  const client = getRedisClient();
+  if (!client) return 0;
+  const v = await client.get(PREFIX + `version:${namespace}`);
+  return v ? parseInt(v, 10) : 0;
+}
+
+module.exports = {
+  get,
+  set,
+  del,
+  getOrSet,
+  isAvailable,
+  bumpVersion,
+  getVersion,
+};

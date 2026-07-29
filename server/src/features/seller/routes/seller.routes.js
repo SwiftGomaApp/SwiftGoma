@@ -36,6 +36,8 @@ const { authorize } = require("../../../common/middleware/authorize");
 const {
   imageUpload,
   documentUpload,
+  verifyImageContents,
+  verifyDocumentContents,
 } = require("../../../common/middleware/upload");
 
 const SellerRouter = express.Router();
@@ -54,14 +56,8 @@ const kycFiles = documentUpload.fields([
   { name: "rccmDocument", maxCount: 1 },
 ]);
 
-// -----------------------------
-// PUBLIC — pas d'auth
-// -----------------------------
 SellerRouter.get("/shop/slug/:slug", getShopBySlugHandler);
 
-// -----------------------------
-// À partir d'ici, authentification requise
-// -----------------------------
 SellerRouter.use(authenticate);
 
 // ----- Seller Profile -----
@@ -69,6 +65,7 @@ SellerRouter.post(
   "/",
   authorize("SELLER"),
   sellerProfileImages,
+  verifyImageContents,
   postCreateSellerProfile,
 );
 SellerRouter.get("/my-profile", authorize("SELLER"), getMySellerProfile);
@@ -76,6 +73,7 @@ SellerRouter.put(
   "/",
   authorize("SELLER"),
   sellerProfileImages,
+  verifyImageContents,
   putSellerProfile,
 );
 
@@ -91,12 +89,19 @@ SellerRouter.post(
 );
 
 // ----- KYC -----
-SellerRouter.post("/kyc", authorize("SELLER"), kycFiles, postSubmitKyc);
+SellerRouter.post(
+  "/kyc",
+  authorize("SELLER"),
+  kycFiles,
+  verifyDocumentContents,
+  postSubmitKyc,
+);
 SellerRouter.get("/kyc/my-kyc", authorize("SELLER"), getMyKyc);
 SellerRouter.post(
   "/kyc/resubmit",
   authorize("SELLER"),
   kycFiles,
+  verifyDocumentContents,
   postResubmitKyc,
 );
 
@@ -115,29 +120,28 @@ SellerRouter.post(
 SellerRouter.post("/kyc/:id/approve", authorize("ADMIN"), postAdminApprove);
 
 // ----- Shop (vendeur) -----
-SellerRouter.post("/shop", authorize("SELLER"), shopImages, postCreateShop);
+SellerRouter.post(
+  "/shop",
+  authorize("SELLER"),
+  shopImages,
+  verifyImageContents,
+  postCreateShop,
+);
 SellerRouter.get("/shop/me", authorize("SELLER"), getMyShops);
 SellerRouter.put(
   "/shop/:id",
   authorize("SELLER"),
   shopImages,
+  verifyImageContents,
   putUpdateShop,
 );
-SellerRouter.post(
-  "/shop/:id/publish",
-  authorize("SELLER"),
-  postPublishShop,
-);
+SellerRouter.post("/shop/:id/publish", authorize("SELLER"), postPublishShop);
 SellerRouter.post(
   "/shop/:id/unpublish",
   authorize("SELLER"),
   postUnpublishShop,
 );
-SellerRouter.post(
-  "/shop/:id/suspend",
-  authorize("SELLER"),
-  postSuspendMyShop,
-);
+SellerRouter.post("/shop/:id/suspend", authorize("SELLER"), postSuspendMyShop);
 SellerRouter.post(
   "/shop/:id/reactivate",
   authorize("SELLER"),

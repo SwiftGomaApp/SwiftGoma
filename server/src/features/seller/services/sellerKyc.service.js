@@ -257,17 +257,25 @@ async function adminApproveKyc(actor, kycId) {
   const kyc = await getKycById(kycId);
   assertValidStatusTransition(kyc.status, "APPROVED");
 
-  const updated = await prisma.sellerKyc.update({
-    where: { id: kycId },
-    data: {
-      status: "APPROVED",
-      adminReviewedBy: actor.id,
-      adminReviewedAt: new Date(),
-    },
-  });
+  const {
+    assertValidStatusTransition: assertValidProfileStatusTransition,
+  } = require("../utils/sellerProfile.utils");
+  assertValidProfileStatusTransition(kyc.sellerProfile.status, "ACTIVE");
 
-  const { activateSellerProfile } = require("./sellerProfile.service");
-  await activateSellerProfile(kyc.sellerProfile.userId);
+  const [updated] = await prisma.$transaction([
+    prisma.sellerKyc.update({
+      where: { id: kycId },
+      data: {
+        status: "APPROVED",
+        adminReviewedBy: actor.id,
+        adminReviewedAt: new Date(),
+      },
+    }),
+    prisma.sellerProfile.update({
+      where: { userId: kyc.sellerProfile.userId },
+      data: { status: "ACTIVE" },
+    }),
+  ]);
 
   try {
     const emailContent = sellerKycStatusEmail({
@@ -347,13 +355,6 @@ async function resubmitKyc({
   if (!kyc) throw new NotFoundError("Aucun dossier KYC trouvé.");
   assertResubmittable(kyc);
 
-  const oldAssets = [
-    { publicId: kyc.idDocumentPublicId },
-    { publicId: kyc.proofOfAddressPublicId },
-  ];
-  if (kyc.rccmDocumentPublicId)
-    oldAssets.push({ publicId: kyc.rccmDocumentPublicId });
-
   const uploads = [];
   const data = {
     status: "PENDING",
@@ -361,6 +362,7 @@ async function resubmitKyc({
     rejectedAt: null,
     rejectionReason: null,
   };
+  const newlyUploaded = [];
 
   if (idDocumentFile) {
     uploads.push(
@@ -368,6 +370,7 @@ async function resubmitKyc({
         (r) => {
           data.idDocumentUrl = r.url;
           data.idDocumentPublicId = r.publicId;
+          newlyUploaded.push(r);
         },
       ),
     );
@@ -380,6 +383,7 @@ async function resubmitKyc({
       ).then((r) => {
         data.proofOfAddressUrl = r.url;
         data.proofOfAddressPublicId = r.publicId;
+        newlyUploaded.push(r);
       }),
     );
   }
@@ -391,6 +395,7 @@ async function resubmitKyc({
       ).then((r) => {
         data.rccmDocumentUrl = r.url;
         data.rccmDocumentPublicId = r.publicId;
+        newlyUploaded.push(r);
       }),
     );
   }
@@ -398,6 +403,26 @@ async function resubmitKyc({
   if (rccmNumber !== undefined) data.rccmNumber = rccmNumber || null;
 
   await Promise.all(uploads);
+
+  const mergedForValidation = {
+    idDocumentType: data.idDocumentType ?? kyc.idDocumentType,
+    idDocumentUrl: data.idDocumentUrl ?? kyc.idDocumentUrl,
+    proofOfAddressUrl: data.proofOfAddressUrl ?? kyc.proofOfAddressUrl,
+    rccmNumber:
+      data.rccmNumber !== undefined ? data.rccmNumber : kyc.rccmNumber,
+    rccmDocumentUrl: data.rccmDocumentUrl ?? kyc.rccmDocumentUrl,
+  };
+
+  try {
+    assertValidKycInput(mergedForValidation);
+  } catch (err) {
+    await Promise.all(
+      newlyUploaded.map((asset) =>
+        deleteAsset(asset.publicId, asset.resourceType),
+      ),
+    );
+    throw err;
+  }
 
   const updated = await prisma.sellerKyc.update({
     where: { id: kyc.id },

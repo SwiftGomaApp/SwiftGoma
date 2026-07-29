@@ -7,14 +7,22 @@ jest.mock("../src/common/emails", () => ({
   sendOtpLoginEmail: jest.fn().mockResolvedValue(true),
   sendPasswordResetOtpEmail: jest.fn().mockResolvedValue(true),
   loginDetectedEmail: jest.fn(() => ({ subject: "Test", html: "<p>test</p>" })),
-  passwordChangedEmail: jest.fn(() => ({ subject: "Test", html: "<p>test</p>" })),
-  twoFactorChangedEmail: jest.fn(() => ({ subject: "Test", html: "<p>test</p>" })),
+  passwordChangedEmail: jest.fn(() => ({
+    subject: "Test",
+    html: "<p>test</p>",
+  })),
+  twoFactorChangedEmail: jest.fn(() => ({
+    subject: "Test",
+    html: "<p>test</p>",
+  })),
 }));
 jest.mock("../src/features/notification/services/notification.service", () => ({
   createNotification: jest.fn().mockResolvedValue({}),
 }));
 
-const { verifyGoogleIdToken } = require("../src/features/auth/config/google.config");
+const {
+  verifyGoogleIdToken,
+} = require("../src/features/auth/config/google.config");
 const authService = require("../src/features/auth/services/auth.service");
 const { getPrismaClient } = require("../src/config/prisma");
 
@@ -86,11 +94,13 @@ describe("registerWithGoogle role assignment", () => {
         ipAddress: "127.0.0.1",
         deviceName: "jest-runner",
       }),
-    ).rejects.toThrow(/cannot be assigned through public registration/i);
+    ).rejects.toMatchObject({ code: "ROLE_NOT_SELF_ASSIGNABLE" });
 
     // Confirm no privileged account was actually created.
     const created = await prisma.user.findFirst({
-      where: { emails: { some: { email: `${RUN_ID}-admin-role-attempt@example.com` } } },
+      where: {
+        emails: { some: { email: `${RUN_ID}-admin-role-attempt@example.com` } },
+      },
     });
     expect(created).toBeNull();
   });
@@ -106,7 +116,7 @@ describe("registerWithGoogle role assignment", () => {
         ipAddress: "127.0.0.1",
         deviceName: "jest-runner",
       }),
-    ).rejects.toThrow(/cannot be assigned through public registration/i);
+    ).rejects.toMatchObject({ code: "ROLE_NOT_SELF_ASSIGNABLE" });
   });
 
   test("registering with an arbitrary/malicious role string is rejected", async () => {
@@ -120,7 +130,7 @@ describe("registerWithGoogle role assignment", () => {
         ipAddress: "127.0.0.1",
         deviceName: "jest-runner",
       }),
-    ).rejects.toThrow(/cannot be assigned through public registration/i);
+    ).rejects.toMatchObject({ code: "ROLE_NOT_SELF_ASSIGNABLE" });
   });
 });
 
@@ -132,7 +142,7 @@ describe("createAccount (password signup) role assignment — regression guard",
         email: `${RUN_ID}-password-admin@example.com`,
         role: "ADMIN",
       }),
-    ).rejects.toThrow(/cannot be assigned through public registration/i);
+    ).rejects.toMatchObject({ code: "ROLE_NOT_SELF_ASSIGNABLE" });
   });
 
   test("defaults to BUYER when role omitted", async () => {

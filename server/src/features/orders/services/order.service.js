@@ -30,6 +30,8 @@ const { convertAmount } = require("../../product/utils/exchangeRate.utils");
 const {
   generateOrderInvoiceAndReceipt,
 } = require("../../invoicing/services/invoice.service");
+const { createQueue } = require("../../../config/queue");
+const { QUEUE_NAMES } = require("../../../common/constants/queueNames");
 
 const prisma = getPrismaClient();
 
@@ -114,13 +116,6 @@ async function assertCanViewOrder(orderId, userId) {
   return order;
 }
 
-// Atomically transitions an order's status, guarded on its *current* status
-// so that two concurrent requests racing the same order (double-tap, client
-// retry, a cron racing a human action) can't both succeed — only one
-// `updateMany` call can match `status: fromStatus` and flip the row; the
-// loser gets count 0 and must not proceed with any side effect (stock,
-// refund, wallet credit, notification). Must be called inside the same
-// `tx` as any side effect that depends on the transition having "won".
 async function claimOrderStatus(tx, orderId, fromStatus, data) {
   const claimed = await tx.order.updateMany({
     where: { id: orderId, status: fromStatus },
@@ -247,6 +242,93 @@ async function notifyRider(riderUserId, { title, body, action, orderId }) {
   }
 }
 
+// Extracted from confirmOrderPayment() unchanged, aside from taking
+// orderPaymentId/orderId as parameters instead of closing over them.
+// This is what the BullMQ worker (jobs/invoiceDocuments.job.js) calls —
+// generates the invoice+receipt PDFs, uploads them, and emails the buyer
+// with both attached. Runs off the request thread now, so a slow PDFKit
+// render or a slow Cloudinary upload no longer holds up the payment
+// webhook's response to PawaPay/MbiyoPay.
+//
+// Both catches re-throw (rather than just logging) so BullMQ actually
+// sees the job as failed — that's what triggers its built-in retry
+// (3 attempts, exponential backoff, config/queue.js) and, if all
+// retries are exhausted, the Sentry capture already wired up in
+// config/worker.js. Swallowing the error here would mean a transient
+// failure (Cloudinary hiccup, DB blip) never gets retried and never
+// gets reported — the gap found via scripts/testInvoiceJobError.js.
+async function sendOrderPaymentDocuments(orderPaymentId, orderId) {
+  let invoiceRecord = null;
+  let invoiceBuffer = null;
+  let receiptRecord = null;
+  let receiptBuffer = null;
+
+  try {
+    const { invoice, receipt } =
+      await generateOrderInvoiceAndReceipt(orderPaymentId);
+    invoiceRecord = invoice.record;
+    invoiceBuffer = invoice.pdfBuffer;
+    receiptRecord = receipt.record;
+    receiptBuffer = receipt.pdfBuffer;
+  } catch (err) {
+    console.error(
+      `[order] Failed to generate invoice/receipt for order ${orderId}:`,
+      err.message,
+    );
+    throw err;
+  }
+
+  const attachments = [
+    ...(invoiceBuffer && invoiceRecord
+      ? [
+          {
+            filename: `${invoiceRecord.documentNumber}.pdf`,
+            content: invoiceBuffer,
+            contentType: "application/pdf",
+          },
+        ]
+      : []),
+    ...(receiptBuffer && receiptRecord
+      ? [
+          {
+            filename: `${receiptRecord.documentNumber}.pdf`,
+            content: receiptBuffer,
+            contentType: "application/pdf",
+          },
+        ]
+      : []),
+  ];
+
+  try {
+    const fullOrder = await getFullOrder(orderId);
+    const emailContent = orderStatusEmail({
+      name: fullOrder.buyer.name,
+      action: "orderCompleted",
+      shopName: fullOrder.shop.name,
+      actionUrl: `${env.appUrl}/orders/${fullOrder.id}`,
+      locale: "fr",
+    });
+
+    await createNotification({
+      userId: fullOrder.buyerId,
+      type: NOTIFICATION_TYPES.PAYMENT,
+      title: emailContent.subject,
+      body: `Votre commande chez ${fullOrder.shop.name} a été payée. Facture et reçu ci-joints.`,
+      data: { action: "orderPaymentConfirmed", orderId: fullOrder.id },
+      emailOverride: {
+        ...emailContent,
+        attachments: attachments.length ? attachments : undefined,
+      },
+    });
+  } catch (err) {
+    console.error(
+      `[order] Failed to send invoice/receipt email for order ${orderId}:`,
+      err.message,
+    );
+    throw err;
+  }
+}
+
 async function checkout({
   buyerId,
   shopId,
@@ -258,7 +340,7 @@ async function checkout({
   payerPhoneNumber,
   network,
   countryCode,
-  currency: requestedCurrency, 
+  currency: requestedCurrency,
 }) {
   const shop = await getShopOrThrow(shopId);
 
@@ -509,70 +591,21 @@ async function confirmOrderPayment(transactionId, orderId) {
 
   await clearCart(payment.order.buyerId, payment.order.shopId);
 
-  let invoiceRecord = null;
-  let invoiceBuffer = null;
-  let receiptRecord = null;
-  let receiptBuffer = null;
-
+  // Was: inline `await generateOrderInvoiceAndReceipt(...)` + attachment
+  // building + `await createNotification(...)` right here, all blocking
+  // this webhook handler's response. Now: enqueue and return immediately
+  // — sendOrderPaymentDocuments() (defined above) does the same work,
+  // unchanged, inside the BullMQ worker instead.
   try {
-    const { invoice, receipt } = await generateOrderInvoiceAndReceipt(
-      updatedPayment.id,
-    );
-    invoiceRecord = invoice.record;
-    invoiceBuffer = invoice.pdfBuffer;
-    receiptRecord = receipt.record;
-    receiptBuffer = receipt.pdfBuffer;
+    await createQueue(QUEUE_NAMES.INVOICES).add("order-payment-documents", {
+      orderPaymentId: updatedPayment.id,
+      orderId: updatedOrder.id,
+    });
   } catch (err) {
     console.error(
-      `[order] Failed to generate invoice/receipt for order ${payment.orderId}:`,
+      `[order] Failed to enqueue invoice/receipt job for order ${updatedOrder.id}:`,
       err.message,
     );
-  }
-
-  const attachments = [
-    ...(invoiceBuffer && invoiceRecord
-      ? [
-          {
-            filename: `${invoiceRecord.documentNumber}.pdf`,
-            content: invoiceBuffer,
-            contentType: "application/pdf",
-          },
-        ]
-      : []),
-    ...(receiptBuffer && receiptRecord
-      ? [
-          {
-            filename: `${receiptRecord.documentNumber}.pdf`,
-            content: receiptBuffer,
-            contentType: "application/pdf",
-          },
-        ]
-      : []),
-  ];
-
-  try {
-    const fullOrder = await getFullOrder(updatedOrder.id);
-    const emailContent = orderStatusEmail({
-      name: fullOrder.buyer.name,
-      action: "orderCompleted",
-      shopName: fullOrder.shop.name,
-      actionUrl: `${env.appUrl}/orders/${fullOrder.id}`,
-      locale: "fr",
-    });
-
-    await createNotification({
-      userId: fullOrder.buyerId,
-      type: NOTIFICATION_TYPES.PAYMENT,
-      title: emailContent.subject,
-      body: `Votre commande chez ${fullOrder.shop.name} a été payée. Facture et reçu ci-joints.`,
-      data: { action: "orderPaymentConfirmed", orderId: fullOrder.id },
-      emailOverride: {
-        ...emailContent,
-        attachments: attachments.length ? attachments : undefined,
-      },
-    });
-  } catch (err) {
-    console.error("[order] Failed to send invoice/receipt email:", err.message);
   }
 
   await notifySellerWithEmail(
@@ -635,19 +668,12 @@ async function acceptOrder(orderId, sellerProfileId) {
   );
 
   const updated = await prisma.$transaction(async (tx) => {
-    // Claim the transition first: if a racing request already moved this
-    // order off PENDING_SELLER_REVIEW (accept/reject/expire), stop here
-    // before touching stock at all.
     await claimOrderStatus(tx, orderId, "PENDING_SELLER_REVIEW", {
       status: "ACCEPTED",
       acceptedAt: new Date(),
     });
 
     for (const item of order.items) {
-      // Atomic conditional decrement: only succeeds if enough stock is
-      // still available at the moment of the write, not at the moment we
-      // last read it — this is what prevents overselling under concurrent
-      // acceptances of orders drawing on the same variant.
       const decremented = await tx.productVariant.updateMany({
         where: { id: item.variantId, stock: { gte: item.quantity } },
         data: { stock: { decrement: item.quantity } },
@@ -696,18 +722,12 @@ async function refundOrderPayment(order, reasonLabel) {
     return;
   }
 
-  // Atomically claim the payment for refunding *before* calling out to the
-  // provider — this is what makes the refund idempotent. Checking
-  // `order.payment.status` (a stale in-memory snapshot) and refunding
-  // unconditionally afterward would let two concurrent callers (e.g. a
-  // reject racing the auto-expiry cron) both see SUCCEEDED and both trigger
-  // a real duplicate payout before either write lands.
   const claimed = await prisma.orderPayment.updateMany({
     where: { id: order.payment.id, status: "SUCCEEDED" },
     data: { status: "REFUNDED", refundedAt: new Date() },
   });
   if (claimed.count !== 1) {
-    return; // already refunded (or never SUCCEEDED) — nothing to do
+    return;
   }
 
   try {
@@ -729,9 +749,6 @@ async function refundOrderPayment(order, reasonLabel) {
       },
     });
   } catch (err) {
-    // The payout call itself failed — revert the claim so this can be
-    // retried later (manually or by a reconciliation job) instead of
-    // silently leaving the payment stuck as REFUNDED with no actual payout.
     await prisma.orderPayment
       .update({
         where: { id: order.payment.id },
@@ -815,9 +832,6 @@ async function completePickupHandoff(orderId, sellerProfileId, scannedQrToken) {
   }
 
   const updated = await prisma.$transaction(async (tx) => {
-    // Single atomic claim covering BOTH guards (status unchanged AND QR not
-    // yet scanned) — a double-tap/retry that races this exact call can only
-    // have one winner, so the wallet credit below can only ever run once.
     const claimed = await tx.order.updateMany({
       where: { id: orderId, status: order.status, qrScannedAt: null },
       data: {
@@ -1048,17 +1062,9 @@ async function getOrderQrCode(orderId, requesterId) {
   return { qrCodeDataUrl };
 }
 
-// Must be called from inside the same `tx` as the order/QR-scan claim in
-// completePickupHandoff/completeDeliveryHandoff, so the wallet credit and
-// the "this QR was only scanned once" guarantee are one atomic unit — if
-// either half fails, both roll back together instead of leaving an order
-// COMPLETED with an un-credited payment.
 async function creditSellerWallet(tx, order) {
   if (!order.payment) return;
 
-  // Atomically claim the payment for release — guards against this ever
-  // running twice for the same order (belt-and-suspenders on top of the
-  // qrScannedAt claim made by the caller).
   const claimed = await tx.orderPayment.updateMany({
     where: { id: order.payment.id, status: "SUCCEEDED" },
     data: { status: "RELEASED", releasedAt: new Date() },
@@ -1161,55 +1167,52 @@ async function expireUnansweredOrders() {
     },
   });
 
-  let expiredCount = 0;
+  const results = await Promise.allSettled(
+    staleOrders.map((order) => expireOneOrder(order)),
+  );
 
-  for (const order of staleOrders) {
-    assertValidStatusTransition(
-      order.status,
-      "EXPIRED",
-      order.fulfillmentMethod,
-    );
+  return results.filter((r) => r.status === "fulfilled" && r.value).length;
+}
 
-    let updated;
-    try {
-      updated = await prisma.$transaction(async (tx) => {
-        // A human action (accept/reject) may have raced this cron tick for
-        // this exact order — if so, count 0 and we skip it below rather
-        // than expiring an order that was already resolved.
-        await claimOrderStatus(tx, order.id, order.status, {
-          status: "EXPIRED",
-          failureReason: "Aucune réponse du vendeur dans le délai imparti.",
-        });
-        return tx.order.findUnique({ where: { id: order.id } });
+async function expireOneOrder(order) {
+  assertValidStatusTransition(order.status, "EXPIRED", order.fulfillmentMethod);
+
+  let updated;
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+      await claimOrderStatus(tx, order.id, order.status, {
+        status: "EXPIRED",
+        failureReason: "Aucune réponse du vendeur dans le délai imparti.",
       });
-    } catch (err) {
-      console.warn(
-        `[order] Skipped auto-expiry for order ${order.id} — status changed concurrently:`,
-        err.message,
-      );
-      continue;
-    }
+      return tx.order.findUnique({ where: { id: order.id } });
+    });
+  } catch (err) {
+    console.warn(
+      `[order] Skipped auto-expiry for order ${order.id} — status changed concurrently:`,
+      err.message,
+    );
+    return false;
+  }
 
-    expiredCount += 1;
-    emitOrderUpdate(updated);
+  emitOrderUpdate(updated);
 
-    await refundOrderPayment(order, "seller_timeout");
+  await refundOrderPayment(order, "seller_timeout");
 
-    const fullOrder = await getFullOrder(order.id);
-    await notifyBuyerWithEmail(fullOrder, {
+  const fullOrder = await getFullOrder(order.id);
+  await Promise.all([
+    notifyBuyerWithEmail(fullOrder, {
       action: "orderExpired",
       title: "Commande expirée",
       body: "Le vendeur n'a pas répondu à temps. Votre paiement a été remboursé.",
-    });
-
-    await notifySellerWithEmail(order.shop, fullOrder, {
+    }),
+    notifySellerWithEmail(order.shop, fullOrder, {
       action: "orderExpiredSeller",
       title: "Commande expirée",
       body: "Une commande a expiré automatiquement faute de réponse de votre part.",
-    });
-  }
+    }),
+  ]);
 
-  return expiredCount;
+  return true;
 }
 
 async function getOrderById(orderId, requesterId) {
@@ -1349,4 +1352,5 @@ module.exports = {
   listOrdersForShop,
   listOrdersForRider,
   emitOrderUpdate,
+  sendOrderPaymentDocuments,
 };

@@ -83,7 +83,7 @@ const env = {
 
     signingEnabled: process.env.PAWAPAY_SIGNING_ENABLED === "true",
   },
-  
+
   mbiyopay: {
     environment: process.env.MBIYOPAY_ENVIRONMENT || "sandbox",
     sandboxApiKey: process.env.MBIYOPAY_SANDBOX_API_KEY || "",
@@ -94,5 +94,53 @@ const env = {
 };
 
 const isProduction = env.nodeEnv === "production";
+
+function assertRequiredEnv() {
+  if (!isProduction) return;
+
+  const missing = [];
+
+  if (!env.databaseUrl) missing.push("DATABASE_URL");
+  if (!env.clientOrigins.length) missing.push("CLIENT_ORIGINS");
+  if (!env.jwt.accessSecret) missing.push("JWT_ACCESS_SECRET");
+  if (!env.jwt.refreshSecret) missing.push("JWT_REFRESH_SECRET");
+  if (!env.mbiyopay.webhookSecret) missing.push("MBIYOPAY_WEBHOOK_SECRET");
+  if (!env.cloudinary.cloudName) missing.push("CLOUDINARY_CLOUD_NAME");
+  if (!env.cloudinary.apiKey) missing.push("CLOUDINARY_API_KEY");
+  if (!env.cloudinary.apiSecret) missing.push("CLOUDINARY_API_SECRET");
+  if (!env.totpSecretEncryptionKey) missing.push("TOTP_SECRET_ENCRYPTION_KEY");
+
+  if (env.pawapay.environment === "production") {
+    if (!env.pawapay.production.apiToken)
+      missing.push("PAWAPAY_PRODUCTION_API_TOKEN");
+    if (!env.pawapay.production.privateKeyPem)
+      missing.push("PAWAPAY_PRODUCTION_PRIVATE_KEY_PEM");
+    if (!env.pawapay.production.keyId)
+      missing.push("PAWAPAY_PRODUCTION_KEY_ID");
+    if (!env.pawapay.production.publicKeyPem)
+      missing.push("PAWAPAY_PRODUCTION_PUBLIC_KEY_PEM");
+    // Without this, a production deploy could silently run with signature
+    // verification disabled (see pawapayCallback.controller.js) — the
+    // deposit webhook would accept unsigned/forged payloads from anyone
+    // who discovers the callback URL. Refuse to boot rather than risk that
+    // going unnoticed.
+    if (!env.pawapay.signingEnabled)
+      missing.push("PAWAPAY_SIGNING_ENABLED=true");
+  }
+  if (
+    env.mbiyopay.environment === "production" &&
+    !env.mbiyopay.productionApiKey
+  ) {
+    missing.push("MBIYOPAY_PRODUCTION_API_KEY");
+  }
+
+  if (missing.length > 0) {
+    throw new Error(
+      `[env] Variable(s) d'environnement requise(s) manquante(s) en production : ${missing.join(", ")}. Démarrage refusé.`,
+    );
+  }
+}
+
+assertRequiredEnv();
 
 module.exports = { env, isProduction };

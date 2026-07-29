@@ -280,9 +280,14 @@ async function postChangeRole(req, res, next) {
   }
 }
 
+async function deleteSecondaryEmail(req, res) {
+  const user = await userService.removeSecondaryEmail({ userId: req.user.id });
+  res.status(200).json({ success: true, data: user });
+}
+
 module.exports = {
   updateProfile,
-  deleteAccount,
+deleteAccount,
   requestAccountRecovery,
   verifyAccountRecovery,
   requestPhoneVerification,
@@ -304,4 +309,5 @@ module.exports = {
   postDeleteUser,
   postRestoreUser,
   postChangeRole,
+  deleteSecondaryEmail,
 };

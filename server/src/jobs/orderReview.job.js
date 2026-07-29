@@ -1,11 +1,19 @@
 const cron = require("node-cron");
-const { expireUnansweredOrders } = require("../features/orders/services/order.service");
+const { withLock } = require("../common/services/distributedLock");
+const {
+  expireUnansweredOrders,
+} = require("../features/orders/services/order.service");
 
 function startOrderReviewJob() {
   cron.schedule("*/15 * * * *", async () => {
     console.log("[order] Vérification des commandes en attente de réponse...");
+
     try {
-      const count = await expireUnansweredOrders();
+      const count = await withLock(
+        "order-review",
+        5 * 60 * 1000,
+        expireUnansweredOrders,
+      );
       if (count > 0) {
         console.log(
           `[order] ${count} commande(s) expirée(s) faute de réponse du vendeur.`,
