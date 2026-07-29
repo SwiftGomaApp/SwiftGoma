@@ -29,6 +29,7 @@ const {
   generateVerificationOtp,
   getOtpExpiry,
   isOtpExpired,
+  safeCompareCode,
 } = require("../../auth/utils/auth");
 const {
   issueSessionAndNotify,
@@ -102,12 +103,12 @@ function buildStatusFilter(status) {
 function assertCanActOnTarget(actor, targetUser) {
   if (targetUser.id === actor.id) {
     throw new BadRequestError(
-      "You cannot perform this action on your own account.",
+      "Vous ne pouvez pas effectuer cette action sur votre propre compte.",
     );
   }
   if (actor.role === "SUPPORT" && PRIVILEGED_ROLES.includes(targetUser.role)) {
     throw new ForbiddenError(
-      "SUPPORT cannot act on ADMIN or SUPPORT accounts.",
+      "SUPPORT ne peut pas agir sur les comptes ADMIN ou SUPPORT.",
     );
   }
 }
@@ -117,7 +118,7 @@ async function getTargetUserOrThrow(targetUserId) {
     where: { id: targetUserId },
     include: { emails: { where: { isPrimary: true }, take: 1 } },
   });
-  if (!targetUser) throw new NotFoundError("User not found.");
+  if (!targetUser) throw new NotFoundError("Utilisateur introuvable.");
   return { ...targetUser, email: targetUser.emails[0]?.email ?? "" };
 }
 
@@ -125,14 +126,14 @@ async function updateProfile({ userId, name, avatarUrl }) {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
-    throw new NotFoundError("Account not found.");
+    throw new NotFoundError("Compte introuvable.");
   }
 
   const data = {};
 
   if (name !== undefined) {
     if (!isValidName(name)) {
-      throw new ValidationError("Please enter a valid name.");
+      throw new ValidationError("Veuillez entrer un nom valide.");
     }
     data.name = name.trim();
   }
@@ -142,7 +143,7 @@ async function updateProfile({ userId, name, avatarUrl }) {
   }
 
   if (Object.keys(data).length === 0) {
-    throw new ValidationError("Nothing to update.");
+    throw new ValidationError("Rien à mettre à jour.");
   }
 
   const updated = await prisma.user.update({
@@ -162,10 +163,10 @@ async function deleteAccount({ userId, reason, locale = "en" }) {
   });
 
   if (!user) {
-    throw new NotFoundError("Account not found.");
+    throw new NotFoundError("Compte introuvable.");
   }
   if (user.deletedAt) {
-    throw new ConflictError("This account is already deleted.");
+    throw new ConflictError("Ce compte est déjà supprimé.");
   }
 
   await prisma.user.update({
@@ -195,16 +196,21 @@ async function deleteAccount({ userId, reason, locale = "en" }) {
 
   return {
     message:
-      "Your account has been deleted. You can recover it within " +
+      "Votre compte a été supprimé. Vous pouvez le récupérer dans les " +
       ACCOUNT_DELETION_CONFIG.RECOVERY_GRACE_PERIOD_DAYS +
-      " days.",
+      " jours.",
   };
 }
 
 async function requestAccountRecovery({ email, locale = "en" }) {
   if (!isValidEmail(email)) {
-    throw new ValidationError("Please enter a valid email address.");
+    throw new ValidationError("Veuillez entrer une adresse email valide.");
   }
+
+  const GENERIC_RESPONSE = {
+    message:
+      "Si un compte récupérable existe avec cet email, un code de récupération a été envoyé.",
+  };
 
   const normalizedEmail = email.trim().toLowerCase();
   const prisma = getPrismaClient();
@@ -213,16 +219,10 @@ async function requestAccountRecovery({ email, locale = "en" }) {
     include: { user: true },
   });
 
-  if (!userEmail) {
-    throw new NotFoundError("No account found with this email.");
-  }
+  if (!userEmail) return GENERIC_RESPONSE;
   const user = userEmail.user;
-  if (!user.deletedAt) {
-    throw new ConflictError("This account is not deleted.");
-  }
-  if (!isWithinRecoveryGracePeriod(user.deletedAt)) {
-    throw new NotFoundError("No account found with this email.");
-  }
+  if (!user.deletedAt) return GENERIC_RESPONSE;
+  if (!isWithinRecoveryGracePeriod(user.deletedAt)) return GENERIC_RESPONSE;
 
   if (user.accountRecoveryCode && user.accountRecoveryCodeExpiresAt) {
     const requestedAt = new Date(
@@ -235,12 +235,7 @@ async function requestAccountRecovery({ email, locale = "en" }) {
     );
     const now = new Date();
     if (cooldownEndsAt > now) {
-      const secondsLeft = Math.ceil((cooldownEndsAt - now) / 1000);
-      throw new TooManyRequestsError(
-        "Please wait " +
-          secondsLeft +
-          " seconds before requesting another code.",
-      );
+      return GENERIC_RESPONSE;
     }
   }
 
@@ -264,7 +259,7 @@ async function requestAccountRecovery({ email, locale = "en" }) {
     locale,
   });
 
-  return { message: "A recovery code has been sent to your email." };
+  return GENERIC_RESPONSE;
 }
 
 async function verifyAccountRecovery({
@@ -276,10 +271,10 @@ async function verifyAccountRecovery({
   locale = "en",
 }) {
   if (!isValidEmail(email)) {
-    throw new ValidationError("Please enter a valid email address.");
+    throw new ValidationError("Veuillez entrer une adresse email valide.");
   }
   if (!code || typeof code !== "string" || !code.trim()) {
-    throw new ValidationError("Please enter the recovery code.");
+    throw new ValidationError("Veuillez entrer le code de récupération.");
   }
 
   const normalizedEmail = email.trim().toLowerCase();
@@ -290,21 +285,25 @@ async function verifyAccountRecovery({
   });
 
   if (!userEmail) {
-    throw new NotFoundError("No account found with this email.");
+    throw new NotFoundError("Aucun compte trouvé avec cet email.");
   }
   const user = userEmail.user;
   if (!user.deletedAt || !isWithinRecoveryGracePeriod(user.deletedAt)) {
-    throw new NotFoundError("No account found with this email.");
+    throw new NotFoundError("Aucun compte trouvé avec cet email.");
   }
   if (isOtpExpired(user.accountRecoveryCodeExpiresAt)) {
     throw new AppError(
-      "Your recovery code has expired. Request a new one.",
+      "Votre code de récupération a expiré. Demandez-en un nouveau.",
       422,
       "OTP_EXPIRED",
     );
   }
-  if (user.accountRecoveryCode !== code.trim().toUpperCase()) {
-    throw new AppError("The recovery code is incorrect.", 422, "OTP_INVALID");
+  if (!safeCompareCode(user.accountRecoveryCode, code)) {
+    throw new AppError(
+      "Le code de récupération est incorrect.",
+      422,
+      "OTP_INVALID",
+    );
   }
 
   const restored = await prisma.user.update({
@@ -354,17 +353,17 @@ async function verifyAccountRecovery({
 
 async function requestPhoneVerification({ userId, phone }) {
   if (!isValidPhone(phone)) {
-    throw new ValidationError("Please enter a valid phone number.");
+    throw new ValidationError("Veuillez entrer un numéro de téléphone valide.");
   }
 
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
-    throw new NotFoundError("Account not found.");
+    throw new NotFoundError("Compte introuvable.");
   }
   if (user.isPhoneVerified) {
     throw new ConflictError(
-      "This account already has a verified phone number. Use phone update to change it.",
+      "Ce compte a déjà un numéro de téléphone vérifié. Utilisez la mise à jour du téléphone pour le changer.",
     );
   }
 
@@ -372,7 +371,7 @@ async function requestPhoneVerification({ userId, phone }) {
     where: { phone, id: { not: userId } },
   });
   if (existingPhone) {
-    throw new ConflictError("This phone number is already in use.");
+    throw new ConflictError("Ce numéro de téléphone est déjà utilisé.");
   }
 
   if (
@@ -391,9 +390,9 @@ async function requestPhoneVerification({ userId, phone }) {
     if (cooldownEndsAt > now) {
       const secondsLeft = Math.ceil((cooldownEndsAt - now) / 1000);
       throw new TooManyRequestsError(
-        "Please wait " +
+        "Veuillez patienter " +
           secondsLeft +
-          " seconds before requesting another code.",
+          " secondes avant de demander un nouveau code.",
       );
     }
   }
@@ -416,7 +415,7 @@ async function requestPhoneVerification({ userId, phone }) {
       to: phone,
       message:
         code +
-        " is your Swiftgoma verification code. It expires in " +
+        " est votre code de vérification Swiftgoma. Il expire dans " +
         PHONE_OTP_TTL_MINUTES +
         " minutes.",
     });
@@ -430,40 +429,40 @@ async function requestPhoneVerification({ userId, phone }) {
       },
     });
     throw new AppError(
-      "We couldn't send the verification code. Please try again in a moment.",
+      "Nous n'avons pas pu envoyer le code de vérification. Veuillez réessayer dans un instant.",
       502,
       "SMS_SEND_FAILED",
     );
   }
 
-  return { message: "A verification code has been sent to your phone." };
+  return { message: "Un code de vérification a été envoyé à votre téléphone." };
 }
 
 async function verifyPhone({ userId, code, locale = "en" }) {
   if (!code || typeof code !== "string" || !code.trim()) {
-    throw new ValidationError("Please enter the verification code.");
+    throw new ValidationError("Veuillez entrer le code de vérification.");
   }
 
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
-    throw new NotFoundError("Account not found.");
+    throw new NotFoundError("Compte introuvable.");
   }
   if (!user.phone || !user.phoneVerificationCode) {
     throw new ConflictError(
-      "No phone verification in progress. Start verification first.",
+      "Aucune vérification de téléphone en cours. Démarrez d'abord une vérification.",
     );
   }
   if (isOtpExpired(user.phoneVerificationCodeExpiresAt)) {
     throw new AppError(
-      "Your verification code has expired. Request a new one.",
+      "Votre code de vérification a expiré. Demandez-en un nouveau.",
       422,
       "OTP_EXPIRED",
     );
   }
-  if (user.phoneVerificationCode !== code.trim().toUpperCase()) {
+  if (!safeCompareCode(user.phoneVerificationCode, code)) {
     throw new AppError(
-      "The verification code is incorrect.",
+      "Le code de vérification est incorrect.",
       422,
       "OTP_INVALID",
     );
@@ -504,7 +503,7 @@ async function uploadProfilePicture({ userId, buffer }) {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
-    throw new NotFoundError("Account not found.");
+    throw new NotFoundError("Compte introuvable.");
   }
 
   const result = await uploadImage(buffer, CLOUDINARY_FOLDERS.PROFILE_PICTURES);
@@ -520,28 +519,28 @@ async function uploadProfilePicture({ userId, buffer }) {
 
 async function requestPhoneUpdate({ userId, newPhone }) {
   if (!isValidPhone(newPhone)) {
-    throw new ValidationError("Please enter a valid phone number.");
+    throw new ValidationError("Veuillez entrer un numéro de téléphone valide.");
   }
 
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
-    throw new NotFoundError("Account not found.");
+    throw new NotFoundError("Compte introuvable.");
   }
   if (!user.isPhoneVerified) {
     throw new ConflictError(
-      "No verified phone number on this account yet. Use phone verification to add one first.",
+      "Aucun numéro de téléphone vérifié sur ce compte pour l'instant. Utilisez la vérification du téléphone pour en ajouter un d'abord.",
     );
   }
   if (user.phone === newPhone) {
-    throw new ConflictError("This is already your current phone number.");
+    throw new ConflictError("C'est déjà votre numéro de téléphone actuel.");
   }
 
   const existingPhone = await prisma.user.findFirst({
     where: { phone: newPhone, id: { not: userId } },
   });
   if (existingPhone) {
-    throw new ConflictError("This phone number is already in use.");
+    throw new ConflictError("Ce numéro de téléphone est déjà utilisé.");
   }
 
   if (
@@ -560,9 +559,9 @@ async function requestPhoneUpdate({ userId, newPhone }) {
     if (cooldownEndsAt > now) {
       const secondsLeft = Math.ceil((cooldownEndsAt - now) / 1000);
       throw new TooManyRequestsError(
-        "Please wait " +
+        "Veuillez patienter " +
           secondsLeft +
-          " seconds before requesting another code.",
+          " secondes avant de demander un nouveau code.",
       );
     }
   }
@@ -584,7 +583,7 @@ async function requestPhoneUpdate({ userId, newPhone }) {
       to: newPhone,
       message:
         code +
-        " is your Swiftgoma verification code. It expires in " +
+        " est votre code de vérification Swiftgoma. Il expire dans " +
         PHONE_OTP_TTL_MINUTES +
         " minutes.",
     });
@@ -599,42 +598,43 @@ async function requestPhoneUpdate({ userId, newPhone }) {
       },
     });
     throw new AppError(
-      "We couldn't send the verification code. Please try again in a moment.",
+      "Nous n'avons pas pu envoyer le code de vérification. Veuillez réessayer dans un instant.",
       502,
       "SMS_SEND_FAILED",
     );
   }
 
   return {
-    message: "A verification code has been sent to your new phone number.",
+    message:
+      "Un code de vérification a été envoyé à votre nouveau numéro de téléphone.",
   };
 }
 
 async function verifyPhoneUpdate({ userId, code, locale = "en" }) {
   if (!code || typeof code !== "string" || !code.trim()) {
-    throw new ValidationError("Please enter the verification code.");
+    throw new ValidationError("Veuillez entrer le code de vérification.");
   }
 
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
-    throw new NotFoundError("Account not found.");
+    throw new NotFoundError("Compte introuvable.");
   }
   if (!user.pendingPhone || !user.phoneVerificationCode) {
     throw new ConflictError(
-      "No phone update in progress. Start an update first.",
+      "Aucune mise à jour de téléphone en cours. Démarrez d'abord une mise à jour.",
     );
   }
   if (isOtpExpired(user.phoneVerificationCodeExpiresAt)) {
     throw new AppError(
-      "Your verification code has expired. Request a new one.",
+      "Votre code de vérification a expiré. Demandez-en un nouveau.",
       422,
       "OTP_EXPIRED",
     );
   }
-  if (user.phoneVerificationCode !== code.trim().toUpperCase()) {
+  if (!safeCompareCode(user.phoneVerificationCode, code)) {
     throw new AppError(
-      "The verification code is incorrect.",
+      "Le code de vérification est incorrect.",
       422,
       "OTP_INVALID",
     );
@@ -675,7 +675,7 @@ async function verifyPhoneUpdate({ userId, code, locale = "en" }) {
 
 async function requestSecondaryEmail({ userId, email, locale = "en" }) {
   if (!isValidEmail(email)) {
-    throw new ValidationError("Please enter a valid email address.");
+    throw new ValidationError("Veuillez entrer une adresse email valide.");
   }
 
   const normalizedEmail = email.trim().toLowerCase();
@@ -685,18 +685,18 @@ async function requestSecondaryEmail({ userId, email, locale = "en" }) {
     include: { emails: true },
   });
   if (!user) {
-    throw new NotFoundError("Account not found.");
+    throw new NotFoundError("Compte introuvable.");
   }
 
   const primaryEmail = getPrimaryEmail(user);
   if (primaryEmail && primaryEmail.email === normalizedEmail) {
-    throw new ConflictError("This is already your primary email.");
+    throw new ConflictError("C'est déjà votre email principal.");
   }
 
   const existingSecondary = user.emails.find((e) => !e.isPrimary);
   if (existingSecondary && existingSecondary.isVerified) {
     throw new ConflictError(
-      "This account already has a verified secondary email. Remove it before adding another.",
+      "Ce compte a déjà un email secondaire vérifié. Retirez-le avant d'en ajouter un autre.",
     );
   }
 
@@ -704,7 +704,7 @@ async function requestSecondaryEmail({ userId, email, locale = "en" }) {
     where: { email: normalizedEmail },
   });
   if (existingElsewhere && existingElsewhere.userId !== userId) {
-    throw new ConflictError("This email is already in use.");
+    throw new ConflictError("Cet email est déjà utilisé.");
   }
 
   const code = generateVerificationOtp();
@@ -739,12 +739,14 @@ async function requestSecondaryEmail({ userId, email, locale = "en" }) {
     locale,
   });
 
-  return { message: "A verification code has been sent to your new email." };
+  return {
+    message: "Un code de vérification a été envoyé à votre nouvel email.",
+  };
 }
 
 async function verifySecondaryEmail({ userId, code, locale = "en" }) {
   if (!code || typeof code !== "string" || !code.trim()) {
-    throw new ValidationError("Please enter the verification code.");
+    throw new ValidationError("Veuillez entrer le code de vérification.");
   }
 
   const prisma = getPrismaClient();
@@ -753,7 +755,7 @@ async function verifySecondaryEmail({ userId, code, locale = "en" }) {
     include: { emails: true },
   });
   if (!user) {
-    throw new NotFoundError("Account not found.");
+    throw new NotFoundError("Compte introuvable.");
   }
 
   const pending = user.emails.find(
@@ -761,19 +763,19 @@ async function verifySecondaryEmail({ userId, code, locale = "en" }) {
   );
   if (!pending) {
     throw new ConflictError(
-      "No secondary email verification in progress. Start one first.",
+      "Aucune vérification d'email secondaire en cours. Démarrez-en une d'abord.",
     );
   }
   if (isOtpExpired(pending.verificationCodeExpiresAt)) {
     throw new AppError(
-      "Your verification code has expired. Request a new one.",
+      "Votre code de vérification a expiré. Demandez-en un nouveau.",
       422,
       "OTP_EXPIRED",
     );
   }
-  if (pending.verificationCode !== code.trim().toUpperCase()) {
+  if (!safeCompareCode(pending.verificationCode, code)) {
     throw new AppError(
-      "The verification code is incorrect.",
+      "Le code de vérification est incorrect.",
       422,
       "OTP_INVALID",
     );
@@ -800,20 +802,19 @@ async function linkGoogleAccount(userId, idToken) {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({ where: { id: userId } });
 
-  if (!user) throw new NotFoundError("Account not found.");
-  if (user.deletedAt) throw new BadRequestError("This account is deleted.");
-  if (user.googleId)
-    throw new ConflictError("A Google account is already linked.");
+  if (!user) throw new NotFoundError("Compte introuvable.");
+  if (user.deletedAt) throw new BadRequestError("Ce compte est supprimé.");
+  if (user.googleId) throw new ConflictError("Un compte Google est déjà lié.");
 
   const payload = await verifyGoogleIdToken(idToken);
-  if (!payload?.sub) throw new UnauthorizedError("Invalid Google token.");
+  if (!payload?.sub) throw new UnauthorizedError("Token Google invalide.");
 
   const existing = await prisma.user.findUnique({
     where: { googleId: payload.sub },
   });
   if (existing) {
     throw new ConflictError(
-      "This Google account is already linked to another user.",
+      "Ce compte Google est déjà lié à un autre utilisateur.",
     );
   }
 
@@ -832,8 +833,9 @@ async function unlinkGoogleAccount(userId) {
     include: { emails: { where: { isPrimary: true }, take: 1 } },
   });
 
-  if (!user) throw new NotFoundError("Account not found.");
-  if (!user.googleId) throw new BadRequestError("No Google account is linked.");
+  if (!user) throw new NotFoundError("Compte introuvable.");
+  if (!user.googleId)
+    throw new BadRequestError("Aucun compte Google n'est lié.");
 
   const hasPassword = Boolean(user.password);
   const hasVerifiedEmail = Boolean(user.emails[0]?.isVerified);
@@ -852,8 +854,6 @@ async function unlinkGoogleAccount(userId) {
   return { message: "Compte Google délié avec succès.", googleLinked: false };
 }
 
-// =============================  ADMIN / SUPPORT ACTIONS ON USER ================================================
-
 async function listUsers(query) {
   const { page, limit, skip } = parsePagination(query);
   const { role, status, search } = query;
@@ -864,7 +864,7 @@ async function listUsers(query) {
     role &&
     !["BUYER", "SELLER", "RIDER", "ADMIN", "SUPPORT"].includes(role)
   ) {
-    throw new BadRequestError("Invalid role filter.");
+    throw new BadRequestError("Filtre de rôle invalide.");
   }
 
   const where = {
@@ -978,7 +978,7 @@ async function getUserDetail(userId) {
     },
   });
 
-  if (!user) throw new NotFoundError("User not found.");
+  if (!user) throw new NotFoundError("Utilisateur introuvable.");
 
   const clean = { ...user };
   for (const field of SENSITIVE_FIELDS) delete clean[field];
@@ -988,9 +988,9 @@ async function getUserDetail(userId) {
 async function blockUser(actor, targetUserId, reason) {
   const targetUser = await getTargetUserOrThrow(targetUserId);
   if (targetUser.deletedAt)
-    throw new BadRequestError("Cannot block a deleted account.");
+    throw new BadRequestError("Impossible de bloquer un compte supprimé.");
   if (targetUser.isBlocked)
-    throw new BadRequestError("User is already blocked.");
+    throw new BadRequestError("L'utilisateur est déjà bloqué.");
 
   assertCanActOnTarget(actor, targetUser);
 
@@ -1043,7 +1043,8 @@ async function blockUser(actor, targetUserId, reason) {
 
 async function unblockUser(actor, targetUserId, reason) {
   const targetUser = await getTargetUserOrThrow(targetUserId);
-  if (!targetUser.isBlocked) throw new BadRequestError("User is not blocked.");
+  if (!targetUser.isBlocked)
+    throw new BadRequestError("L'utilisateur n'est pas bloqué.");
 
   assertCanActOnTarget(actor, targetUser);
 
@@ -1102,7 +1103,7 @@ async function forceLogout(actor, targetUserId, sessionId, reason) {
   });
 
   if (sessionId && result.count === 0) {
-    throw new NotFoundError("Session not found or already revoked.");
+    throw new NotFoundError("Session introuvable ou déjà révoquée.");
   }
 
   await prisma.accountActionLog.create({
@@ -1150,9 +1151,10 @@ async function verifyUserEmail(actor, targetUserId, emailId) {
   const userEmail = await prisma.userEmail.findFirst({
     where: { id: emailId, userId: targetUserId },
   });
-  if (!userEmail) throw new NotFoundError("Email not found for this user.");
+  if (!userEmail)
+    throw new NotFoundError("Email introuvable pour cet utilisateur.");
   if (userEmail.isVerified) {
-    throw new BadRequestError("Email is already verified.");
+    throw new BadRequestError("L'email est déjà vérifié.");
   }
 
   assertCanActOnTarget(actor, targetUser);
@@ -1193,9 +1195,11 @@ async function verifyUserPhone(actor, targetUserId) {
   const targetUser = await getTargetUserOrThrow(targetUserId);
 
   if (!targetUser.phone)
-    throw new BadRequestError("This user has no phone number on file.");
+    throw new BadRequestError(
+      "Cet utilisateur n'a aucun numéro de téléphone enregistré.",
+    );
   if (targetUser.isPhoneVerified) {
-    throw new BadRequestError("Phone is already verified.");
+    throw new BadRequestError("Le téléphone est déjà vérifié.");
   }
 
   assertCanActOnTarget(actor, targetUser);
@@ -1228,10 +1232,12 @@ async function adminDeleteUser(actor, targetUserId, reason) {
   const targetUser = await getTargetUserOrThrow(targetUserId);
 
   if (targetUser.deletedAt) {
-    throw new BadRequestError("This account is already deleted.");
+    throw new BadRequestError("Ce compte est déjà supprimé.");
   }
   if (targetUser.id === actor.id) {
-    throw new BadRequestError("You cannot delete your own account this way.");
+    throw new BadRequestError(
+      "Vous ne pouvez pas supprimer votre propre compte de cette façon.",
+    );
   }
 
   await prisma.$transaction([
@@ -1287,7 +1293,7 @@ async function adminRestoreUser(actor, targetUserId, reason) {
   const targetUser = await getTargetUserOrThrow(targetUserId);
 
   if (!targetUser.deletedAt) {
-    throw new BadRequestError("This account is not deleted.");
+    throw new BadRequestError("Ce compte n'est pas supprimé.");
   }
 
   await prisma.$transaction([
@@ -1332,19 +1338,21 @@ async function adminRestoreUser(actor, targetUserId, reason) {
 
 async function changeUserRole(actor, targetUserId, newRole, reason) {
   if (!VALID_ROLES.includes(newRole)) {
-    throw new BadRequestError("Invalid role.");
+    throw new BadRequestError("Rôle invalide.");
   }
 
   const targetUser = await getTargetUserOrThrow(targetUserId);
 
   if (targetUser.deletedAt) {
-    throw new BadRequestError("Cannot change the role of a deleted account.");
+    throw new BadRequestError(
+      "Impossible de changer le rôle d'un compte supprimé.",
+    );
   }
   if (targetUser.id === actor.id) {
-    throw new BadRequestError("You cannot change your own role.");
+    throw new BadRequestError("Vous ne pouvez pas changer votre propre rôle.");
   }
   if (targetUser.role === newRole) {
-    throw new BadRequestError(`User already has the role "${newRole}".`);
+    throw new BadRequestError(`L'utilisateur a déjà le rôle "${newRole}".`);
   }
 
   const oldRole = targetUser.role;
@@ -1391,6 +1399,32 @@ async function changeUserRole(actor, targetUserId, newRole, reason) {
   return { id: updated.id, role: updated.role, previousRole: oldRole };
 }
 
+async function removeSecondaryEmail({ userId }) {
+  const prisma = getPrismaClient();
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { emails: true },
+  });
+
+  if (!user) {
+    throw new NotFoundError("Compte introuvable.");
+  }
+  const secondary = user.emails.find((e) => !e.isPrimary);
+  if (!secondary) {
+    throw new NotFoundError("Aucun email secondaire trouvé sur ce compte.");
+  }
+
+  await prisma.userEmail.delete({ where: { id: secondary.id } });
+
+  const updated = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { emails: true, twoFactorAuth: true },
+  });
+
+  return sanitizeUser(updated);
+}
+
 module.exports = {
   updateProfile,
   deleteAccount,
@@ -1414,5 +1448,6 @@ module.exports = {
   verifyUserPhone,
   adminDeleteUser,
   adminRestoreUser,
+  removeSecondaryEmail,
   changeUserRole,
 };

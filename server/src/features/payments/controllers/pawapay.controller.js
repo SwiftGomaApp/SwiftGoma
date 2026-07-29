@@ -49,6 +49,7 @@ async function postInitiatePayout(req, res, next) {
     const result = await initiatePayout({
       amount: req.body.amount,
       currency: req.body.currency,
+      country: req.body.country,
       provider: req.body.provider,
       recipientPhoneNumber: req.body.recipientPhoneNumber,
       customerMessage: req.body.customerMessage,
@@ -80,6 +81,8 @@ async function postInitiateRefund(req, res, next) {
       depositId: req.body.depositId,
       amount: req.body.amount,
       currency: req.body.currency,
+      country: req.body.country,
+      provider: req.body.provider,
       metadata: req.body.metadata || {},
     });
     res.status(201).json({ success: true, data: result });

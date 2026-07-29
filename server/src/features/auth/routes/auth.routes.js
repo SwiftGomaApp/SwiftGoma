@@ -12,11 +12,7 @@ const AuthRouter = express.Router();
 // /me, which legitimate clients call routinely per session and which a
 // blanket limiter would throttle for real users without stopping abuse
 // (those require an existing valid token/session already).
-AuthRouter.post(
-  "/create-account",
-  authLimiter,
-  authController.createAccount,
-);
+AuthRouter.post("/create-account", authLimiter, authController.createAccount);
 AuthRouter.post("/verify-email", authLimiter, authController.verifyEmail);
 AuthRouter.post(
   "/resend-verification",
@@ -59,11 +55,7 @@ AuthRouter.post(
   authenticate,
   authController.updatePassword,
 );
-AuthRouter.post(
-  "/password/forgot",
-  authLimiter,
-  authController.forgotPassword,
-);
+AuthRouter.post("/password/forgot", authLimiter, authController.forgotPassword);
 AuthRouter.post("/password/reset", authLimiter, authController.resetPassword);
 AuthRouter.post("/totp/setup", authenticate, authController.setupTotp);
 AuthRouter.post("/totp/confirm", authenticate, authController.confirmTotp);

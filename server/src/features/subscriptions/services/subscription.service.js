@@ -912,13 +912,6 @@ async function findSubscriptionsDueForRenewal() {
 }
 
 async function renewSubscription(subscription) {
-  // Atomically claim this subscription for today's renewal attempt — guarded
-  // on the exact same condition `findSubscriptionsDueForRenewal` used to
-  // select it. This is what makes the renewal cron safe to run from more
-  // than one process/instance at once: only the caller whose `updateMany`
-  // actually matches a row (count === 1) proceeds; a second instance
-  // racing the same tick gets count 0 and skips it instead of creating a
-  // second SubscriptionPayment/deposit for the same period.
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
@@ -1172,7 +1165,6 @@ async function getSubscriptionRevenue() {
   const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const [allTime, thisMonth, last30, pending] = await Promise.all([
-    // Tout ce qui a été effectivement encaissé, depuis le début
     prisma.subscriptionPayment.groupBy({
       by: ["currency"],
       where: { status: "SUCCEEDED" },
@@ -1180,7 +1172,6 @@ async function getSubscriptionRevenue() {
       _count: { _all: true },
     }),
 
-    // Encaissé ce mois-ci
     prisma.subscriptionPayment.groupBy({
       by: ["currency"],
       where: { status: "SUCCEEDED", paidAt: { gte: startOfMonth } },
@@ -1188,7 +1179,6 @@ async function getSubscriptionRevenue() {
       _count: { _all: true },
     }),
 
-    // Encaissé sur les 30 derniers jours glissants
     prisma.subscriptionPayment.groupBy({
       by: ["currency"],
       where: { status: "SUCCEEDED", paidAt: { gte: last30Days } },
@@ -1196,7 +1186,6 @@ async function getSubscriptionRevenue() {
       _count: { _all: true },
     }),
 
-    // Facturé mais PAS ENCORE payé — à ne pas compter comme argent disponible
     prisma.subscriptionPayment.groupBy({
       by: ["currency"],
       where: { status: { in: ["PENDING", "FAILED"] } },
@@ -1221,6 +1210,24 @@ async function getSubscriptionRevenue() {
   };
 }
 
+async function assertPaymentOwnedBySeller(depositId, sellerProfileId) {
+  const payment = await prisma.subscriptionPayment.findUnique({
+    where: { depositId },
+    include: { subscription: { select: { sellerProfileId: true } } },
+  });
+  if (!payment) {
+    throw new NotFoundError(
+      "Aucun paiement de subscription trouvé pour ce depositId.",
+    );
+  }
+  if (payment.subscription.sellerProfileId !== sellerProfileId) {
+    throw new NotFoundError(
+      "Aucun paiement de subscription trouvé pour ce depositId.",
+    );
+  }
+  return payment;
+}
+
 module.exports = {
   subscribeToPlan,
   upgradeSubscription,
@@ -1231,6 +1238,7 @@ module.exports = {
   listPaymentHistory,
   cancelSubscription,
   reactivateCanceledSubscription,
+  assertPaymentOwnedBySeller,
   getSubscriptionStats,
   runRenewalCycle,
 };

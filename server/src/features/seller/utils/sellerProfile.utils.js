@@ -19,7 +19,7 @@ function isValidAddress(address) {
   if (!address || typeof address !== "string") return false;
   const trimmed = address.trim();
   if (trimmed.length < 5 || trimmed.length > 200) return false;
-  if (/[\r\n]/.test(trimmed)) return false; // pas de retour à la ligne
+  if (/[\r\n]/.test(trimmed)) return false;
   return true;
 }
 
@@ -67,8 +67,10 @@ function assertValidProfileInput(input) {
   if (!isValidCity(input.city)) {
     throw new ValidationError("Ville non prise en charge.");
   }
-  if (!input.address || !input.address.trim()) {
-    throw new ValidationError("Adresse requise.");
+  if (!isValidAddress(input.address)) {
+    throw new ValidationError(
+      "Adresse invalide (5 à 200 caractères, sans retour à la ligne).",
+    );
   }
 }
 

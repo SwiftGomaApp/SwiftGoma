@@ -114,13 +114,6 @@ async function assertCanViewOrder(orderId, userId) {
   return order;
 }
 
-// Atomically transitions an order's status, guarded on its *current* status
-// so that two concurrent requests racing the same order (double-tap, client
-// retry, a cron racing a human action) can't both succeed — only one
-// `updateMany` call can match `status: fromStatus` and flip the row; the
-// loser gets count 0 and must not proceed with any side effect (stock,
-// refund, wallet credit, notification). Must be called inside the same
-// `tx` as any side effect that depends on the transition having "won".
 async function claimOrderStatus(tx, orderId, fromStatus, data) {
   const claimed = await tx.order.updateMany({
     where: { id: orderId, status: fromStatus },
@@ -258,7 +251,7 @@ async function checkout({
   payerPhoneNumber,
   network,
   countryCode,
-  currency: requestedCurrency, 
+  currency: requestedCurrency,
 }) {
   const shop = await getShopOrThrow(shopId);
 
@@ -635,19 +628,12 @@ async function acceptOrder(orderId, sellerProfileId) {
   );
 
   const updated = await prisma.$transaction(async (tx) => {
-    // Claim the transition first: if a racing request already moved this
-    // order off PENDING_SELLER_REVIEW (accept/reject/expire), stop here
-    // before touching stock at all.
     await claimOrderStatus(tx, orderId, "PENDING_SELLER_REVIEW", {
       status: "ACCEPTED",
       acceptedAt: new Date(),
     });
 
     for (const item of order.items) {
-      // Atomic conditional decrement: only succeeds if enough stock is
-      // still available at the moment of the write, not at the moment we
-      // last read it — this is what prevents overselling under concurrent
-      // acceptances of orders drawing on the same variant.
       const decremented = await tx.productVariant.updateMany({
         where: { id: item.variantId, stock: { gte: item.quantity } },
         data: { stock: { decrement: item.quantity } },
@@ -696,18 +682,12 @@ async function refundOrderPayment(order, reasonLabel) {
     return;
   }
 
-  // Atomically claim the payment for refunding *before* calling out to the
-  // provider — this is what makes the refund idempotent. Checking
-  // `order.payment.status` (a stale in-memory snapshot) and refunding
-  // unconditionally afterward would let two concurrent callers (e.g. a
-  // reject racing the auto-expiry cron) both see SUCCEEDED and both trigger
-  // a real duplicate payout before either write lands.
   const claimed = await prisma.orderPayment.updateMany({
     where: { id: order.payment.id, status: "SUCCEEDED" },
     data: { status: "REFUNDED", refundedAt: new Date() },
   });
   if (claimed.count !== 1) {
-    return; // already refunded (or never SUCCEEDED) — nothing to do
+    return; 
   }
 
   try {
@@ -729,9 +709,6 @@ async function refundOrderPayment(order, reasonLabel) {
       },
     });
   } catch (err) {
-    // The payout call itself failed — revert the claim so this can be
-    // retried later (manually or by a reconciliation job) instead of
-    // silently leaving the payment stuck as REFUNDED with no actual payout.
     await prisma.orderPayment
       .update({
         where: { id: order.payment.id },
@@ -815,9 +792,6 @@ async function completePickupHandoff(orderId, sellerProfileId, scannedQrToken) {
   }
 
   const updated = await prisma.$transaction(async (tx) => {
-    // Single atomic claim covering BOTH guards (status unchanged AND QR not
-    // yet scanned) — a double-tap/retry that races this exact call can only
-    // have one winner, so the wallet credit below can only ever run once.
     const claimed = await tx.order.updateMany({
       where: { id: orderId, status: order.status, qrScannedAt: null },
       data: {
@@ -1048,17 +1022,9 @@ async function getOrderQrCode(orderId, requesterId) {
   return { qrCodeDataUrl };
 }
 
-// Must be called from inside the same `tx` as the order/QR-scan claim in
-// completePickupHandoff/completeDeliveryHandoff, so the wallet credit and
-// the "this QR was only scanned once" guarantee are one atomic unit — if
-// either half fails, both roll back together instead of leaving an order
-// COMPLETED with an un-credited payment.
 async function creditSellerWallet(tx, order) {
   if (!order.payment) return;
 
-  // Atomically claim the payment for release — guards against this ever
-  // running twice for the same order (belt-and-suspenders on top of the
-  // qrScannedAt claim made by the caller).
   const claimed = await tx.orderPayment.updateMany({
     where: { id: order.payment.id, status: "SUCCEEDED" },
     data: { status: "RELEASED", releasedAt: new Date() },
@@ -1161,55 +1127,52 @@ async function expireUnansweredOrders() {
     },
   });
 
-  let expiredCount = 0;
+  const results = await Promise.allSettled(
+    staleOrders.map((order) => expireOneOrder(order)),
+  );
 
-  for (const order of staleOrders) {
-    assertValidStatusTransition(
-      order.status,
-      "EXPIRED",
-      order.fulfillmentMethod,
-    );
+  return results.filter((r) => r.status === "fulfilled" && r.value).length;
+}
 
-    let updated;
-    try {
-      updated = await prisma.$transaction(async (tx) => {
-        // A human action (accept/reject) may have raced this cron tick for
-        // this exact order — if so, count 0 and we skip it below rather
-        // than expiring an order that was already resolved.
-        await claimOrderStatus(tx, order.id, order.status, {
-          status: "EXPIRED",
-          failureReason: "Aucune réponse du vendeur dans le délai imparti.",
-        });
-        return tx.order.findUnique({ where: { id: order.id } });
+async function expireOneOrder(order) {
+  assertValidStatusTransition(order.status, "EXPIRED", order.fulfillmentMethod);
+
+  let updated;
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+      await claimOrderStatus(tx, order.id, order.status, {
+        status: "EXPIRED",
+        failureReason: "Aucune réponse du vendeur dans le délai imparti.",
       });
-    } catch (err) {
-      console.warn(
-        `[order] Skipped auto-expiry for order ${order.id} — status changed concurrently:`,
-        err.message,
-      );
-      continue;
-    }
+      return tx.order.findUnique({ where: { id: order.id } });
+    });
+  } catch (err) {
+    console.warn(
+      `[order] Skipped auto-expiry for order ${order.id} — status changed concurrently:`,
+      err.message,
+    );
+    return false;
+  }
 
-    expiredCount += 1;
-    emitOrderUpdate(updated);
+  emitOrderUpdate(updated);
 
-    await refundOrderPayment(order, "seller_timeout");
+  await refundOrderPayment(order, "seller_timeout");
 
-    const fullOrder = await getFullOrder(order.id);
-    await notifyBuyerWithEmail(fullOrder, {
+  const fullOrder = await getFullOrder(order.id);
+  await Promise.all([
+    notifyBuyerWithEmail(fullOrder, {
       action: "orderExpired",
       title: "Commande expirée",
       body: "Le vendeur n'a pas répondu à temps. Votre paiement a été remboursé.",
-    });
-
-    await notifySellerWithEmail(order.shop, fullOrder, {
+    }),
+    notifySellerWithEmail(order.shop, fullOrder, {
       action: "orderExpiredSeller",
       title: "Commande expirée",
       body: "Une commande a expiré automatiquement faute de réponse de votre part.",
-    });
-  }
+    }),
+  ]);
 
-  return expiredCount;
+  return true;
 }
 
 async function getOrderById(orderId, requesterId) {

@@ -18,14 +18,37 @@ const SubscriptionRouter = express.Router();
 
 SubscriptionRouter.use(authenticate);
 
-SubscriptionRouter.post("/", paymentLimiter, postSubscribe);
-SubscriptionRouter.post("/upgrade", paymentLimiter, postUpgrade);
-SubscriptionRouter.get("/me", getMySubscription);
-SubscriptionRouter.get("/me/payments", getMyPaymentHistory);
-SubscriptionRouter.post("/me/cancel", postCancelMySubscription);
-SubscriptionRouter.post("/me/reactivate", postReactivateMySubscription);
+SubscriptionRouter.post(
+  "/",
+  authorize("SELLER"),
+  paymentLimiter,
+  postSubscribe,
+);
+SubscriptionRouter.post(
+  "/upgrade",
+  authorize("SELLER"),
+  paymentLimiter,
+  postUpgrade,
+);
+SubscriptionRouter.get("/me", authorize("SELLER"), getMySubscription);
+SubscriptionRouter.get(
+  "/me/payments",
+  authorize("SELLER"),
+  getMyPaymentHistory,
+);
+SubscriptionRouter.post(
+  "/me/cancel",
+  authorize("SELLER"),
+  postCancelMySubscription,
+);
+SubscriptionRouter.post(
+  "/me/reactivate",
+  authorize("SELLER"),
+  postReactivateMySubscription,
+);
 SubscriptionRouter.post(
   "/payments/:depositId/check-status",
+  authorize("SELLER"),
   postCheckPaymentStatus,
 );
 SubscriptionRouter.get("/stats", authorize("ADMIN"), getStats);

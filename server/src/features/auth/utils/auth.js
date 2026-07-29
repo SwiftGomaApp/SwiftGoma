@@ -23,16 +23,13 @@ function isValidPassword(password) {
   return password.length >= 8;
 }
 
-const OTP_CHARSET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const OTP_CODE_LENGTH = 6;
-const OTP_PREFIX = "SWG-";
 
 function generateOtpCode() {
-  let code = "";
-  for (let i = 0; i < OTP_CODE_LENGTH; i++) {
-    code += OTP_CHARSET[crypto.randomInt(0, OTP_CHARSET.length)];
-  }
-  return `${OTP_PREFIX}${code}`;
+  const min = 0;
+  const max = 10 ** OTP_CODE_LENGTH;
+  const code = crypto.randomInt(min, max);
+  return code.toString().padStart(OTP_CODE_LENGTH, "0");
 }
 
 function generateAuthOtp() {
@@ -62,6 +59,17 @@ function comparePassword(password, hash) {
   return bcrypt.compare(password, hash);
 }
 
+function safeCompareCode(storedCode, submittedCode) {
+  if (!storedCode || typeof submittedCode !== "string") return false;
+
+  const stored = Buffer.from(String(storedCode));
+  const submitted = Buffer.from(submittedCode.trim().toUpperCase());
+
+  if (stored.length !== submitted.length) return false;
+
+  return crypto.timingSafeEqual(stored, submitted);
+}
+
 module.exports = {
   isValidName,
   isValidEmail,
@@ -73,4 +81,5 @@ module.exports = {
   isOtpExpired,
   hashPassword,
   comparePassword,
+  safeCompareCode,
 };
