@@ -1,4 +1,8 @@
-import axios, { AxiosError, type AxiosInstance } from "axios";
+import axios, {
+  AxiosError,
+  type AxiosInstance,
+  type InternalAxiosRequestConfig,
+} from "axios";
 import { env } from "@/lib/api/config/env";
 
 export interface ApiErrorShape {
@@ -27,6 +31,10 @@ export class ApiError extends Error {
   }
 }
 
+interface RetriableRequestConfig extends InternalAxiosRequestConfig {
+  _retried?: boolean;
+}
+
 let isRefreshing = false;
 let refreshWaiters: Array<() => void> = [];
 
@@ -50,15 +58,15 @@ export const apiClient: AxiosInstance = axios.create({
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiErrorShape>) => {
-    const original = error.config;
+    const original = error.config as RetriableRequestConfig | undefined;
 
     if (
       error.response?.status === 401 &&
       original &&
       !original.url?.includes("/auth/refresh-token") &&
-      !(original as any)._retried
+      !original._retried
     ) {
-      (original as any)._retried = true;
+      original._retried = true;
 
       if (isRefreshing) {
         await queueUntilRefreshed();
