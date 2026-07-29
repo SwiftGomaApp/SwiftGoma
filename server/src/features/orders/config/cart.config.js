@@ -1,0 +1,6 @@
+const CART_CONFIG = {
+  MAX_ITEMS_PER_CART: 50,
+  MAX_QUANTITY_PER_ITEM: 1000,
+};
+
+module.exports = { CART_CONFIG };

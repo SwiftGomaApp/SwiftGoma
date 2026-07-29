@@ -88,3 +88,26 @@ jobs:
             echo "::error::TEST_DATABASE_URL secret is not set. Add a dedicated Neon test branch connection string in repo Settings > Secrets and variables > Actions."
             exit 1
           fi
+
+      - name: Install dependencies
+        if: steps.scaffolded.outputs.exists == 'true'
+        run: npm ci
+
+      - name: Generate Prisma client
+        if: steps.scaffolded.outputs.exists == 'true'
+        run: npx prisma generate
+
+      - name: Apply migrations to the test database
+        if: steps.scaffolded.outputs.exists == 'true'
+        run: npx prisma migrate deploy
+
+      - name: Lint
+        if: steps.scaffolded.outputs.exists == 'true'
+        # --if-present: no-ops instead of failing if package.json has no
+        # "lint" script (it doesn't yet — no ESLint config exists in this
+        # repo as of this writing).
+        run: npm run lint --if-present
+
+      - name: Run tests
+        if: steps.scaffolded.outputs.exists == 'true'
+        run: npm test

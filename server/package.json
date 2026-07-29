@@ -13,7 +13,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "test": "jest --testPathIgnorePatterns=sandbox.test.js",
-    "test:pawapay:sandbox": "jest pawapay.service.sandbox.test.js"
+    "test:pawapay:sandbox": "jest pawapay.service.sandbox.test.js",
+    "seed:categories": "node scripts/seedCategories.js"
   },
   "keywords": [],
   "author": "",
@@ -44,12 +45,15 @@
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.11.0",
     "multer": "^2.2.0",
+    "node-cron": "^4.6.0",
     "nodemailer": "^9.0.3",
     "otpauth": "^9.5.1",
+    "pdfkit": "^0.19.1",
     "qrcode": "^1.5.4",
     "rate-limit-redis": "^5.0.0",
     "socket.io": "^4.8.3",
     "ua-parser-js": "^2.0.10",
+    "uuid": "^14.0.1",
     "ws": "^8.21.1"
   },
   "devDependencies": {

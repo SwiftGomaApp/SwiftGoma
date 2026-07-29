@@ -20,6 +20,14 @@ jobs:
   lint-and-build:
     runs-on: ubuntu-latest
 
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      # Placeholder — le build Next.js a besoin de cette variable définie
+      # pour ne pas planter si du code appelle process.env.API_URL au
+      # moment du build (server components, metadata, etc.). Pas une vraie
+      # connexion réseau pendant le build, juste une valeur non-vide requise.
+      API_URL: http://localhost:4000
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,8 +36,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          # cache: "npm" and cache-dependency-path re-enabled once
-          # apps/admin has a package.json + package-lock.json committed
+          cache: "npm"
+          cache-dependency-path: apps/admin/package-lock.json
 
       - name: Check app is scaffolded
         id: scaffolded
@@ -49,8 +57,10 @@ jobs:
         if: steps.scaffolded.outputs.exists == 'true'
         run: npm run lint --if-present
 
+      - name: Type check
+        if: steps.scaffolded.outputs.exists == 'true'
+        run: npx tsc --noEmit
+
       - name: Build
         if: steps.scaffolded.outputs.exists == 'true'
         run: npm run build
-        env:
-          NEXT_TELEMETRY_DISABLED: 1

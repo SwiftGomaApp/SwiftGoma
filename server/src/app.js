@@ -29,6 +29,20 @@ const NotificationRouter = require("./features/notification/routes/notification.
 const SellerRouter = require("./features/seller/routes/seller.routes");
 const PawapayRouter = require("./features/payments/routes/pawapay.routes");
 const PlansRouter = require("./features/plans/routes/plans.routes");
+const PawapayCallbackRouter = require("./features/payments/routes/pawapayCallback.routes");
+const SubscriptionRouter = require("./features/subscriptions/routes/subscription.routes");
+const InvoiceRouter = require("./features/invoicing/routes/invoice.routes");
+const DashboardRouter = require("./features/dashboard/routes/dashboard.routes");
+const WalletSettingsRouter = require("./features/wallet/routes/walletSettings.routes");
+const ProductRouter = require("./features/product/routes/product.routes");
+const RiderRouter = require("./features/seller/routes/rider.routes");
+const {
+  checkMbiyoPayConnection,
+} = require("./features/payments/config/mbiopay.config");
+const MbiyoPayCallbackRouter = require("./features/payments/routes/mbiyopayCallback.routes");
+const MbiyoPayRouter = require("./features/payments/routes/mbiopay.routes");
+const CartRouter = require("./features/orders/routes/cart.routes");
+const OrderRouter = require("./features/orders/routes/order.routes");
 
 const createApp = () => {
   const app = express();
@@ -45,14 +59,31 @@ const createApp = () => {
   );
 
   app.use(compression());
-  app.use(express.json());
+  app.use(
+    express.json({
+      verify: (req, res, buf) => {
+        // Raw bytes are needed to verify PawaPay/MbiyoPay webhook signatures —
+        // re-serializing req.body would not reproduce the exact signed payload.
+        req.rawBody = buf;
+      },
+    }),
+  );
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
   app.use(morgan(isProduction ? "combined" : "dev"));
 
   app.use(botDetection({ mode: "flag" }));
 
+  // if (isProduction) {
+  //   app.set("trust proxy", 1);
+  // }
+
+  app.set("trust proxy", 1);
+
   app.use(globalLimiter);
+
+  app.use("/api/v1/pawapay/callbacks", PawapayCallbackRouter);
+  app.use("/api/v1/mbiyopay/callbacks", MbiyoPayCallbackRouter);
 
   app.get("/api/v1/health", async (req, res) => {
     const [
@@ -62,6 +93,7 @@ const createApp = () => {
       smsStatus,
       oneSignalStatus,
       pawapayStatus,
+      mbiyopayStatus,
     ] = await Promise.all([
       checkDatabaseConnection(),
       checkCloudinaryConnection(),
@@ -69,6 +101,7 @@ const createApp = () => {
       checkSmsConnection(),
       checkOneSignalConnection(),
       checkPawaPayConnection(),
+      checkMbiyoPayConnection(),
     ]);
     const healthy =
       db.connected &&
@@ -76,7 +109,8 @@ const createApp = () => {
       mailerStatus.connected &&
       smsStatus.connected &&
       oneSignalStatus.connected &&
-      pawapayStatus.connected;
+      pawapayStatus.connected &&
+      mbiyopayStatus.connected;
 
     res.status(healthy ? 200 : 503).json({
       status: healthy ? "ok" : "degraded",
@@ -88,26 +122,33 @@ const createApp = () => {
       sms: smsStatus,
       oneSignal: oneSignalStatus,
       pawapay: pawapayStatus,
+      mbiyopay: mbiyopayStatus,
     });
   });
 
-  app.use(
-    "/api/v1/auth",
-    // botDetection({ mode: "block" }),
-    // authLimiter,
-    authRoutes,
-  );
-  app.use(
-    "/api/v1/users",
-    // botDetection({ mode: "block" }),
-    // authLimiter,
-    UserRouter,
-  );
+  // authLimiter is applied per-route inside auth.routes.js/user.routes.js
+  // (only on brute-forceable endpoints — see comments there). botDetection
+  // block-mode is intentionally NOT enabled here: `isbot` flags some
+  // legitimate mobile HTTP clients (e.g. okhttp-based ones) as bots, and
+  // without confirming what User-Agent the production mobile apps send,
+  // enabling block-mode risks locking out real users rather than attackers.
+  app.use("/api/v1/auth", authRoutes);
+  app.use("/api/v1/users", UserRouter);
 
   app.use("/api/v1/notifications", NotificationRouter);
   app.use("/api/v1/seller", SellerRouter);
   app.use("/api/v1/pawapay", PawapayRouter);
   app.use("/api/v1/plans", PlansRouter);
+  // app.use("/api/v1/pawapay/callbacks", PawapayCallbackRouter);
+  app.use("/api/v1/subscriptions", SubscriptionRouter);
+  app.use("/api/v1/invoices", InvoiceRouter);
+  app.use("/api/v1/dashboard", DashboardRouter);
+  app.use("/api/v1/wallet-settings", WalletSettingsRouter);
+  app.use("/api/v1/products", ProductRouter);
+  app.use("/api/v1/riders", RiderRouter);
+  app.use("/api/v1/mbiyopay", MbiyoPayRouter);
+  app.use("/api/v1/cart", CartRouter);
+  app.use("/api/v1/orders", OrderRouter);
 
   app.use(notFound);
 

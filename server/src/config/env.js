@@ -30,6 +30,7 @@ const env = {
     username: process.env.AFRICASTALKING_USERNAME || "sandbox",
     senderId: process.env.AFRICASTALKING_SENDER_ID || "",
   },
+
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET || "",
     refreshSecret: process.env.JWT_REFRESH_SECRET || "",
@@ -37,10 +38,12 @@ const env = {
       Number(process.env.JWT_ACCESS_EXPIRES_IN_MINUTES) || 15,
     refreshExpiresInDays: Number(process.env.JWT_REFRESH_EXPIRES_IN_DAYS) || 30,
   },
+
   cookie: {
     domain: process.env.COOKIE_DOMAIN || "",
     sameSite: process.env.COOKIE_SAMESITE || "lax",
   },
+
   appUrl: process.env.APP_URL || "http://localhost:3000",
   totpSecretEncryptionKey: process.env.TOTP_SECRET_ENCRYPTION_KEY || "",
 
@@ -79,6 +82,14 @@ const env = {
     },
 
     signingEnabled: process.env.PAWAPAY_SIGNING_ENABLED === "true",
+  },
+  
+  mbiyopay: {
+    environment: process.env.MBIYOPAY_ENVIRONMENT || "sandbox",
+    sandboxApiKey: process.env.MBIYOPAY_SANDBOX_API_KEY || "",
+    productionApiKey: process.env.MBIYOPAY_PRODUCTION_API_KEY || "",
+    webhookSecret: process.env.MBIYOPAY_WEBHOOK_SECRET || "",
+    callbackBaseUrl: process.env.MBIYOPAY_CALLBACK_BASE_URL || "",
   },
 };
 

@@ -79,7 +79,8 @@ async function deliverToChannels({
           title: notification.title,
           body: notification.body,
         });
-      await sendMail({ to: user.email, subject, html });
+      const attachments = emailOverride?.attachments;
+      await sendMail({ to: user.email, subject, html, attachments });
     } catch (err) {
       console.error("[notification] Failed to send email:", err.message);
     }

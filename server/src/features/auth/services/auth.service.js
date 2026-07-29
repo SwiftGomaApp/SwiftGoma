@@ -70,6 +70,24 @@ const EMAIL_VERIFICATION_OTP_TTL_MINUTES = 10;
 const LOGIN_OTP_TTL_MINUTES = 10;
 const LOGIN_OTP_RESEND_COOLDOWN_SECONDS = 30;
 
+// Roles a caller may self-assign through public registration (password or
+// Google). ADMIN/SUPPORT are never reachable here — those are only ever
+// granted through the authenticated admin `changeUserRole` flow.
+const SELF_ASSIGNABLE_ROLES = ["BUYER", "SELLER", "RIDER"];
+const DEFAULT_SELF_REGISTRATION_ROLE = "BUYER";
+
+function assertSelfAssignableRole(role) {
+  if (role === undefined || role === null || role === "") {
+    return DEFAULT_SELF_REGISTRATION_ROLE;
+  }
+  if (!SELF_ASSIGNABLE_ROLES.includes(role)) {
+    throw new ValidationError(
+      "This role cannot be assigned through public registration.",
+    );
+  }
+  return role;
+}
+
 function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
@@ -130,6 +148,8 @@ async function createAccount({ name, email, locale = "en", role }) {
     throw new ValidationError("Please enter a valid email address.");
   }
 
+  const safeRole = assertSelfAssignableRole(role);
+
   const normalizedEmail = email.trim().toLowerCase();
   const prisma = getPrismaClient();
 
@@ -150,7 +170,7 @@ async function createAccount({ name, email, locale = "en", role }) {
       where: { id: existingEmail.userId },
       data: {
         name: name.trim(),
-        role,
+        role: safeRole,
         emails: {
           update: {
             where: { id: existingEmail.id },
@@ -167,7 +187,7 @@ async function createAccount({ name, email, locale = "en", role }) {
     user = await prisma.user.create({
       data: {
         name: name.trim(),
-        role,
+        role: safeRole,
         emails: {
           create: {
             email: normalizedEmail,
@@ -1246,6 +1266,7 @@ async function registerWithGoogle({
   deviceName,
   locale = "en",
 }) {
+  const safeRole = assertSelfAssignableRole(role);
   const profile = await verifyGoogleIdToken(idToken);
   const prisma = getPrismaClient();
 
@@ -1275,7 +1296,7 @@ async function registerWithGoogle({
       name: profile.name,
       googleId: profile.googleId,
       avatarUrl: profile.avatarUrl,
-      role,
+      role: safeRole,
       emails: {
         create: {
           email: normalizedEmail,

@@ -15,6 +15,7 @@ const {
   assertValidProfileInput,
   assertProfileEditable,
   assertValidStatusTransition,
+  isValidAddress,
 } = require("../utils/sellerProfile.utils");
 const { env } = require("../../../config/env");
 const {
@@ -46,6 +47,12 @@ async function createSellerProfile({
   if (existing) {
     throw new ConflictError("Un profil vendeur existe déjà pour ce compte.");
   }
+
+  // if (!isValidAddress(input.address)) {
+  //   throw new ValidationError(
+  //     "Adresse invalide (pas de retour à la ligne, 5-200 caractères).",
+  //   );
+  // }
 
   if (!logoBuffer || !bannerBuffer) {
     throw new ConflictError("Le logo et la bannière sont requis.");
@@ -116,7 +123,21 @@ async function createSellerProfile({
 }
 
 async function getSellerProfile(userId) {
-  const profile = await prisma.sellerProfile.findUnique({ where: { userId } });
+  const profile = await prisma.sellerProfile.findUnique({
+    where: { userId },
+    include: {
+      kyc: true,
+      subscription: {
+        include: { plan: { include: { prices: true } } },
+      },
+      walletSettings: true,
+      shops: true,
+      invoices: {
+        orderBy: { issuedAt: "desc" },
+        take: 10,
+      },
+    },
+  });
   if (!profile) throw new NotFoundError("Profil vendeur introuvable.");
   return profile;
 }
