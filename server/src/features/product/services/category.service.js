@@ -6,8 +6,14 @@ const {
   assertValidSubcategoryInput,
 } = require("../utils/category.utils");
 const { CATEGORY_CONFIG } = require("../config/category.config");
+const cache = require("../../../common/services/cache");
 
 const prisma = getPrismaClient();
+
+async function invalidateCategoryCaches(categoryId) {
+  await cache.bumpVersion("categories");
+  if (categoryId) await cache.del(`categories:id:${categoryId}`);
+}
 
 async function generateUniqueSlug(name, model) {
   const baseSlug = generateSlug(name);
@@ -32,31 +38,42 @@ async function createCategory({ name, sortOrder = 0 }) {
 
   const slug = await generateUniqueSlug(name, prisma.category);
 
-  return prisma.category.create({
+  const category = await prisma.category.create({
     data: { name: name.trim(), slug, sortOrder },
   });
+
+  await invalidateCategoryCaches();
+
+  return category;
 }
 
 async function listCategories({ includeInactive = false } = {}) {
-  return prisma.category.findMany({
-    where: includeInactive ? {} : { isActive: true },
-    orderBy: { sortOrder: "asc" },
-    include: {
-      subcategories: {
-        where: includeInactive ? {} : { isActive: true },
-        orderBy: { sortOrder: "asc" },
+  const version = await cache.getVersion("categories");
+  const cacheKey = `categories:list:v${version}:${includeInactive}`;
+
+  return cache.getOrSet(cacheKey, 600, async () => {
+    return prisma.category.findMany({
+      where: includeInactive ? {} : { isActive: true },
+      orderBy: { sortOrder: "asc" },
+      include: {
+        subcategories: {
+          where: includeInactive ? {} : { isActive: true },
+          orderBy: { sortOrder: "asc" },
+        },
       },
-    },
+    });
   });
 }
 
 async function getCategoryById(categoryId) {
-  const category = await prisma.category.findUnique({
-    where: { id: categoryId },
-    include: { subcategories: { orderBy: { sortOrder: "asc" } } },
+  return cache.getOrSet(`categories:id:${categoryId}`, 600, async () => {
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId },
+      include: { subcategories: { orderBy: { sortOrder: "asc" } } },
+    });
+    if (!category) throw new NotFoundError("Catégorie introuvable.");
+    return category;
   });
-  if (!category) throw new NotFoundError("Catégorie introuvable.");
-  return category;
 }
 
 async function updateCategory(categoryId, data) {
@@ -73,10 +90,14 @@ async function updateCategory(categoryId, data) {
   if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
-  return prisma.category.update({
+  const updated = await prisma.category.update({
     where: { id: categoryId },
     data: updateData,
   });
+
+  await invalidateCategoryCaches(categoryId);
+
+  return updated;
 }
 
 async function createSubcategory({ categoryId, name, sortOrder = 0 }) {
@@ -98,9 +119,13 @@ async function createSubcategory({ categoryId, name, sortOrder = 0 }) {
 
   const slug = await generateUniqueSlug(name, prisma.subcategory);
 
-  return prisma.subcategory.create({
+  const subcategory = await prisma.subcategory.create({
     data: { categoryId, name: name.trim(), slug, sortOrder },
   });
+
+  await invalidateCategoryCaches(categoryId);
+
+  return subcategory;
 }
 
 async function updateSubcategory(subcategoryId, data) {
@@ -120,10 +145,13 @@ async function updateSubcategory(subcategoryId, data) {
   if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
   if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
-  return prisma.subcategory.update({
+  const updated = await prisma.subcategory.update({
     where: { id: subcategoryId },
     data: updateData,
   });
+  await invalidateCategoryCaches(subcategory.categoryId);
+
+  return updated;
 }
 
 async function seedDefaultCategories() {
@@ -161,6 +189,8 @@ async function seedDefaultCategories() {
 
     results.push(category.name);
   }
+
+  await invalidateCategoryCaches();
 
   return results;
 }

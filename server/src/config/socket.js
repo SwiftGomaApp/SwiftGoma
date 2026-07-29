@@ -1,4 +1,5 @@
 const { Server } = require("socket.io");
+const { createAdapter } = require("@socket.io/redis-adapter");
 const jwt = require("jsonwebtoken");
 const { env } = require("./env");
 const { getPrismaClient } = require("./prisma");
@@ -37,6 +38,21 @@ function initSocket(httpServer) {
       credentials: true,
     },
   });
+
+  const redisClient = getRedisClient();
+  if (redisClient) {
+    const pubClient = redisClient.duplicate();
+    const subClient = redisClient.duplicate();
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log(
+      "[socket] Redis adapter attached — cross-instance events enabled.",
+    );
+  } else {
+    console.warn(
+      "[socket] Redis unavailable — Socket.io running without cross-instance adapter. " +
+        "Fine for a single instance; will silently drop cross-instance events under PM2 cluster mode.",
+    );
+  }
 
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token;

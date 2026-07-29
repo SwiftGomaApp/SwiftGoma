@@ -17,6 +17,7 @@ const {
   assertExpiryRequiredIfFood,
 } = require("../utils/product.utils");
 const { Prisma } = require("../../../../generated/prisma");
+const cache = require("../../../common/services/cache");
 
 const prisma = getPrismaClient();
 
@@ -105,6 +106,13 @@ async function generateUniqueSlug(name) {
   }
 
   return slug;
+}
+
+async function invalidateProductCaches(slug) {
+  await cache.bumpVersion("products");
+  if (slug) {
+    await cache.del(`products:slug:${slug}`);
+  }
 }
 
 async function createProduct({
@@ -236,6 +244,9 @@ async function createProduct({
     );
     throw err;
   }
+  // Note: new products start as DRAFT, so they aren't visible in any
+  // cached PUBLISHED listing yet — no cache invalidation needed here.
+  // setProductStatus() invalidates once the product actually publishes.
 }
 
 async function getProductById(productId) {
@@ -253,34 +264,36 @@ async function getProductById(productId) {
 }
 
 async function getProductBySlug(slug) {
-  const product = await prisma.product.findUnique({
-    where: { slug },
-    include: {
-      images: { orderBy: { position: "asc" } },
-      variants: true,
-      subcategory: { include: { category: true } },
-      shop: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          status: true,
-          deletedAt: true,
+  return cache.getOrSet(`products:slug:${slug}`, 300, async () => {
+    const product = await prisma.product.findUnique({
+      where: { slug },
+      include: {
+        images: { orderBy: { position: "asc" } },
+        variants: true,
+        subcategory: { include: { category: true } },
+        shop: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            status: true,
+            deletedAt: true,
+          },
         },
       },
-    },
+    });
+
+    if (
+      !product ||
+      product.status !== "PUBLISHED" ||
+      product.shop.status !== "PUBLISHED" ||
+      product.shop.deletedAt
+    ) {
+      throw new NotFoundError("Produit introuvable.");
+    }
+
+    return product;
   });
-
-  if (
-    !product ||
-    product.status !== "PUBLISHED" ||
-    product.shop.status !== "PUBLISHED" ||
-    product.shop.deletedAt
-  ) {
-    throw new NotFoundError("Produit introuvable.");
-  }
-
-  return product;
 }
 
 async function listProductsForShop(
@@ -340,11 +353,15 @@ async function updateProduct(productId, sellerProfileId, data) {
     weightGrams: updateData.weightGrams ?? product.weightGrams,
   });
 
-  return prisma.product.update({
+  const updated = await prisma.product.update({
     where: { id: productId },
     data: updateData,
     include: { images: true, variants: true },
   });
+
+  await invalidateProductCaches(product.slug);
+
+  return updated;
 }
 
 async function setProductStatus(productId, sellerProfileId, nextStatus) {
@@ -353,10 +370,14 @@ async function setProductStatus(productId, sellerProfileId, nextStatus) {
 
   assertValidStatusTransition(product.status, nextStatus);
 
-  return prisma.product.update({
+  const updated = await prisma.product.update({
     where: { id: productId },
     data: { status: nextStatus },
   });
+
+  await invalidateProductCaches(product.slug);
+
+  return updated;
 }
 
 async function adjustStock(
@@ -372,11 +393,7 @@ async function adjustStock(
 
   await assertShopOwnedBySeller(variant.product.shopId, sellerProfileId);
 
-  return prisma.$transaction(async (tx) => {
-    // Atomic conditional update: guards against negative stock (and against
-    // a lost-update audit trail) even when this races a concurrent order
-    // acceptance decrementing the same variant, instead of checking a
-    // stock value read before this transaction started.
+  const updated = await prisma.$transaction(async (tx) => {
     const claimed = await tx.productVariant.updateMany({
       where: { id: variantId, stock: { gte: Math.max(0, -amount) } },
       data: { stock: { increment: amount } },
@@ -385,10 +402,10 @@ async function adjustStock(
       throw new ConflictError("Le stock ne peut pas être négatif.");
     }
 
-    const updated = await tx.productVariant.findUnique({
+    const updatedVariant = await tx.productVariant.findUnique({
       where: { id: variantId },
     });
-    const stockAfter = updated.stock;
+    const stockAfter = updatedVariant.stock;
     const stockBefore = stockAfter - amount;
 
     await tx.stockMovement.create({
@@ -402,8 +419,12 @@ async function adjustStock(
       },
     });
 
-    return updated;
+    return updatedVariant;
   });
+
+  await invalidateProductCaches(variant.product.slug);
+
+  return updated;
 }
 
 async function getStockHistory(
@@ -444,98 +465,142 @@ async function getStockHistory(
   };
 }
 
-async function listAllProducts({
-  page = 1,
-  limit = 20,
-  categoryId,
-  subcategoryId,
-  shopId,
-  minPrice,
-  maxPrice,
-  currency,
-  search,
-  inStockOnly,
-  city,
-  sortBy = "recent",
-} = {}) {
-  const safePage = Math.max(parseInt(page, 10) || 1, 1);
-  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
-  const skip = (safePage - 1) * safeLimit;
+async function listAllProducts(params = {}) {
+  const {
+    page = 1,
+    limit = 20,
+    categoryId,
+    subcategoryId,
+    shopId,
+    minPrice,
+    maxPrice,
+    currency,
+    search,
+    inStockOnly,
+    city,
+    sortBy = "recent",
+  } = params;
 
-  const baseWhere = {
-    status: "PUBLISHED",
-    shop: {
+  const version = await cache.getVersion("products");
+  const cacheKey = `products:list:v${version}:${JSON.stringify(params)}`;
+
+  return cache.getOrSet(cacheKey, 120, async () => {
+    const safePage = Math.max(parseInt(page, 10) || 1, 1);
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+    const skip = (safePage - 1) * safeLimit;
+
+    const baseWhere = {
       status: "PUBLISHED",
-      deletedAt: null,
-      ...(city ? { sellerProfile: { city } } : {}),
-    },
-    ...(shopId ? { shopId } : {}),
-    ...(subcategoryId ? { subcategoryId } : {}),
-    ...(categoryId ? { subcategory: { categoryId } } : {}),
-    ...(currency ? { currency } : {}),
-    ...(search
-      ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" } },
-            { description: { contains: search, mode: "insensitive" } },
-            { brand: { contains: search, mode: "insensitive" } },
-          ],
-        }
-      : {}),
-    ...(inStockOnly === "true" || inStockOnly === true
-      ? { variants: { some: { stock: { gt: 0 } } } }
-      : {}),
-  };
-
-  if (sortBy === "priceAsc" || sortBy === "priceDesc") {
-    const direction = sortBy === "priceAsc" ? "asc" : "desc";
-    const orderedIds = await getProductIdsSortedByPrice({
-      where: {
-        categoryId,
-        subcategoryId,
-        shopId,
-        minPrice,
-        maxPrice,
-        currency,
-        search,
-        city,
-        inStockOnly,
+      shop: {
+        status: "PUBLISHED",
+        deletedAt: null,
+        ...(city ? { sellerProfile: { city } } : {}),
       },
-      direction,
-      skip,
-      take: safeLimit,
-    });
+      ...(shopId ? { shopId } : {}),
+      ...(subcategoryId ? { subcategoryId } : {}),
+      ...(categoryId ? { subcategory: { categoryId } } : {}),
+      ...(currency ? { currency } : {}),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" } },
+              { description: { contains: search, mode: "insensitive" } },
+              { brand: { contains: search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+      ...(inStockOnly === "true" || inStockOnly === true
+        ? { variants: { some: { stock: { gt: 0 } } } }
+        : {}),
+    };
 
-    const products = await prisma.product.findMany({
-      where: { id: { in: orderedIds } },
-      include: {
-        images: { orderBy: { position: "asc" }, take: 1 },
-        variants: {
-          select: { price: true, stock: true },
-          take: 1,
-          orderBy: { price: "asc" },
+    if (sortBy === "priceAsc" || sortBy === "priceDesc") {
+      const direction = sortBy === "priceAsc" ? "asc" : "desc";
+      const orderedIds = await getProductIdsSortedByPrice({
+        where: {
+          categoryId,
+          subcategoryId,
+          shopId,
+          minPrice,
+          maxPrice,
+          currency,
+          search,
+          city,
+          inStockOnly,
         },
-        subcategory: { include: { category: true } },
-        shop: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            sellerProfile: { select: { city: true } },
+        direction,
+        skip,
+        take: safeLimit,
+      });
+
+      const products = await prisma.product.findMany({
+        where: { id: { in: orderedIds } },
+        include: {
+          images: { orderBy: { position: "asc" }, take: 1 },
+          variants: {
+            select: { price: true, stock: true },
+            take: 1,
+            orderBy: { price: "asc" },
+          },
+          subcategory: { include: { category: true } },
+          shop: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              sellerProfile: { select: { city: true } },
+            },
           },
         },
-      },
-    });
+      });
 
-    const productMap = new Map(products.map((p) => [p.id, p]));
-    const orderedProducts = orderedIds
-      .map((id) => productMap.get(id))
-      .filter(Boolean);
+      const productMap = new Map(products.map((p) => [p.id, p]));
+      const orderedProducts = orderedIds
+        .map((id) => productMap.get(id))
+        .filter(Boolean);
 
-    const total = await prisma.product.count({ where: baseWhere });
+      const total = await prisma.product.count({ where: baseWhere });
+
+      return {
+        products: orderedProducts,
+        pagination: {
+          page: safePage,
+          limit: safeLimit,
+          total,
+          totalPages: Math.ceil(total / safeLimit) || 1,
+        },
+      };
+    }
+
+    const [total, products] = await Promise.all([
+      prisma.product.count({ where: baseWhere }),
+      prisma.product.findMany({
+        where: baseWhere,
+        skip,
+        take: safeLimit,
+        orderBy: { createdAt: "desc" },
+        include: {
+          images: { orderBy: { position: "asc" }, take: 1 },
+          variants: {
+            select: { price: true, stock: true },
+            take: 1,
+            orderBy: { price: "asc" },
+          },
+          subcategory: { include: { category: true } },
+          shop: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              sellerProfile: { select: { city: true } },
+            },
+          },
+        },
+      }),
+    ]);
 
     return {
-      products: orderedProducts,
+      products,
       pagination: {
         page: safePage,
         limit: safeLimit,
@@ -543,44 +608,7 @@ async function listAllProducts({
         totalPages: Math.ceil(total / safeLimit) || 1,
       },
     };
-  }
-
-  const [total, products] = await Promise.all([
-    prisma.product.count({ where: baseWhere }),
-    prisma.product.findMany({
-      where: baseWhere,
-      skip,
-      take: safeLimit,
-      orderBy: { createdAt: "desc" },
-      include: {
-        images: { orderBy: { position: "asc" }, take: 1 },
-        variants: {
-          select: { price: true, stock: true },
-          take: 1,
-          orderBy: { price: "asc" },
-        },
-        subcategory: { include: { category: true } },
-        shop: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            sellerProfile: { select: { city: true } },
-          },
-        },
-      },
-    }),
-  ]);
-
-  return {
-    products,
-    pagination: {
-      page: safePage,
-      limit: safeLimit,
-      total,
-      totalPages: Math.ceil(total / safeLimit) || 1,
-    },
-  };
+  });
 }
 
 module.exports = {

@@ -6,8 +6,15 @@ const {
   isValidCurrency,
   isValidPriceAmount,
 } = require("../utils/plan.utils");
+const cache = require("../../../common/services/cache");
 
 const prisma = getPrismaClient();
+
+async function invalidatePlanCaches({ id, slug } = {}) {
+  await cache.bumpVersion("plans");
+  if (id) await cache.del(`plans:id:${id}`);
+  if (slug) await cache.del(`plans:slug:${slug}`);
+}
 
 async function createPlan({
   slug,
@@ -26,7 +33,7 @@ async function createPlan({
   const input = { name, maxProducts, maxPhotosPerProduct, maxShops };
   assertValidPlanInput(input);
 
-  return prisma.plan.create({
+  const plan = await prisma.plan.create({
     data: {
       slug,
       name: name.trim(),
@@ -38,36 +45,47 @@ async function createPlan({
     },
     include: { prices: true },
   });
+
+  await invalidatePlanCaches({});
+
+  return plan;
 }
 
 async function listPlans({ includeInactive = false } = {}) {
-  const plans = await prisma.plan.findMany({
-    where: includeInactive ? {} : { isActive: true },
-    orderBy: { sortOrder: "asc" },
-    include: { prices: true },
-  });
+  const version = await cache.getVersion("plans");
+  const cacheKey = `plans:list:v${version}:${includeInactive}`;
 
-  return plans;
+  return cache.getOrSet(cacheKey, 900, async () => {
+    return prisma.plan.findMany({
+      where: includeInactive ? {} : { isActive: true },
+      orderBy: { sortOrder: "asc" },
+      include: { prices: true },
+    });
+  });
 }
 
 async function getPlanById(planId) {
-  const plan = await prisma.plan.findUnique({
-    where: { id: planId },
-    include: { prices: true },
-  });
+  return cache.getOrSet(`plans:id:${planId}`, 900, async () => {
+    const plan = await prisma.plan.findUnique({
+      where: { id: planId },
+      include: { prices: true },
+    });
 
-  if (!plan) throw new NotFoundError("Plan introuvable.");
-  return plan;
+    if (!plan) throw new NotFoundError("Plan introuvable.");
+    return plan;
+  });
 }
 
 async function getPlanBySlug(slug) {
-  const plan = await prisma.plan.findUnique({
-    where: { slug },
-    include: { prices: true },
-  });
+  return cache.getOrSet(`plans:slug:${slug}`, 900, async () => {
+    const plan = await prisma.plan.findUnique({
+      where: { slug },
+      include: { prices: true },
+    });
 
-  if (!plan) throw new NotFoundError("Plan introuvable.");
-  return plan;
+    if (!plan) throw new NotFoundError("Plan introuvable.");
+    return plan;
+  });
 }
 
 async function updatePlan(planId, data) {
@@ -89,11 +107,15 @@ async function updatePlan(planId, data) {
 
   assertValidPlanInput({ ...plan, ...updateData });
 
-  return prisma.plan.update({
+  const updated = await prisma.plan.update({
     where: { id: planId },
     data: updateData,
     include: { prices: true },
   });
+
+  await invalidatePlanCaches({ id: plan.id, slug: plan.slug });
+
+  return updated;
 }
 
 async function updatePlanPrice(planId, { billingCycle, currency, amount }) {
@@ -110,24 +132,32 @@ async function updatePlanPrice(planId, { billingCycle, currency, amount }) {
     throw new ConflictError("Montant invalide.");
   }
 
-  return prisma.planPrice.upsert({
+  const price = await prisma.planPrice.upsert({
     where: {
       planId_billingCycle_currency: { planId, billingCycle, currency },
     },
     update: { amount },
     create: { planId, billingCycle, currency, amount },
   });
+
+  await invalidatePlanCaches({ id: plan.id, slug: plan.slug });
+
+  return price;
 }
 
 async function setPlanActive(planId, isActive) {
   const plan = await prisma.plan.findUnique({ where: { id: planId } });
   if (!plan) throw new NotFoundError("Plan introuvable.");
 
-  return prisma.plan.update({
+  const updated = await prisma.plan.update({
     where: { id: planId },
     data: { isActive },
     include: { prices: true },
   });
+
+  await invalidatePlanCaches({ id: plan.id, slug: plan.slug });
+
+  return updated;
 }
 
 module.exports = {

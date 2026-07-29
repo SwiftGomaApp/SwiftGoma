@@ -30,8 +30,13 @@ const {
 const {
   NOTIFICATION_TYPES,
 } = require("../../notification/config/notificationTypes");
+const cache = require("../../../common/services/cache");
 
 const prisma = getPrismaClient();
+
+async function invalidateShopCache(slug) {
+  if (slug) await cache.del(`shop:slug:${slug}`);
+}
 
 async function assertSellerProfileExists(sellerProfileId) {
   const profile = await prisma.sellerProfile.findUnique({
@@ -136,11 +141,13 @@ async function getShopById(shopId) {
 }
 
 async function getShopBySlug(slug) {
-  const shop = await prisma.shop.findFirst({
-    where: { slug, deletedAt: null },
+  return cache.getOrSet(`shop:slug:${slug}`, 180, async () => {
+    const shop = await prisma.shop.findFirst({
+      where: { slug, deletedAt: null },
+    });
+    if (!shop) throw new NotFoundError("Boutique introuvable.");
+    return shop;
   });
-  if (!shop) throw new NotFoundError("Boutique introuvable.");
-  return shop;
 }
 
 async function listShopsForSeller(sellerProfileId) {
@@ -197,6 +204,8 @@ async function updateShop(shopId, sellerProfileId, data) {
   if (oldLogoPublicId) await deleteAsset(oldLogoPublicId, "image");
   if (oldBannerPublicId) await deleteAsset(oldBannerPublicId, "image");
 
+  await invalidateShopCache(shop.slug);
+
   return updated;
 }
 
@@ -211,10 +220,14 @@ async function publishShop(shopId, sellerProfileId) {
   const subscription = await getActiveSubscriptionWithPlan(sellerProfileId);
   assertCanPublish(subscription);
 
-  return prisma.shop.update({
+  const updated = await prisma.shop.update({
     where: { id: shopId },
     data: { status: "PUBLISHED", publishedAt: new Date() },
   });
+
+  await invalidateShopCache(shop.slug);
+
+  return updated;
 }
 
 async function unpublishShop(shopId, sellerProfileId) {
@@ -225,10 +238,14 @@ async function unpublishShop(shopId, sellerProfileId) {
 
   assertValidStatusTransition(shop.status, "DRAFT");
 
-  return prisma.shop.update({
+  const updated = await prisma.shop.update({
     where: { id: shopId },
     data: { status: "DRAFT" },
   });
+
+  await invalidateShopCache(shop.slug);
+
+  return updated;
 }
 
 async function suspendShop(shopId, reason) {
@@ -248,6 +265,8 @@ async function suspendShop(shopId, reason) {
       suspensionReason: reason || null,
     },
   });
+
+  await invalidateShopCache(shop.slug);
 
   try {
     const emailContent = shopStatusEmail({
@@ -289,6 +308,8 @@ async function reactivateShop(shopId) {
     where: { id: shopId },
     data: { status: "PUBLISHED" },
   });
+
+  await invalidateShopCache(shop.slug);
 
   try {
     const emailContent = shopStatusEmail({
@@ -334,6 +355,8 @@ async function suspendMyShop(shopId, sellerProfileId, reason) {
     },
   });
 
+  await invalidateShopCache(shop.slug);
+
   try {
     const emailContent = shopStatusEmail({
       name: shop.sellerProfile.businessName,
@@ -374,10 +397,14 @@ async function reactivateMyShop(shopId, sellerProfileId) {
   const subscription = await getActiveSubscriptionWithPlan(sellerProfileId);
   assertCanPublish(subscription);
 
-  return prisma.shop.update({
+  const updated = await prisma.shop.update({
     where: { id: shopId },
     data: { status: "PUBLISHED", suspendedBy: null, suspensionReason: null },
   });
+
+  await invalidateShopCache(shop.slug);
+
+  return updated;
 }
 
 async function deleteShop(shopId, sellerProfileId) {
@@ -399,13 +426,15 @@ async function deleteShop(shopId, sellerProfileId) {
     data: { deletedAt: new Date() },
   });
 
+  await invalidateShopCache(shop.slug);
+
   if (shop.logoPublicId) await deleteAsset(shop.logoPublicId, "image");
   if (shop.bannerPublicId) await deleteAsset(shop.bannerPublicId, "image");
 
   try {
     const emailContent = shopStatusEmail({
       name: shop.sellerProfile.businessName,
-      action: "suspended", // pas d'action "deleted" dédiée pour l'instant, voir remarque
+      action: "suspended",
       shopName: shop.name,
       reason: "Boutique supprimée à votre demande.",
       actionUrl: `${env.appUrl}/seller/shop`,
@@ -444,6 +473,8 @@ async function adminDeleteShop(shopId, reason) {
       slug: `${shop.slug}-deleted-${Date.now()}`,
     },
   });
+
+  await invalidateShopCache(shop.slug);
 
   if (shop.logoPublicId) await deleteAsset(shop.logoPublicId, "image");
   if (shop.bannerPublicId) await deleteAsset(shop.bannerPublicId, "image");

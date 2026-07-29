@@ -23,6 +23,8 @@ const {
   generateReceiptDocument,
 } = require("../../invoicing/services/invoice.service");
 const { formatDate } = require("../../invoicing/utils/invoicing.utils");
+const { createQueue } = require("../../../config/queue");
+const { QUEUE_NAMES } = require("../../../common/constants/queueNames");
 
 const prisma = getPrismaClient();
 
@@ -45,6 +47,225 @@ async function getPlanOrThrow(planId) {
 }
 
 const { SUBSCRIPTION_CONFIG } = require("../config/subscription.config");
+
+// Body text differs slightly depending on which flow triggered the
+// invoice (new subscription / upgrade / renewal) — everything else
+// about generating and emailing the invoice is identical, so this is
+// the only thing that varies between the three former call sites.
+const INVOICE_BODY_BY_KIND = {
+  subscription: (planName) =>
+    `Votre facture pour l'abonnement ${planName} est disponible.`,
+  upgrade: (planName) =>
+    `Votre facture pour l'upgrade vers ${planName} est disponible.`,
+  renewal: (planName) =>
+    `Votre facture pour le renouvellement de l'abonnement ${planName} est disponible.`,
+};
+
+// Extracted from the three near-identical inline blocks that used to sit
+// in subscribeToPlan(), upgradeSubscription(), and renewSubscription().
+// Re-fetches the payment (with plan + seller relations) itself rather
+// than relying on whatever the caller already had loaded, which makes
+// it safe to call from the BullMQ worker with just a paymentId.
+//
+// This also fixes a real bug that was in renewSubscription(): that call
+// site was invoking `generateInvoiceDocument(payment.id)` — a single
+// argument — where the function signature is `(type, paymentId)`. That
+// meant `type` was actually the payment UUID, which matches neither
+// "subscription" nor "order" inside resolvePaymentContext(), so the call
+// always threw and was silently swallowed by the surrounding catch.
+// Every renewal invoice has been failing silently until this fix.
+//
+// Errors here are re-thrown (not swallowed) on purpose: this function is
+// only ever called from the BullMQ worker (jobs/invoiceDocuments.job.js),
+// and letting the error propagate is what makes BullMQ mark the job as
+// "failed" — which is what triggers its built-in retry (3 attempts,
+// exponential backoff, configured in config/queue.js) and, if all
+// retries are exhausted, the Sentry capture already wired up in
+// config/worker.js. Swallowing the error here silently would mean a
+// transient failure (Cloudinary hiccup, DB blip) never gets retried and
+// never gets reported — exactly the gap we found via testInvoiceJobError.js.
+async function sendSubscriptionInvoiceDocument(
+  paymentId,
+  kind = "subscription",
+) {
+  const payment = await prisma.subscriptionPayment.findUnique({
+    where: { id: paymentId },
+    include: {
+      plan: true,
+      subscription: {
+        include: { sellerProfile: { include: { user: true } } },
+      },
+    },
+  });
+  if (!payment) {
+    // Payment introuvable = erreur permanente (retry ne changera rien),
+    // mais on throw quand même pour que ça remonte à Sentry après les
+    // 3 tentatives BullMQ plutôt que de disparaître silencieusement.
+    throw new Error(
+      `sendSubscriptionInvoiceDocument: payment ${paymentId} introuvable.`,
+    );
+  }
+
+  try {
+    const { record: invoiceRecord, pdfBuffer: invoiceBuffer } =
+      await generateInvoiceDocument("subscription", paymentId);
+
+    const sellerProfile = payment.subscription.sellerProfile;
+    const planName = payment.plan.name;
+
+    const emailContent = subscriptionStatusEmail({
+      name: sellerProfile.businessName,
+      action: "invoiceIssued",
+      planName,
+      actionUrl: `${env.appUrl}/seller/subscription`,
+      locale: "fr",
+    });
+
+    const buildBody =
+      INVOICE_BODY_BY_KIND[kind] || INVOICE_BODY_BY_KIND.subscription;
+
+    await createNotification({
+      userId: sellerProfile.user.id,
+      type: NOTIFICATION_TYPES.PAYMENT,
+      title: emailContent.subject,
+      body: buildBody(planName),
+      data: {
+        action: "invoiceIssued",
+        subscriptionId: payment.subscriptionId,
+        subscriptionPaymentId: payment.id,
+      },
+      emailOverride: {
+        ...emailContent,
+        attachments: invoiceBuffer
+          ? [
+              {
+                filename: `${invoiceRecord.documentNumber}.pdf`,
+                content: invoiceBuffer,
+                contentType: "application/pdf",
+              },
+            ]
+          : undefined,
+      },
+    });
+  } catch (err) {
+    console.error(
+      `[subscription] Failed to generate/notify invoice (${kind}) for payment ${paymentId}:`,
+      err.message,
+    );
+    throw err;
+  }
+}
+
+// Extracted from confirmSubscriptionPayment()'s inline receipt block,
+// unchanged aside from taking paymentId as a parameter and re-fetching
+// what it needs, same reasoning as sendSubscriptionInvoiceDocument above.
+// Same error-propagation reasoning too: both catches re-throw so BullMQ
+// retry/Sentry actually engage instead of the failure being logged and
+// forgotten.
+async function sendSubscriptionReceiptDocument(paymentId) {
+  const payment = await prisma.subscriptionPayment.findUnique({
+    where: { id: paymentId },
+    include: {
+      plan: true,
+      subscription: {
+        include: { sellerProfile: { include: { user: true } } },
+      },
+    },
+  });
+  if (!payment) {
+    throw new Error(
+      `sendSubscriptionReceiptDocument: payment ${paymentId} introuvable.`,
+    );
+  }
+
+  let receiptBuffer = null;
+  let receiptRecord = null;
+  try {
+    const { record, pdfBuffer } = await generateReceiptDocument(
+      "subscription",
+      paymentId,
+    );
+    receiptRecord = record;
+    receiptBuffer = pdfBuffer;
+  } catch (err) {
+    console.error(
+      `[subscription] Failed to generate receipt for payment ${paymentId}:`,
+      err.message,
+    );
+    throw err;
+  }
+
+  try {
+    const userId = payment.subscription.sellerProfile.user.id;
+    const periodEndLabel = payment.periodEnd.toLocaleDateString("fr-FR");
+
+    const emailContent = subscriptionStatusEmail({
+      name: payment.subscription.sellerProfile.businessName,
+      action: "paymentSucceeded",
+      planName: payment.plan.name,
+      periodEnd: periodEndLabel,
+      actionUrl: `${env.appUrl}/seller/dashboard`,
+      locale: "fr",
+    });
+
+    await createNotification({
+      userId,
+      type: NOTIFICATION_TYPES.PAYMENT,
+      title: emailContent.subject,
+      body: `Votre abonnement ${payment.plan.name} est actif jusqu'au ${periodEndLabel}.`,
+      data: {
+        action: "subscriptionPaymentSucceeded",
+        subscriptionId: payment.subscriptionId,
+      },
+      emailOverride: {
+        ...emailContent,
+        attachments:
+          receiptBuffer && receiptRecord
+            ? [
+                {
+                  filename: `${receiptRecord.documentNumber}.pdf`,
+                  content: receiptBuffer,
+                  contentType: "application/pdf",
+                },
+              ]
+            : undefined,
+      },
+    });
+  } catch (err) {
+    console.error(
+      `[subscription] Failed to notify payment-succeeded for payment ${paymentId}:`,
+      err.message,
+    );
+    throw err;
+  }
+}
+
+async function enqueueInvoiceJob(paymentId, kind, logLabel) {
+  try {
+    await createQueue(QUEUE_NAMES.INVOICES).add("subscription-invoice", {
+      paymentId,
+      kind,
+    });
+  } catch (err) {
+    console.error(
+      `[subscription] Failed to enqueue invoice job (${logLabel}):`,
+      err.message,
+    );
+  }
+}
+
+async function enqueueReceiptJob(paymentId, logLabel) {
+  try {
+    await createQueue(QUEUE_NAMES.INVOICES).add("subscription-receipt", {
+      paymentId,
+    });
+  } catch (err) {
+    console.error(
+      `[subscription] Failed to enqueue receipt job (${logLabel}):`,
+      err.message,
+    );
+  }
+}
 
 async function subscribeToPlan({
   sellerProfileId,
@@ -127,54 +348,14 @@ async function subscribeToPlan({
     },
   });
 
-  // Génère + envoie la Facture dès maintenant — le montant est dû à cet
-  // instant, indépendamment du succès du deposit PawaPay qui suit.
-  try {
-    const { record: invoiceRecord, pdfBuffer: invoiceBuffer } =
-      await generateInvoiceDocument("subscription", payment.id);
-
-    const sellerProfile = await prisma.sellerProfile.findUnique({
-      where: { id: sellerProfileId },
-      include: { user: true },
-    });
-
-    const emailContent = subscriptionStatusEmail({
-      name: sellerProfile.businessName,
-      action: "invoiceIssued",
-      planName: plan.name,
-      actionUrl: `${env.appUrl}/seller/subscription`,
-      locale: "fr",
-    });
-
-    await createNotification({
-      userId: sellerProfile.user.id,
-      type: NOTIFICATION_TYPES.PAYMENT,
-      title: emailContent.subject,
-      body: `Votre facture pour l'abonnement ${plan.name} est disponible.`,
-      data: {
-        action: "invoiceIssued",
-        subscriptionId: subscription.id,
-        subscriptionPaymentId: payment.id,
-      },
-      emailOverride: {
-        ...emailContent,
-        attachments: invoiceBuffer
-          ? [
-              {
-                filename: `${invoiceRecord.documentNumber}.pdf`,
-                content: invoiceBuffer,
-                contentType: "application/pdf",
-              },
-            ]
-          : undefined,
-      },
-    });
-  } catch (err) {
-    console.error(
-      "[subscription] Failed to generate/notify invoice:",
-      err.message,
-    );
-  }
+  // Was: inline `await generateInvoiceDocument(...)` + email, blocking
+  // this request. Now: enqueue and return immediately — the worker calls
+  // sendSubscriptionInvoiceDocument() (defined above) with the same logic.
+  await enqueueInvoiceJob(
+    payment.id,
+    "subscription",
+    `subscribeToPlan ${payment.id}`,
+  );
 
   try {
     const deposit = await initiateDeposit({
@@ -330,55 +511,12 @@ async function upgradeSubscription({
     },
   });
 
-  // Génère + envoie la Facture dès maintenant — même logique que
-  // subscribeToPlan : le montant de l'upgrade est dû à cet instant,
-  // indépendamment du succès du deposit PawaPay qui suit.
-  try {
-    const { record: invoiceRecord, pdfBuffer: invoiceBuffer } =
-      await generateInvoiceDocument("subscription", payment.id);
-
-    const sellerProfile = await prisma.sellerProfile.findUnique({
-      where: { id: sellerProfileId },
-      include: { user: true },
-    });
-
-    const emailContent = subscriptionStatusEmail({
-      name: sellerProfile.businessName,
-      action: "invoiceIssued",
-      planName: newPlan.name,
-      actionUrl: `${env.appUrl}/seller/subscription`,
-      locale: "fr",
-    });
-
-    await createNotification({
-      userId: sellerProfile.user.id,
-      type: NOTIFICATION_TYPES.PAYMENT,
-      title: emailContent.subject,
-      body: `Votre facture pour l'upgrade vers ${newPlan.name} est disponible.`,
-      data: {
-        action: "invoiceIssued",
-        subscriptionId: subscription.id,
-        subscriptionPaymentId: payment.id,
-      },
-      emailOverride: {
-        ...emailContent,
-        attachments: invoiceBuffer
-          ? [
-              {
-                filename: `${invoiceRecord.documentNumber}.pdf`,
-                content: invoiceBuffer,
-                contentType: "application/pdf",
-              },
-            ]
-          : undefined,
-      },
-    });
-  } catch (err) {
-    console.error(
-      "[subscription] Failed to generate/notify invoice (upgrade):",
-      err.message,
-    );
-  }
+  // Same as subscribeToPlan: enqueue instead of generating/emailing inline.
+  await enqueueInvoiceJob(
+    payment.id,
+    "upgrade",
+    `upgradeSubscription ${payment.id}`,
+  );
 
   try {
     const deposit = await initiateDeposit({
@@ -507,61 +645,12 @@ async function confirmSubscriptionPayment(depositId) {
     },
   });
 
-  let receiptBuffer = null;
-  let receiptRecord = null;
-  try {
-    const { record, pdfBuffer } = await generateReceiptDocument(
-      "subscription",
-      updatedPayment.id,
-    );
-    receiptRecord = record;
-    receiptBuffer = pdfBuffer;
-  } catch (err) {
-    console.error("[subscription] Failed to generate receipt:", err.message);
-  }
-
-  try {
-    const userId = payment.subscription.sellerProfile.user.id;
-    const periodEndLabel = payment.periodEnd.toLocaleDateString("fr-FR");
-
-    const emailContent = subscriptionStatusEmail({
-      name: payment.subscription.sellerProfile.businessName,
-      action: "paymentSucceeded",
-      planName: payment.plan.name,
-      periodEnd: periodEndLabel,
-      actionUrl: `${env.appUrl}/seller/dashboard`,
-      locale: "fr",
-    });
-
-    await createNotification({
-      userId,
-      type: NOTIFICATION_TYPES.PAYMENT,
-      title: emailContent.subject,
-      body: `Votre abonnement ${payment.plan.name} est actif jusqu'au ${periodEndLabel}.`,
-      data: {
-        action: "subscriptionPaymentSucceeded",
-        subscriptionId: payment.subscriptionId,
-      },
-      emailOverride: {
-        ...emailContent,
-        attachments:
-          receiptBuffer && receiptRecord
-            ? [
-                {
-                  filename: `${receiptRecord.documentNumber}.pdf`,
-                  content: receiptBuffer,
-                  contentType: "application/pdf",
-                },
-              ]
-            : undefined,
-      },
-    });
-  } catch (err) {
-    console.error(
-      "[subscription] Failed to notify payment-succeeded:",
-      err.message,
-    );
-  }
+  // Was: inline `await generateReceiptDocument(...)` + email, blocking
+  // this webhook handler's response. Now: enqueue and return immediately.
+  await enqueueReceiptJob(
+    updatedPayment.id,
+    `confirmSubscriptionPayment ${updatedPayment.id}`,
+  );
 
   return { payment: updatedPayment, subscription: updatedSubscription };
 }
@@ -982,48 +1071,15 @@ async function renewSubscription(subscription) {
     },
   });
 
-  // Génère + envoie la Facture dès maintenant — même logique que
-  // subscribeToPlan/upgradeSubscription : le montant du renouvellement
-  // est dû à cet instant, et confirmSubscriptionPayment exige que la
-  // facture existe déjà avant de pouvoir générer le reçu.
-  try {
-    const { record: invoiceRecord, pdfBuffer: invoiceBuffer } =
-      await generateInvoiceDocument(payment.id);
-
-    const emailContent = subscriptionStatusEmail({
-      name: subscription.sellerProfile.businessName,
-      action: "invoiceIssued",
-      planName: subscription.plan.name,
-      actionUrl: `${env.appUrl}/seller/subscription`,
-      locale: "fr",
-    });
-
-    await createNotification({
-      userId: subscription.sellerProfile.user.id,
-      type: NOTIFICATION_TYPES.PAYMENT,
-      title: emailContent.subject,
-      body: `Votre facture pour le renouvellement de l'abonnement ${subscription.plan.name} est disponible.`,
-      data: {
-        action: "invoiceIssued",
-        subscriptionId: subscription.id,
-        subscriptionPaymentId: payment.id,
-      },
-      emailOverride: {
-        ...emailContent,
-        attachments: invoiceBuffer
-          ? [
-              {
-                filename: `${invoiceRecord.documentNumber}.pdf`,
-                content: invoiceBuffer,
-                contentType: "application/pdf",
-              },
-            ]
-          : undefined,
-      },
-    });
-  } catch (err) {
-    console.error("[renewal] Failed to generate/notify invoice:", err.message);
-  }
+  // Was the buggy `generateInvoiceDocument(payment.id)` single-argument
+  // call (see the comment on sendSubscriptionInvoiceDocument above) —
+  // now enqueues correctly with kind "renewal", same as the other two
+  // call sites.
+  await enqueueInvoiceJob(
+    payment.id,
+    "renewal",
+    `renewSubscription ${payment.id}`,
+  );
 
   try {
     const deposit = await initiateDeposit({
@@ -1241,4 +1297,6 @@ module.exports = {
   assertPaymentOwnedBySeller,
   getSubscriptionStats,
   runRenewalCycle,
+  sendSubscriptionInvoiceDocument,
+  sendSubscriptionReceiptDocument,
 };

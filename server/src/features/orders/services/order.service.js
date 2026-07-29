@@ -30,6 +30,8 @@ const { convertAmount } = require("../../product/utils/exchangeRate.utils");
 const {
   generateOrderInvoiceAndReceipt,
 } = require("../../invoicing/services/invoice.service");
+const { createQueue } = require("../../../config/queue");
+const { QUEUE_NAMES } = require("../../../common/constants/queueNames");
 
 const prisma = getPrismaClient();
 
@@ -237,6 +239,93 @@ async function notifyRider(riderUserId, { title, body, action, orderId }) {
     });
   } catch (err) {
     console.error(`[order] Failed to notify rider (${action}):`, err.message);
+  }
+}
+
+// Extracted from confirmOrderPayment() unchanged, aside from taking
+// orderPaymentId/orderId as parameters instead of closing over them.
+// This is what the BullMQ worker (jobs/invoiceDocuments.job.js) calls —
+// generates the invoice+receipt PDFs, uploads them, and emails the buyer
+// with both attached. Runs off the request thread now, so a slow PDFKit
+// render or a slow Cloudinary upload no longer holds up the payment
+// webhook's response to PawaPay/MbiyoPay.
+//
+// Both catches re-throw (rather than just logging) so BullMQ actually
+// sees the job as failed — that's what triggers its built-in retry
+// (3 attempts, exponential backoff, config/queue.js) and, if all
+// retries are exhausted, the Sentry capture already wired up in
+// config/worker.js. Swallowing the error here would mean a transient
+// failure (Cloudinary hiccup, DB blip) never gets retried and never
+// gets reported — the gap found via scripts/testInvoiceJobError.js.
+async function sendOrderPaymentDocuments(orderPaymentId, orderId) {
+  let invoiceRecord = null;
+  let invoiceBuffer = null;
+  let receiptRecord = null;
+  let receiptBuffer = null;
+
+  try {
+    const { invoice, receipt } =
+      await generateOrderInvoiceAndReceipt(orderPaymentId);
+    invoiceRecord = invoice.record;
+    invoiceBuffer = invoice.pdfBuffer;
+    receiptRecord = receipt.record;
+    receiptBuffer = receipt.pdfBuffer;
+  } catch (err) {
+    console.error(
+      `[order] Failed to generate invoice/receipt for order ${orderId}:`,
+      err.message,
+    );
+    throw err;
+  }
+
+  const attachments = [
+    ...(invoiceBuffer && invoiceRecord
+      ? [
+          {
+            filename: `${invoiceRecord.documentNumber}.pdf`,
+            content: invoiceBuffer,
+            contentType: "application/pdf",
+          },
+        ]
+      : []),
+    ...(receiptBuffer && receiptRecord
+      ? [
+          {
+            filename: `${receiptRecord.documentNumber}.pdf`,
+            content: receiptBuffer,
+            contentType: "application/pdf",
+          },
+        ]
+      : []),
+  ];
+
+  try {
+    const fullOrder = await getFullOrder(orderId);
+    const emailContent = orderStatusEmail({
+      name: fullOrder.buyer.name,
+      action: "orderCompleted",
+      shopName: fullOrder.shop.name,
+      actionUrl: `${env.appUrl}/orders/${fullOrder.id}`,
+      locale: "fr",
+    });
+
+    await createNotification({
+      userId: fullOrder.buyerId,
+      type: NOTIFICATION_TYPES.PAYMENT,
+      title: emailContent.subject,
+      body: `Votre commande chez ${fullOrder.shop.name} a été payée. Facture et reçu ci-joints.`,
+      data: { action: "orderPaymentConfirmed", orderId: fullOrder.id },
+      emailOverride: {
+        ...emailContent,
+        attachments: attachments.length ? attachments : undefined,
+      },
+    });
+  } catch (err) {
+    console.error(
+      `[order] Failed to send invoice/receipt email for order ${orderId}:`,
+      err.message,
+    );
+    throw err;
   }
 }
 
@@ -502,70 +591,21 @@ async function confirmOrderPayment(transactionId, orderId) {
 
   await clearCart(payment.order.buyerId, payment.order.shopId);
 
-  let invoiceRecord = null;
-  let invoiceBuffer = null;
-  let receiptRecord = null;
-  let receiptBuffer = null;
-
+  // Was: inline `await generateOrderInvoiceAndReceipt(...)` + attachment
+  // building + `await createNotification(...)` right here, all blocking
+  // this webhook handler's response. Now: enqueue and return immediately
+  // — sendOrderPaymentDocuments() (defined above) does the same work,
+  // unchanged, inside the BullMQ worker instead.
   try {
-    const { invoice, receipt } = await generateOrderInvoiceAndReceipt(
-      updatedPayment.id,
-    );
-    invoiceRecord = invoice.record;
-    invoiceBuffer = invoice.pdfBuffer;
-    receiptRecord = receipt.record;
-    receiptBuffer = receipt.pdfBuffer;
+    await createQueue(QUEUE_NAMES.INVOICES).add("order-payment-documents", {
+      orderPaymentId: updatedPayment.id,
+      orderId: updatedOrder.id,
+    });
   } catch (err) {
     console.error(
-      `[order] Failed to generate invoice/receipt for order ${payment.orderId}:`,
+      `[order] Failed to enqueue invoice/receipt job for order ${updatedOrder.id}:`,
       err.message,
     );
-  }
-
-  const attachments = [
-    ...(invoiceBuffer && invoiceRecord
-      ? [
-          {
-            filename: `${invoiceRecord.documentNumber}.pdf`,
-            content: invoiceBuffer,
-            contentType: "application/pdf",
-          },
-        ]
-      : []),
-    ...(receiptBuffer && receiptRecord
-      ? [
-          {
-            filename: `${receiptRecord.documentNumber}.pdf`,
-            content: receiptBuffer,
-            contentType: "application/pdf",
-          },
-        ]
-      : []),
-  ];
-
-  try {
-    const fullOrder = await getFullOrder(updatedOrder.id);
-    const emailContent = orderStatusEmail({
-      name: fullOrder.buyer.name,
-      action: "orderCompleted",
-      shopName: fullOrder.shop.name,
-      actionUrl: `${env.appUrl}/orders/${fullOrder.id}`,
-      locale: "fr",
-    });
-
-    await createNotification({
-      userId: fullOrder.buyerId,
-      type: NOTIFICATION_TYPES.PAYMENT,
-      title: emailContent.subject,
-      body: `Votre commande chez ${fullOrder.shop.name} a été payée. Facture et reçu ci-joints.`,
-      data: { action: "orderPaymentConfirmed", orderId: fullOrder.id },
-      emailOverride: {
-        ...emailContent,
-        attachments: attachments.length ? attachments : undefined,
-      },
-    });
-  } catch (err) {
-    console.error("[order] Failed to send invoice/receipt email:", err.message);
   }
 
   await notifySellerWithEmail(
@@ -687,7 +727,7 @@ async function refundOrderPayment(order, reasonLabel) {
     data: { status: "REFUNDED", refundedAt: new Date() },
   });
   if (claimed.count !== 1) {
-    return; 
+    return;
   }
 
   try {
@@ -1312,4 +1352,5 @@ module.exports = {
   listOrdersForShop,
   listOrdersForRider,
   emitOrderUpdate,
+  sendOrderPaymentDocuments,
 };
