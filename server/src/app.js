@@ -133,14 +133,14 @@ const createApp = () => {
 
   app.use(
     "/api/v1/auth",
-    botDetection({ mode: "block" }),
-    authLimiter,
+    // botDetection({ mode: "block" }),
+    // authLimiter,
     authRoutes,
   );
   app.use(
     "/api/v1/users",
-    botDetection({ mode: "block" }),
-    authLimiter,
+    // botDetection({ mode: "block" }),
+    // authLimiter,
     UserRouter,
   );
 
