@@ -1,25 +1,29 @@
 import { redirect } from "next/navigation";
+import { getMeServer } from "@/lib/api/routes/auth.server";
+import { AuthUser } from "@/types/auth";
+import { AuthGate } from "@/components/global/auth-gate";
 
-type User = {
-  name: string;
-  email: string;
-  role: "ADMIN" | "SUPPORT";
-};
+async function getCurrentUserOrRedirect(): Promise<AuthUser> {
+  try {
+    const user = await getMeServer();
+    return user as AuthUser;
+  } catch {
+    redirect("/auth/login");
+  }
+}
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user: User = {
-    name: "Gael Balekage",
-    email: "gbalekage21@gmail.com",
-    role: "ADMIN",
-  };
+  const user = await getCurrentUserOrRedirect();
 
-  if (!user) {
-    redirect("/auth/login");
-  }
+  void user;
 
-  return <div className="min-h-full">{children}</div>;
+  return (
+    <div className="min-h-full">
+      <AuthGate>{children}</AuthGate>
+    </div>
+  );
 }

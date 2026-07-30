@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 
@@ -18,23 +19,23 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
+import {
+  forgotPassword,
+  resetPassword,
+  type Locale,
+} from "@/lib/api/routes/auth";
+import { ApiError } from "@/lib/api/client";
 
-// The backend's forgotPassword()/resetPassword() only branch on "en" —
-// French is the one explicit alternative (matching the rest of
-// SwiftGoma's user-facing copy), everything else the browser reports
-// collapses to "en".
-function getDeviceLocale(): "en" | "fr" {
+function getDeviceLocale(): Locale {
   if (typeof navigator === "undefined") return "en";
   const lang = navigator.language?.toLowerCase() ?? "";
   return lang.startsWith("fr") ? "fr" : "en";
 }
 
-// Fake network delay — same simulation pattern as LoginForm. Swap the
-// bodies of handleRequestCode/handleResetPassword for real apiClient
-// calls (POST /auth/forgot-password, POST /auth/reset-password) once
-// the backend routes are wired up.
-function simulateRequest(ms = 900) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function getErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) return err.message;
+  if (err instanceof Error) return err.message;
+  return fallback;
 }
 
 const RESEND_COOLDOWN_SECONDS = 60;
@@ -45,6 +46,7 @@ export function ForgotPasswordForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const router = useRouter();
   const [step, setStep] = useState<Step>("request");
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,32 +58,16 @@ export function ForgotPasswordForm({
   const [showPassword, setShowPassword] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_SECONDS);
 
-  const requestCode = async () => {
-    const locale = getDeviceLocale();
-    await simulateRequest();
-    // TODO: replace with
-    //   await apiClient.post("/auth/forgot-password", { email, locale });
-    // Always resolves the same way regardless of whether the email
-    // exists (anti-enumeration) — the backend's forgotPassword() returns
-    // the identical generic message either way, so there's nothing to
-    // branch on here even once this is wired to the real endpoint.
-    void locale;
-  };
-
   const handleRequestCode = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
     try {
-      await requestCode();
+      await forgotPassword({ email, locale: getDeviceLocale() });
       setSecondsLeft(RESEND_COOLDOWN_SECONDS);
       setStep("reset");
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Something went wrong. Please try again.",
-      );
+      setError(getErrorMessage(err, "Something went wrong. Please try again."));
     } finally {
       setIsSubmitting(false);
     }
@@ -92,11 +78,9 @@ export function ForgotPasswordForm({
     setError(null);
     setSecondsLeft(RESEND_COOLDOWN_SECONDS);
     try {
-      await requestCode();
+      await forgotPassword({ email, locale: getDeviceLocale() });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Couldn't resend the code.",
-      );
+      setError(getErrorMessage(err, "Couldn't resend the code."));
     }
   };
 
@@ -104,9 +88,6 @@ export function ForgotPasswordForm({
     e.preventDefault();
     setError(null);
 
-    // Mirrors the backend's own checks (isValidPassword: min 8 chars) so
-    // the user gets instant feedback instead of a round-trip for
-    // something resetPassword() would reject anyway.
     if (newPassword.length < 8) {
       setError("Password must be at least 8 characters.");
       return;
@@ -122,22 +103,15 @@ export function ForgotPasswordForm({
 
     setIsSubmitting(true);
     try {
-      const locale = getDeviceLocale();
-      await simulateRequest();
-      // TODO: replace with
-      //   await apiClient.post("/auth/reset-password", {
-      //     email, code, newPassword, locale,
-      //   });
-      // Matches resetPassword()'s INVALID_CODE_ERROR (422,
-      // RESET_CODE_INVALID) — simulated here the same way LoginForm
-      // simulates a bad OTP, remove once wired to the real endpoint.
-      if (code === "000000") {
-        throw new Error("This reset code is invalid or has expired.");
-      }
-      void locale;
+      await resetPassword({
+        email,
+        code,
+        newPassword,
+        locale: getDeviceLocale(),
+      });
       setStep("done");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(getErrorMessage(err, "Something went wrong."));
     } finally {
       setIsSubmitting(false);
     }
@@ -156,8 +130,8 @@ export function ForgotPasswordForm({
             devices — log in again with your new password.
           </FieldDescription>
         </div>
-        <Button className="mt-2">
-          <Link href="/auth/login">Back to login</Link>
+        <Button className="mt-2" onClick={() => router.push("/auth/login")}>
+          Back to login
         </Button>
       </div>
     );

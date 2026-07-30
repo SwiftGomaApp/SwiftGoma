@@ -82,9 +82,6 @@ apiClient.interceptors.response.use(
       } catch (refreshErr) {
         isRefreshing = false;
         flushRefreshWaiters();
-        if (typeof window !== "undefined") {
-          window.location.href = "/auth/login";
-        }
         return Promise.reject(refreshErr);
       }
     }

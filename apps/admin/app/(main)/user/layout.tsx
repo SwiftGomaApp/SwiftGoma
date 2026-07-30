@@ -1,28 +1,28 @@
 import { redirect } from "next/navigation";
-
-type User = {
-  name: string;
-  email: string;
-  role: "ADMIN" | "SUPPORT";
-};
+import { headers } from "next/headers";
+import { getMeServer } from "@/lib/api/routes/auth.server";
+import { AuthUser } from "@/types/auth";
 
 export default async function UsersLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user: User = {
-    name: "Gael Balekage",
-    email: "gbalekage21@gmail.com",
-    role: "ADMIN",
-  };
-
-  if (user.role === "SUPPORT") {
-    redirect("/user/support");
+  let user: AuthUser;
+  try {
+    user = (await getMeServer()) as AuthUser;
+  } catch {
+    redirect("/auth/login");
   }
 
-  if (user.role === "ADMIN") {
-    redirect("/user/admin");
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  const destination = user.role === "SUPPORT" ? "/user/support" : "/user/admin";
+
+  const alreadyAtDestination =
+    pathname === destination || pathname.startsWith(`${destination}/`);
+
+  if (!alreadyAtDestination) {
+    redirect(destination);
   }
 
   return <div className="min-h-full">{children}</div>;

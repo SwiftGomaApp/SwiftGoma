@@ -1,12 +1,29 @@
+import { redirect } from "next/navigation";
+import { getMeServer } from "@/lib/api/routes/auth.server";
+import { ConnectionErrorBanner } from "@/components/global/connection-error-banner";
 import { Logo } from "@/components/global/logo";
 import { ModeToggle } from "@/components/global/theme-button";
+import { AuthGate } from "@/components/global/auth-gate";
 import { FieldDescription } from "@/components/ui/field";
 
-export default function AuthLayout({
+async function hasActiveSession(): Promise<boolean> {
+  try {
+    await getMeServer();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  if (await hasActiveSession()) {
+    redirect("/user");
+  }
+
   return (
     <div className="relative flex h-svh flex-col overflow-hidden bg-background">
       <div className="absolute top-4 right-4 z-10">
@@ -18,7 +35,7 @@ export default function AuthLayout({
       </div>
 
       <div className="flex flex-1 items-center justify-center overflow-hidden px-6">
-        {children}
+        <AuthGate>{children}</AuthGate>
       </div>
 
       <FieldDescription className="px-6 pb-6 text-center text-xs">
@@ -32,6 +49,8 @@ export default function AuthLayout({
         </a>
         .
       </FieldDescription>
+
+      <ConnectionErrorBanner />
     </div>
   );
 }

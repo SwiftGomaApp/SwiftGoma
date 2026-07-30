@@ -1,7 +1,7 @@
 import React from "react";
 
-const SellerDarshboard = () => {
-  return <div>SellerDarshboard</div>;
+const SupportDarshboard = () => {
+  return <div>SupportDarshboard</div>;
 };
 
-export default SellerDarshboard;
+export default SupportDarshboard;
