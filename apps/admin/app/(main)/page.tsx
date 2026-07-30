@@ -1,11 +1,5 @@
-import React from "react";
+import { redirect } from "next/navigation";
 
-const HomPage = () => {
-  return (
-    <div className="flex items-center justify-center min-h-screen">
-      Hello Admin Darshboard
-    </div>
-  );
-};
-
-export default HomPage;
+export default function MainIndexPage() {
+  redirect("/user");
+}

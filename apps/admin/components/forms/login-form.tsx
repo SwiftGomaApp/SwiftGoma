@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 
@@ -18,43 +19,96 @@ import {
   VerificationCodeDialog,
   type VerificationCodeType,
 } from "@/components/dialogs/codes-dialog";
+import {
+  requestLoginOtp,
+  verifyLoginOtp,
+  loginWithPassword,
+  verifyLoginTotp,
+  isRequiresTotp,
+} from "@/lib/api/routes/auth";
+import { ApiError } from "@/lib/api/client";
 
-function simulateRequest(ms = 900) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function getErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) return err.message;
+  if (err instanceof Error) return err.message;
+  return fallback;
 }
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const router = useRouter();
+
   const [usePassword, setUsePassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const [codeDialogOpen, setCodeDialogOpen] = useState(false);
   const [codeType, setCodeType] = useState<VerificationCodeType>("login");
   const [isSubmittingCode, setIsSubmittingCode] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
+  // Only populated when the backend actually returns requiresTotp —
+  // loginWithTotp needs this, not the email.
+  const [pendingTotpUserId, setPendingTotpUserId] = useState<string | null>(
+    null,
+  );
 
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setCodeError(null);
-    setCodeType(usePassword ? "totp" : "login");
-    setCodeDialogOpen(true);
+    setFormError(null);
+    setIsSubmittingForm(true);
+
+    try {
+      if (usePassword) {
+        const result = await loginWithPassword({ email, password });
+
+        if (isRequiresTotp(result)) {
+          // Server says this account has 2FA enabled — only now do we
+          // show the TOTP dialog, never unconditionally.
+          setPendingTotpUserId(result.userId);
+          setCodeType("totp");
+          setCodeDialogOpen(true);
+        } else {
+          // No 2FA on this account — password alone was enough,
+          // session already issued, go straight in.
+          router.push("/user");
+        }
+      } else {
+        await requestLoginOtp({ email });
+        setCodeType("login");
+        setCodeDialogOpen(true);
+      }
+    } catch (err) {
+      setFormError(
+        getErrorMessage(err, "Something went wrong. Please try again."),
+      );
+    } finally {
+      setIsSubmittingForm(false);
+    }
   };
 
   const handleCodeSubmit = async (code: string) => {
     setIsSubmittingCode(true);
     setCodeError(null);
     try {
-      await simulateRequest();
-      if (code === "000000") {
-        throw new Error("Invalid code. Please try again.");
+      if (codeType === "login") {
+        await verifyLoginOtp({ email, code });
+        setCodeDialogOpen(false);
+        router.push("/user");
+      } else {
+        if (!pendingTotpUserId) {
+          throw new Error("Missing session context — please log in again.");
+        }
+        await verifyLoginTotp({ userId: pendingTotpUserId, code });
+        setCodeDialogOpen(false);
+        router.push("/user");
       }
-      setCodeDialogOpen(false);
     } catch (err) {
-      setCodeError(
-        err instanceof Error ? err.message : "Something went wrong.",
-      );
+      setCodeError(getErrorMessage(err, "Something went wrong."));
     } finally {
       setIsSubmittingCode(false);
     }
@@ -62,7 +116,15 @@ export function LoginForm({
 
   const handleResend = async () => {
     setCodeError(null);
-    await simulateRequest(500);
+    if (codeType === "login") {
+      try {
+        await requestLoginOtp({ email });
+      } catch (err) {
+        setCodeError(getErrorMessage(err, "Couldn't resend the code."));
+      }
+    }
+    // No resend concept for TOTP — VerificationCodeDialog already omits
+    // the resend button in that case via onResend={undefined} below.
   };
 
   return (
@@ -79,13 +141,11 @@ export function LoginForm({
 
           <Field>
             <div className="flex items-center justify-between">
-              <FieldLabel className="-mb-3" htmlFor="email">
-                Email
-              </FieldLabel>
+              <FieldLabel htmlFor="email">Email</FieldLabel>
               <button
                 type="button"
                 onClick={() => setUsePassword((prev) => !prev)}
-                className="text-muted-foreground hover:text-foreground -mb-2 text-xs font-medium underline-offset-4 hover:underline"
+                className="text-muted-foreground hover:text-foreground text-xs font-medium underline-offset-4 hover:underline"
               >
                 {usePassword ? "Login with Email" : "Login with password"}
               </button>
@@ -94,17 +154,20 @@ export function LoginForm({
               id="email"
               type="email"
               placeholder="m@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={isSubmittingForm}
             />
           </Field>
 
           {usePassword && (
             <Field>
               <div className="flex items-center justify-between">
-                <FieldLabel className="-mb-4" htmlFor="password">Password</FieldLabel>
+                <FieldLabel htmlFor="password">Password</FieldLabel>
                 <Link
                   href="/auth/forgot-password"
-                  className="text-muted-foreground -mb-2 hover:text-foreground text-xs font-medium underline-offset-4 hover:underline"
+                  className="text-muted-foreground hover:text-foreground text-xs font-medium underline-offset-4 hover:underline"
                 >
                   Forgot password?
                 </Link>
@@ -114,7 +177,10 @@ export function LoginForm({
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
+                  disabled={isSubmittingForm}
                   className="pr-10"
                 />
                 <button
@@ -133,8 +199,12 @@ export function LoginForm({
             </Field>
           )}
 
+          {formError && <p className="text-destructive text-sm">{formError}</p>}
+
           <Field>
-            <Button type="submit">Login</Button>
+            <Button type="submit" disabled={isSubmittingForm}>
+              {isSubmittingForm ? "Please wait..." : "Login"}
+            </Button>
           </Field>
           <FieldSeparator>Or</FieldSeparator>
           <Field className="grid gap-3 sm:grid-cols-2">

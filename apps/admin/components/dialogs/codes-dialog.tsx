@@ -66,19 +66,15 @@ export function VerificationCodeDialog({
   const [secondsLeft, setSecondsLeft] = useState(RESEND_COOLDOWN_SECONDS);
   const copy = CODE_COPY[type];
 
-  // Reset the code input and restart the cooldown every time the dialog
-  // opens — covers both "just requested a fresh code" and re-opening
-  // after a previous attempt.
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setCode("");
       setSecondsLeft(RESEND_COOLDOWN_SECONDS);
     }
-  }, [open]);
+  }
 
-  // Ticks down once per second while the dialog is open and there's an
-  // onResend handler to gate. No interval at all for TOTP (no resend
-  // concept), so nothing runs needlessly in that mode.
   useEffect(() => {
     if (!open || !onResend || secondsLeft <= 0) return;
     const id = setInterval(() => {
