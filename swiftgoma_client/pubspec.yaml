@@ -17,6 +17,8 @@ dependencies:
   equatable: ^2.1.0
   connectivity_plus: ^6.1.5
   google_fonts: ^8.2.0
+  flutter_screenutil: ^5.9.3
+  font_awesome_flutter: ^11.0.0
 
 dev_dependencies:
   flutter_test:

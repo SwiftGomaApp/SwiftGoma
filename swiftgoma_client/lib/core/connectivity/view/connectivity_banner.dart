@@ -14,11 +14,11 @@ class ConnectivityBanner extends StatelessWidget {
 
     return Material(
       elevation: 4,
-      color: isOffline ? AppColors.error1 : AppColors.success1,
+      color: isOffline ? AppColors.error1 : AppColors.success2,
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

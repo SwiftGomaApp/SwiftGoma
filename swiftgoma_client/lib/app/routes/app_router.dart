@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:swiftgoma_client/features/home/view/pages/home_page.dart';
-import 'app_routes.dart';
+import 'package:swiftgoma_client/app/routes/app_routes.dart';
+import 'package:swiftgoma_client/features/home/view/pages/home.dart';
 
 class AppRouter {
   AppRouter._();
@@ -8,7 +8,7 @@ class AppRouter {
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case AppRoutes.home:
-        return MaterialPageRoute(builder: (_) => const HomePage());
+        return MaterialPageRoute(builder: (_) => const Home());
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
