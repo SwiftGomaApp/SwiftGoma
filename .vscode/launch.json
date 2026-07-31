@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Swiftgoma (Dev)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": ["--dart-define-from-file=env/.env.dev.json"]
+    },
+    {
+      "name": "Swiftgoma (Dev, Profile)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "profile",
+      "args": ["--dart-define-from-file=env/.env.dev.json"]
+    },
+    {
+      "name": "Swiftgoma (Prod)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "args": ["--dart-define-from-file=env/.env.prod.json"]
+    },
+    {
+      "name": "Swiftgoma (Prod, Release)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "flutterMode": "release",
+      "args": ["--dart-define-from-file=env/.env.prod.json"]
+    }
+  ]
+}
