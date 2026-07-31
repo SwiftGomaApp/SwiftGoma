@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:swiftgoma_client/core/connectivity/viewmodel/connectivity_status.dart';
+import 'package:swiftgoma_client/core/theme/app_colors.dart';
+import 'package:swiftgoma_client/core/theme/app_typography.dart';
 
 class ConnectivityBanner extends StatelessWidget {
   const ConnectivityBanner({super.key, required this.status});
@@ -11,25 +13,26 @@ class ConnectivityBanner extends StatelessWidget {
     final isOffline = status == ConnectivityStatus.offline;
 
     return Material(
-      color: isOffline ? Colors.red.shade600 : Colors.green.shade600,
+      elevation: 4,
+      color: isOffline ? AppColors.error1 : AppColors.success1,
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 isOffline ? Icons.wifi_off : Icons.wifi,
-                color: Colors.white,
-                size: 18,
+                color: AppColors.neutralLight5,
+                size: 14,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Text(
                 isOffline ? 'No internet connection' : 'Back online',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
+                style: AppTypography.actionM.copyWith(
+                  color: AppColors.neutralLight5,
+                  height: 1.0,
                 ),
               ),
             ],

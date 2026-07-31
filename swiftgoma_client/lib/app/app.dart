@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:swiftgoma_client/app/routes/app_router.dart';
+import 'package:swiftgoma_client/app/routes/app_routes.dart';
 import 'package:swiftgoma_client/core/connectivity/view/connectivity_listener.dart';
 import 'package:swiftgoma_client/core/connectivity/viewmodel/connectivity_cubit.dart';
 import 'package:swiftgoma_client/core/theme/app_theme.dart';
-import 'routes/app_router.dart';
-import 'routes/app_routes.dart';
-
 
 class SwiftgomaApp extends StatelessWidget {
   const SwiftgomaApp({super.key});
@@ -17,7 +16,7 @@ class SwiftgomaApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Swiftgoma',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.theme,
         initialRoute: AppRoutes.home,
         onGenerateRoute: AppRouter.onGenerateRoute,
         builder: (context, child) {

@@ -3,11 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:swiftgoma_client/core/connectivity/data/connectivity_repository.dart';
 import 'package:swiftgoma_client/core/connectivity/viewmodel/connectivity_status.dart';
 
-
 class ConnectivityCubit extends Cubit<ConnectivityStatus> {
   ConnectivityCubit({ConnectivityRepository? repository})
-      : _repository = repository ?? ConnectivityRepository(),
-        super(ConnectivityStatus.online) {
+    : _repository = repository ?? ConnectivityRepository(),
+      super(ConnectivityStatus.online) {
     _init();
   }
 

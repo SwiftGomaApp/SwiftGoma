@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:swiftgoma_client/core/connectivity/view/connectivity_banner.dart';
@@ -54,16 +55,23 @@ class _ConnectivityListenerState extends State<ConnectivityListener> {
     return BlocConsumer<ConnectivityCubit, ConnectivityStatus>(
       listener: (context, status) => _handleStatusChange(status),
       builder: (context, _) {
-        return Column(
+        return Stack(
           children: [
-            AnimatedSize(
-              duration: const Duration(milliseconds: 250),
-              alignment: Alignment.topCenter,
-              child: _showBanner
-                  ? ConnectivityBanner(status: _displayedStatus)
-                  : const SizedBox(width: double.infinity, height: 0),
+            Positioned.fill(child: widget.child),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: _showBanner
+                    ? ConnectivityBanner(
+                        key: ValueKey(_displayedStatus),
+                        status: _displayedStatus,
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ),
-            Expanded(child: widget.child),
           ],
         );
       },

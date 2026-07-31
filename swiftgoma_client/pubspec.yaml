@@ -15,7 +15,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_bloc: ^9.1.1
   equatable: ^2.1.0
-  connectivity_plus: ^7.3.1
+  connectivity_plus: ^6.1.5
+  google_fonts: ^8.2.0
 
 dev_dependencies:
   flutter_test:
@@ -41,4 +42,3 @@ flutter:
   #       - asset: fonts/TrajanPro.ttf
   #       - asset: fonts/TrajanPro_Bold.ttf
   #         weight: 700
-
