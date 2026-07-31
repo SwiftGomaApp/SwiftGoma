@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Feature-local widget — only used inside `home`. Widgets shared across
-/// multiple features belong in `core/widgets` instead.
 class CounterDisplay extends StatelessWidget {
   const CounterDisplay({super.key, required this.count});
 

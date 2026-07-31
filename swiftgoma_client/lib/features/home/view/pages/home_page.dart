@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:swiftgoma_client/features/home/view/widgets/counter_display.dart';
+import 'package:swiftgoma_client/features/home/viewmodel/home_bloc.dart';
+import 'package:swiftgoma_client/features/home/viewmodel/home_event.dart';
+import 'package:swiftgoma_client/features/home/viewmodel/home_state.dart';
 
-import '../../viewmodel/home_bloc.dart';
-import '../../viewmodel/home_event.dart';
-import '../../viewmodel/home_state.dart';
-import '../widgets/counter_display.dart';
-
-/// The View. It only reads state and dispatches events — no business logic
-/// lives here, that's the ViewModel's (`HomeBloc`'s) job.
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 

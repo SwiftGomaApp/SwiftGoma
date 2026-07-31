@@ -1,12 +1,7 @@
 import 'package:flutter/material.dart';
-
-import '../../features/home/view/pages/home_page.dart';
+import 'package:swiftgoma_client/features/home/view/pages/home_page.dart';
 import 'app_routes.dart';
 
-/// Maps [AppRoutes] names to the `view` of each feature.
-///
-/// Only the `app/` layer is allowed to import a feature's `view/pages`
-/// directly — features should never import each other's pages/viewmodels.
 class AppRouter {
   AppRouter._();
 

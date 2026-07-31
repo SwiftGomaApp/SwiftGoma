@@ -1,10 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Central place for the app's visual theme.
-///
-/// Feature code should never build its own [ThemeData] — pull colors,
-/// text styles, etc. from `Theme.of(context)` and extend this file when
-/// the design system grows.
 class AppTheme {
   AppTheme._();
 
