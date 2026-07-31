@@ -1,6 +1,6 @@
 {
-    "name": "swiftgoma_client",
-    "short_name": "swiftgoma_client",
+    "name": "Swiftgoma",
+    "short_name": "Swiftgoma",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
