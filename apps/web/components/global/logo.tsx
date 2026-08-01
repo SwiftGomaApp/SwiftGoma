@@ -4,23 +4,32 @@ import Link from "next/link";
 type LogoProps = {
   href?: string;
   variant?: "full" | "icon";
+  size?: number;
   className?: string;
 };
 
-const Logo = ({ href = "/", variant = "full", className }: LogoProps) => {
+const Logo = ({
+  href = "/",
+  variant = "full",
+  size = 24,
+  className,
+}: LogoProps) => {
   return (
     <Link href={href} className={`flex items-center gap-2 ${className ?? ""}`}>
       <Image
         src="/icon.png"
         alt={variant === "icon" ? "SwiftGoma" : ""}
-        width={40}
-        height={40}
+        width={size}
+        height={size}
         priority
-        className="h-6 w-6"
+        style={{ width: size, height: size }}
       />
 
       {variant === "full" && (
-        <span className="flex items-baseline text-3xl font-extrabold tracking-tight text-foreground">
+        <span
+          className="flex items-baseline font-extrabold tracking-tight text-foreground"
+          style={{ fontSize: size * 1.25 }}
+        >
           SwiftGoma
           <span className="text-primary">.</span>
         </span>
