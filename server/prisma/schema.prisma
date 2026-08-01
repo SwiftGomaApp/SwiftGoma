@@ -62,12 +62,7 @@ enum SubscriptionPaymentStatus {
 enum InvoiceDocumentType {
   INVOICE
   RECEIPT
-}
-
-enum PayoutSchedule {
-  MANUAL
-  WEEKLY
-  MONTHLY
+  PAYOUT_RECEIPT
 }
 
 enum ShopStatus {
@@ -549,6 +544,9 @@ model Invoice {
   orderPaymentId String?
   orderPayment   OrderPayment? @relation(fields: [orderPaymentId], references: [id], onDelete: Cascade)
 
+  walletTransactionId String?
+  walletTransaction   WalletTransaction? @relation(fields: [walletTransactionId], references: [id], onDelete: Cascade)
+
   sellerProfileId String
   sellerProfile   SellerProfile @relation(fields: [sellerProfileId], references: [id])
 
@@ -562,6 +560,7 @@ model Invoice {
 
   @@unique([subscriptionPaymentId, type])
   @@unique([orderPaymentId, type])
+  @@unique([walletTransactionId, type])
   @@index([sellerProfileId])
   @@map("invoices")
 }
@@ -946,7 +945,16 @@ model WalletTransaction {
   payoutOrderId       String?
   payoutTransactionId String?
 
-  createdAt DateTime @default(now())
+  payoutFee           Decimal? @db.Decimal(12, 2)
+  payoutChargedAmount Decimal? @db.Decimal(12, 2)
+
+  attemptNumber Int                 @default(1)
+  retryOfId     String?
+  retryOf       WalletTransaction?  @relation("PayoutRetryChain", fields: [retryOfId], references: [id])
+  retries       WalletTransaction[] @relation("PayoutRetryChain")
+
+  createdAt DateTime  @default(now())
+  invoices  Invoice[]
 
   @@unique([orderId, type])
   @@index([walletId])
@@ -962,9 +970,6 @@ model WalletSettings {
   payoutPhoneNumber String
   payoutProvider    String
   payoutCountry     String
-
-  autoPayoutEnabled Boolean        @default(false)
-  payoutSchedule    PayoutSchedule @default(MANUAL)
 
   minimumPayoutAmounts MinimumPayoutAmount[]
 

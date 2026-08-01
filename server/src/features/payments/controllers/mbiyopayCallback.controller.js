@@ -3,10 +3,13 @@ const {
   confirmOrderPayment,
   failOrderPayment,
 } = require("../../orders/services/order.service");
+const {
+  confirmSellerPayout,
+  failSellerPayout,
+} = require("../../wallet/services/wallet.service");
 
 async function postMbiyoPayCallback(req, res, next) {
   try {
-   
     const rawBody = JSON.stringify(req.body);
     const signature = req.headers["signature"];
 
@@ -44,9 +47,22 @@ async function postMbiyoPayCallback(req, res, next) {
     }
 
     if (type === "cashout") {
-      console.log(
-        `[mbiyopay-callback] Payout callback received, no handler wired yet.`,
-      );
+      try {
+        if (status === "successful") {
+          await confirmSellerPayout(transaction_id, order_id);
+        } else if (status === "failed" || status === "cancelled") {
+          await failSellerPayout(
+            transaction_id,
+            `MbiyoPay payout ${status} (order_id: ${order_id})`,
+            order_id,
+          );
+        }
+      } catch (err) {
+        console.error(
+          `[mbiyopay-callback] Failed to process cashout ${transaction_id} (order_id: ${order_id}):`,
+          err.message,
+        );
+      }
     }
 
     res.status(200).json({ received: true });

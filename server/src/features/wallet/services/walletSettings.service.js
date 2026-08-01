@@ -20,9 +20,7 @@ async function createWalletSettings({
   payoutPhoneNumber,
   payoutProvider,
   payoutCountry,
-  autoPayoutEnabled = false,
-  payoutSchedule = "MANUAL",
-  minimumPayoutAmounts = [], // ex: [{ currency: "USD", amount: 5 }, { currency: "CDF", amount: 10000 }]
+  minimumPayoutAmounts = [],
 }) {
   await getSellerProfileOrThrow(sellerProfileId);
 
@@ -44,8 +42,6 @@ async function createWalletSettings({
     payoutPhoneNumber,
     payoutProvider,
     payoutCountry,
-    autoPayoutEnabled,
-    payoutSchedule,
     minimumPayoutAmounts: resolvedMinimums,
   });
 
@@ -55,8 +51,6 @@ async function createWalletSettings({
       payoutPhoneNumber,
       payoutProvider,
       payoutCountry,
-      autoPayoutEnabled,
-      payoutSchedule,
       minimumPayoutAmounts: {
         create: resolvedMinimums.map((entry) => ({
           currency: entry.currency,
@@ -88,8 +82,6 @@ async function updateWalletSettings(sellerProfileId, data) {
     payoutPhoneNumber: data.payoutPhoneNumber ?? existing.payoutPhoneNumber,
     payoutProvider: data.payoutProvider ?? existing.payoutProvider,
     payoutCountry: data.payoutCountry ?? existing.payoutCountry,
-    autoPayoutEnabled: data.autoPayoutEnabled ?? existing.autoPayoutEnabled,
-    payoutSchedule: data.payoutSchedule ?? existing.payoutSchedule,
   };
 
   assertValidWalletSettingsInput({
@@ -101,11 +93,8 @@ async function updateWalletSettings(sellerProfileId, data) {
     payoutPhoneNumber: merged.payoutPhoneNumber,
     payoutProvider: merged.payoutProvider,
     payoutCountry: merged.payoutCountry,
-    autoPayoutEnabled: merged.autoPayoutEnabled,
-    payoutSchedule: merged.payoutSchedule,
   };
 
-  // Si des seuils sont fournis, on les upsert un par un (par devise)
   if (data.minimumPayoutAmounts) {
     for (const entry of data.minimumPayoutAmounts) {
       await prisma.minimumPayoutAmount.upsert({

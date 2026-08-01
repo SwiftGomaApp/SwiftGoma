@@ -43,6 +43,7 @@ const MbiyoPayCallbackRouter = require("./features/payments/routes/mbiyopayCallb
 const MbiyoPayRouter = require("./features/payments/routes/mbiopay.routes");
 const CartRouter = require("./features/orders/routes/cart.routes");
 const OrderRouter = require("./features/orders/routes/order.routes");
+const WalletRouter = require("./features/wallet/routes/wallet.routes");
 
 const createApp = () => {
   const app = express();
@@ -152,6 +153,7 @@ const createApp = () => {
   app.use("/api/v1/invoices", InvoiceRouter);
   app.use("/api/v1/dashboard", DashboardRouter);
   app.use("/api/v1/wallet-settings", WalletSettingsRouter);
+  app.use("/api/v1/wallet", WalletRouter);
   app.use("/api/v1/products", ProductRouter);
   app.use("/api/v1/riders", RiderRouter);
   app.use("/api/v1/mbiyopay", MbiyoPayRouter);

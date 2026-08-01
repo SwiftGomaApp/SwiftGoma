@@ -9,8 +9,12 @@ const {
 } = require("./src/jobs/subscriptionRenewal.job");
 const { startOrderReviewJob } = require("./src/jobs/orderReview.job");
 const {
+  startPayoutReconciliationJob,
+} = require("./src/jobs/payoutReconciliation.job");
+const {
   startInvoiceDocumentsWorker,
 } = require("./src/jobs/invoiceDocuments.job");
+const { startPayoutsWorker } = require("./src/jobs/payouts.job");
 
 const app = createApp();
 const httpServer = http.createServer(app);
@@ -22,6 +26,8 @@ httpServer.listen(env.port, () => {
 
 startSubscriptionRenewalJob();
 startOrderReviewJob();
+startPayoutReconciliationJob();
+startPayoutsWorker();
 startInvoiceDocumentsWorker();
 
 function crash(label, err) {

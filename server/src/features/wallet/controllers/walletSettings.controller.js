@@ -24,8 +24,6 @@ async function postCreateWalletSettings(req, res, next) {
       payoutPhoneNumber: req.body.payoutPhoneNumber,
       payoutProvider: req.body.payoutProvider,
       payoutCountry: req.body.payoutCountry,
-      autoPayoutEnabled: req.body.autoPayoutEnabled,
-      payoutSchedule: req.body.payoutSchedule,
       minimumPayoutAmounts: req.body.minimumPayoutAmounts,
     });
     res.status(201).json({ success: true, data: settings });
@@ -51,8 +49,6 @@ async function putUpdateWalletSettings(req, res, next) {
       payoutPhoneNumber: req.body.payoutPhoneNumber,
       payoutProvider: req.body.payoutProvider,
       payoutCountry: req.body.payoutCountry,
-      autoPayoutEnabled: req.body.autoPayoutEnabled,
-      payoutSchedule: req.body.payoutSchedule,
       minimumPayoutAmounts: req.body.minimumPayoutAmounts,
     });
     res.status(200).json({ success: true, data: settings });

@@ -16,6 +16,7 @@ const {
 const {
   generateInvoicePdf,
   generateReceiptPdf,
+  generatePayoutReceiptPdf,
 } = require("../utils/invoicePdf");
 
 const prisma = getPrismaClient();
@@ -62,6 +63,42 @@ async function resolveSubscriptionPaymentContext(subscriptionPaymentId) {
         subtotal: payment.amount,
       },
     ],
+  };
+}
+
+async function resolvePayoutContext(walletTransactionId) {
+  const walletTransaction = await prisma.walletTransaction.findUnique({
+    where: { id: walletTransactionId },
+    include: {
+      wallet: {
+        include: { sellerProfile: { include: { walletSettings: true } } },
+      },
+    },
+  });
+  if (!walletTransaction) {
+    throw new NotFoundError("Transaction de payout introuvable.");
+  }
+  if (walletTransaction.type !== "PAYOUT_DEBIT") {
+    throw new Error(
+      `resolvePayoutContext: transaction ${walletTransactionId} is not a PAYOUT_DEBIT.`,
+    );
+  }
+
+  const { sellerProfile } = walletTransaction.wallet;
+
+  return {
+    paymentIdField: "walletTransactionId",
+    paymentId: walletTransactionId,
+    status: walletTransaction.status,
+    createdAt: walletTransaction.createdAt,
+    paidAt: walletTransaction.createdAt,
+    amount: walletTransaction.amount,
+    currency: walletTransaction.currency,
+    sellerProfile,
+    payoutPhoneNumber: sellerProfile.walletSettings?.payoutPhoneNumber || "",
+    paymentMethodLabel: formatPaymentMethodLabel(
+      sellerProfile.walletSettings?.payoutProvider,
+    ),
   };
 }
 
@@ -264,6 +301,9 @@ async function listInvoicesForSeller(
         orderPayment: {
           select: { amount: true, currency: true, status: true },
         },
+        walletTransaction: {
+          select: { amount: true, currency: true, status: true },
+        },
       },
     }),
   ]);
@@ -330,6 +370,53 @@ async function getInvoiceStats() {
   };
 }
 
+async function generatePayoutReceipt(walletTransactionId) {
+  const context = await resolvePayoutContext(walletTransactionId);
+
+  const existing = await prisma.invoice.findUnique({
+    where: {
+      walletTransactionId_type: {
+        walletTransactionId,
+        type: "PAYOUT_RECEIPT",
+      },
+    },
+  });
+  if (existing) return { record: existing, pdfBuffer: null };
+
+  if (context.status !== "COMPLETED") {
+    throw new Error(
+      "Impossible de générer un reçu pour un payout qui n'est pas confirmé.",
+    );
+  }
+
+  const documentNumber = await generateDocumentNumber("PAYOUT_RECEIPT");
+
+  const pdfBuffer = await generatePayoutReceiptPdf({
+    documentNumber,
+    paidAt: context.paidAt,
+    seller: buildSellerData(context.sellerProfile),
+    amount: context.amount,
+    currency: context.currency,
+    paymentMethod: context.paymentMethodLabel,
+    payoutPhoneNumber: context.payoutPhoneNumber,
+  });
+
+  const { url, publicId } = await uploadInvoiceAsset(pdfBuffer, documentNumber);
+
+  const record = await prisma.invoice.create({
+    data: {
+      documentNumber,
+      type: "PAYOUT_RECEIPT",
+      walletTransactionId,
+      sellerProfileId: context.sellerProfile.id,
+      pdfUrl: url,
+      pdfPublicId: publicId,
+    },
+  });
+
+  return { record, pdfBuffer };
+}
+
 module.exports = {
   generateInvoiceDocument,
   generateReceiptDocument,
@@ -339,4 +426,5 @@ module.exports = {
   getInvoiceStats,
   getInvoiceForDownload,
   generateOrderInvoiceAndReceipt,
+  generatePayoutReceipt,
 };

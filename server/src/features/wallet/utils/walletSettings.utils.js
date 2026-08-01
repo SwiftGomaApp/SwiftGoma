@@ -5,10 +5,6 @@ function isValidCurrency(currency) {
   return WALLET_SETTINGS_CONFIG.SUPPORTED_CURRENCIES.includes(currency);
 }
 
-function isValidPayoutSchedule(schedule) {
-  return WALLET_SETTINGS_CONFIG.PAYOUT_SCHEDULES.includes(schedule);
-}
-
 function isValidMinimumPayoutAmount(amount, currency) {
   if (amount === undefined || amount === null) return true;
   const num = Number(amount);
@@ -29,8 +25,6 @@ function assertValidWalletSettingsInput(input) {
     payoutPhoneNumber,
     payoutProvider,
     payoutCountry,
-    autoPayoutEnabled,
-    payoutSchedule,
     minimumPayoutAmounts,
   } = input;
 
@@ -42,14 +36,6 @@ function assertValidWalletSettingsInput(input) {
   }
   if (!payoutCountry || typeof payoutCountry !== "string") {
     throw new ValidationError("Pays de payout requis.");
-  }
-  if (payoutSchedule !== undefined && !isValidPayoutSchedule(payoutSchedule)) {
-    throw new ValidationError("Fréquence de payout invalide.");
-  }
-  if (autoPayoutEnabled && payoutSchedule === "MANUAL") {
-    throw new ValidationError(
-      'Un payout automatique ne peut pas avoir une fréquence "manuelle".',
-    );
   }
   if (minimumPayoutAmounts) {
     for (const entry of minimumPayoutAmounts) {
@@ -67,7 +53,6 @@ function assertValidWalletSettingsInput(input) {
 
 module.exports = {
   isValidCurrency,
-  isValidPayoutSchedule,
   isValidMinimumPayoutAmount,
   resolveMinimumPayoutAmount,
   assertValidWalletSettingsInput,
