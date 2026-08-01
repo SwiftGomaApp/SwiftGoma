@@ -7,6 +7,7 @@
 <!-- Check all that apply -->
 
 - [ ] Buyer App
+- [ ] Web App
 - [ ] Seller App
 - [ ] Delivery App
 - [ ] Admin Dashboard
