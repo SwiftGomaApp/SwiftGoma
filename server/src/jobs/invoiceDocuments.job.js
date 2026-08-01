@@ -7,6 +7,9 @@ const {
   sendSubscriptionInvoiceDocument,
   sendSubscriptionReceiptDocument,
 } = require("../features/subscriptions/services/subscription.service");
+const {
+  sendPayoutReceiptDocument,
+} = require("../features/wallet/services/wallet.service");
 
 async function processInvoiceDocumentJob(job) {
   switch (job.name) {
@@ -21,6 +24,9 @@ async function processInvoiceDocumentJob(job) {
 
     case "subscription-receipt":
       return sendSubscriptionReceiptDocument(job.data.paymentId);
+
+    case "wallet-payout-receipt":
+      return sendPayoutReceiptDocument(job.data.walletTransactionId);
 
     default:
       console.warn(

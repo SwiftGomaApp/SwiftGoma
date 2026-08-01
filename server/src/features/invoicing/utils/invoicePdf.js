@@ -95,7 +95,7 @@ function drawMetaBlock(doc, rows) {
   doc.y = startY + rows.length * 14 + 16;
 }
 
-function drawPartiesBlock(doc, seller) {
+function drawPartiesBlock(doc, seller, recipientLabel = "Facturé à") {
   const startY = doc.y;
   const colWidth = CONTENT_WIDTH / 2 - 10;
 
@@ -110,7 +110,7 @@ function drawPartiesBlock(doc, seller) {
 
   doc.y = startY;
   doc.fontSize(9).font("Geist-Bold").fillColor(INVOICE_BRAND.colors.text);
-  doc.text("Facturé à", PAGE_MARGIN + colWidth + 20, startY, {
+  doc.text(recipientLabel, PAGE_MARGIN + colWidth + 20, startY, {
     width: colWidth,
   });
   doc.font("Geist").fillColor(INVOICE_BRAND.colors.muted);
@@ -409,4 +409,73 @@ async function generateReceiptPdf(data) {
   });
 }
 
-module.exports = { generateInvoicePdf, generateReceiptPdf };
+async function generatePayoutReceiptPdf(data) {
+  const {
+    documentNumber,
+    paidAt,
+    seller,
+    amount,
+    currency,
+    paymentMethod,
+    payoutPhoneNumber,
+  } = data;
+
+  const logoBuffer = await getLogoBuffer();
+
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: "LETTER",
+      margin: PAGE_MARGIN,
+      bufferPages: true,
+    });
+    registerFonts(doc);
+
+    const chunks = [];
+    doc.on("data", (chunk) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+
+    drawHeader(doc, logoBuffer, "Reçu de payout");
+
+    drawMetaBlock(doc, [
+      ["Numéro de reçu", documentNumber],
+      ["Date du payout", formatDate(paidAt)],
+      ["Méthode", paymentMethod],
+      ["Numéro mobile money", payoutPhoneNumber],
+    ]);
+
+    drawPartiesBlock(doc, seller, "Payé à");
+
+    drawAmountHeadline(
+      doc,
+      `${formatMoney(amount, currency)} versé le ${formatDate(paidAt)}`,
+    );
+
+    drawTotalsBlock(doc, [
+      ["Montant du payout", formatMoney(amount, currency), true],
+    ]);
+
+    ensureSpace(doc, 40);
+
+    doc
+      .fontSize(9)
+      .font("Geist")
+      .fillColor(INVOICE_BRAND.colors.muted)
+      .text(
+        "Ce montant a été transféré depuis votre wallet Swiftgoma vers votre compte mobile money enregistré.",
+        PAGE_MARGIN,
+        doc.y,
+        { width: CONTENT_WIDTH },
+      );
+    doc.moveDown(1);
+
+    drawFooter(doc);
+    doc.end();
+  });
+}
+
+module.exports = {
+  generateInvoicePdf,
+  generateReceiptPdf,
+  generatePayoutReceiptPdf,
+};
