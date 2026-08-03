@@ -143,7 +143,17 @@ async function getShopById(shopId) {
 async function getShopBySlug(slug) {
   return cache.getOrSet(`shop:slug:${slug}`, 180, async () => {
     const shop = await prisma.shop.findFirst({
-      where: { slug, deletedAt: null },
+      where: { slug, status: "PUBLISHED", deletedAt: null },
+      include: {
+        sellerProfile: {
+          select: {
+            contactPhone: true,
+            contactEmail: true,
+            whatsappNumber: true,
+            city: true,
+          },
+        },
+      },
     });
     if (!shop) throw new NotFoundError("Boutique introuvable.");
     return shop;
@@ -545,6 +555,47 @@ async function restoreShop(shopId) {
   return updated;
 }
 
+async function listPublishedShops({ page = 1, limit = 20, search, city } = {}) {
+  const safePage = Math.max(parseInt(page, 10) || 1, 1);
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+  const skip = (safePage - 1) * safeLimit;
+
+  const version = await cache.getVersion("shops");
+  const cacheKey = `shops:list:v${version}:${JSON.stringify({ page: safePage, limit: safeLimit, search, city })}`;
+
+  return cache.getOrSet(cacheKey, 180, async () => {
+    const where = {
+      status: "PUBLISHED",
+      deletedAt: null,
+      ...(city ? { sellerProfile: { city } } : {}),
+      ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+    };
+
+    const [total, shops] = await Promise.all([
+      prisma.shop.count({ where }),
+      prisma.shop.findMany({
+        where,
+        skip,
+        take: safeLimit,
+        orderBy: { publishedAt: "desc" },
+        include: {
+          _count: { select: { products: { where: { status: "PUBLISHED" } } } },
+        },
+      }),
+    ]);
+
+    return {
+      shops,
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages: Math.ceil(total / safeLimit) || 1,
+      },
+    };
+  });
+}
+
 module.exports = {
   createShop,
   getShopById,
@@ -560,4 +611,5 @@ module.exports = {
   deleteShop,
   adminDeleteShop,
   restoreShop,
+  listPublishedShops,
 };
