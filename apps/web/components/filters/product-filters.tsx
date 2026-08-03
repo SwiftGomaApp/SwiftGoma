@@ -82,7 +82,6 @@ function SearchableCombobox({
             role="combobox"
             aria-expanded={open}
             disabled={disabled}
-            nativeButton={false}
             className="w-full justify-between font-normal"
           />
         }

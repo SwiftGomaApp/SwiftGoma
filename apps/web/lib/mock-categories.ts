@@ -77,9 +77,14 @@ export const CATEGORIES = RAW_CATEGORIES.map((category, i) => ({
   id: `cat-${i + 1}`,
   name: category.name,
   slug: slugify(category.name),
+  sortOrder: i,
+  isActive: true,
   subcategories: category.subcategories.map((name, j) => ({
     id: `cat-${i + 1}-sub-${j + 1}`,
+    categoryId: `cat-${i + 1}`,
     name,
     slug: slugify(name),
+    sortOrder: j,
+    isActive: true,
   })),
 }));
