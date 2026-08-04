@@ -20,26 +20,31 @@ class AppButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(12.r);
+    final bool disabled = onPressed == null;
 
-    final button = Material(
-      color: style.backgroundColor,
-      borderRadius: radius,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onPressed,
-        child: Container(
-          height: 48.h,
-          padding: EdgeInsets.symmetric(horizontal: 24.w),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            border: style.borderColor == null
-                ? null
-                : Border.all(color: style.borderColor!, width: 1.5.r),
-          ),
-          child: Text(
-            label,
-            style: AppTypography.actionM.copyWith(color: style.foregroundColor),
+    final button = Opacity(
+      opacity: disabled ? 0.5 : 1,
+      child: Material(
+        color: style.backgroundColor,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: Container(
+            height: 48.h,
+            padding: EdgeInsets.symmetric(horizontal: 24.w),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              border: style.borderColor == null
+                  ? null
+                  : Border.all(color: style.borderColor!, width: 1.5.r),
+            ),
+            child: Text(
+              label,
+              style:
+                  AppTypography.actionM.copyWith(color: style.foregroundColor),
+            ),
           ),
         ),
       ),

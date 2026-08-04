@@ -33,7 +33,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   void _onNextPressed() {
     if (_isLastPage) {
-      context.go(AppRoutes.home);
+      context.go(AppRoutes.login);
       return;
     }
     _pageController.nextPage(
@@ -56,12 +56,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 _imagePath,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) => Container(
-                  color: AppColors.neutralLight3,
+                  color: AppColors.highlight5,
                   alignment: Alignment.center,
                   child: Icon(
-                    Icons.image_not_supported,
+                    Icons.image_outlined,
                     size: 48.w,
-                    color: AppColors.neutralDark5,
+                    color: AppColors.highlight3,
                   ),
                 ),
               ),
@@ -99,7 +99,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       Text(
                         page.description,
                         style: AppTypography.bodyM.copyWith(
-                          color: AppColors.neutralDark4,
+                          color: AppColors.neutralDark5,
                           height: 1.45,
                         ),
                       ),
@@ -112,7 +112,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           SafeArea(
             top: false,
             child: Padding(
-              padding: EdgeInsets.fromLTRB(24.w, 4.h, 24.w, 12.h),
+              padding: EdgeInsets.fromLTRB(24.w, 8.h, 24.w, 16.h),
               child: AppButton(
                 label: _isLastPage ? 'Get Started' : 'Next',
                 onPressed: _onNextPressed,
