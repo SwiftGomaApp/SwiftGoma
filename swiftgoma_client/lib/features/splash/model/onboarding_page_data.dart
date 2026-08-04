@@ -1,8 +1,5 @@
 class OnboardingPageData {
-  const OnboardingPageData({
-    required this.title,
-    required this.description,
-  });
+  const OnboardingPageData({required this.title, required this.description});
 
   final String title;
   final String description;

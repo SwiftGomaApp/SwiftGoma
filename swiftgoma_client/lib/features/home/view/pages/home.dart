@@ -25,7 +25,8 @@ class Home extends StatelessWidget {
           AppButton(
             label: 'Informative',
             style: AppButtonStyle.outline,
-            onPressed: () => context.showToast(variant: ToastVariant.informative),
+            onPressed: () =>
+                context.showToast(variant: ToastVariant.informative),
           ),
           SizedBox(height: 12.h),
           AppButton(

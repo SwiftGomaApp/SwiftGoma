@@ -100,10 +100,7 @@ class _SplashScreenState extends State<SplashScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      _buildIcon(),
-                      _buildWordmark(),
-                    ],
+                    children: [_buildIcon(), _buildWordmark()],
                   ),
                 ),
                 _buildVersionLabel(),
@@ -184,9 +181,7 @@ class _SplashScreenState extends State<SplashScreen>
         child: Center(
           child: Text(
             'Version 1',
-            style: AppTypography.bodyXs.copyWith(
-              color: AppColors.neutralDark4,
-            ),
+            style: AppTypography.bodyXs.copyWith(color: AppColors.neutralDark4),
           ),
         ),
       ),
