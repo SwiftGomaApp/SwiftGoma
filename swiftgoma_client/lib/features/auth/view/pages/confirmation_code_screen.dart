@@ -56,7 +56,7 @@ class _ConfirmationCodeScreenState extends State<ConfirmationCodeScreen> {
 
   void _onContinuePressed() {
     if (!_isComplete) return;
-    context.go(AppRoutes.home);
+    context.go(AppRoutes.explore);
   }
 
   @override

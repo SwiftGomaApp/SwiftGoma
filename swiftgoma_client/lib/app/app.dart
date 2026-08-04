@@ -8,6 +8,7 @@ import 'package:swiftgoma_client/core/constants/app_design.dart';
 import 'package:swiftgoma_client/core/theme/app_theme.dart';
 import 'package:swiftgoma_client/core/widgets/toast/view/toast_listener.dart';
 import 'package:swiftgoma_client/core/widgets/toast/viewmodel/toast_cubit.dart';
+import 'package:swiftgoma_client/features/cart/viewmodel/cart_cubit.dart';
 
 class SwiftgomaApp extends StatelessWidget {
   const SwiftgomaApp({super.key});
@@ -22,6 +23,7 @@ class SwiftgomaApp extends StatelessWidget {
           providers: [
             BlocProvider(create: (_) => ConnectivityCubit()),
             BlocProvider(create: (_) => ToastCubit()),
+            BlocProvider(create: (_) => CartCubit()),
           ],
           child: MaterialApp.router(
             title: 'Swiftgoma',

@@ -21,12 +21,12 @@ class _LogoutDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: AppColors.neutralLight5,
-      insetPadding: EdgeInsets.symmetric(horizontal: 24.w),
+      insetPadding: EdgeInsets.symmetric(horizontal: 20.w),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20.r),
+        borderRadius: BorderRadius.circular(12.r),
       ),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(24.w, 28.h, 24.w, 24.h),
+        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 16.h),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

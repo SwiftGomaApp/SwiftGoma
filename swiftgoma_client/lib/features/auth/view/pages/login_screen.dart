@@ -74,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final String email = _emailController.text.trim();
     if (_withPassword) {
-      context.go(AppRoutes.home);
+      context.go(AppRoutes.explore);
     } else {
       context.push(AppRoutes.confirmCode, extra: email);
     }
