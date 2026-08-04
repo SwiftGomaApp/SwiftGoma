@@ -38,8 +38,8 @@ class _BottomNav extends StatelessWidget {
   static const List<_NavItem> _items = [
     _NavItem(label: 'Explore', icon: Icons.explore),
     _NavItem(label: 'Categories', icon: Icons.grid_view_rounded),
-    _NavItem(label: 'Stores', icon: Icons.storefront),
-    _NavItem(label: 'Profile', icon: Icons.person),
+    _NavItem(label: 'Stores', icon: Icons.store_sharp),
+    _NavItem(label: 'Profile', icon: Icons.person_sharp),
   ];
 
   @override

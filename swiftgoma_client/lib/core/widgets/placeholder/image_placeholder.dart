@@ -22,7 +22,7 @@ class ImagePlaceholder extends StatelessWidget {
       alignment: Alignment.center,
       child: Icon(
         Icons.image_outlined,
-        size: iconSize ?? 28.w,
+        size: iconSize ?? 40.w,
         color: AppColors.highlight4,
       ),
     );

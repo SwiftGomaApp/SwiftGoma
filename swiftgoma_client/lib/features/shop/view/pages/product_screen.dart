@@ -30,14 +30,28 @@ class _ProductScreenState extends State<ProductScreen> {
   };
 
   final PageController _imageController = PageController();
+  final ScrollController _scrollController = ScrollController();
   int _imageIndex = 0;
+  bool _scrolled = false;
   bool _favorite = false;
   late String _selectedSize = widget.product.sizes[1];
   late String _selectedColor = widget.product.colors.first;
 
   @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final bool scrolled = _scrollController.offset > 0;
+    if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
+  }
+
+  @override
   void dispose() {
     _imageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -50,12 +64,11 @@ class _ProductScreenState extends State<ProductScreen> {
           ),
         );
     context.showToast(
-      variant: ToastVariant.success,
+      variant: ToastVariant.informative,
       title: 'Added to cart',
       description: '${widget.product.name} · $_selectedColor / $_selectedSize',
       duration: const Duration(seconds: 2),
     );
-    context.pop();
   }
 
   @override
@@ -64,80 +77,82 @@ class _ProductScreenState extends State<ProductScreen> {
       backgroundColor: AppColors.neutralLight5,
       body: Column(
         children: [
+          _buildImageCarousel(context),
+          Padding(
+            padding: EdgeInsets.fromLTRB(24.w, 20.h, 24.w, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.product.name,
+                        style: AppTypography.h2.copyWith(
+                          color: AppColors.neutralDark1,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _favorite = !_favorite),
+                      child: Icon(
+                        _favorite ? Icons.favorite : Icons.favorite_border,
+                        size: 24.w,
+                        color: _favorite
+                            ? AppColors.highlight1
+                            : AppColors.neutralDark1,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 4.h),
+                Text(
+                  '\$ ${widget.product.price.toStringAsFixed(2)}',
+                  style: AppTypography.bodyL.copyWith(
+                    color: AppColors.neutralDark1,
+                  ),
+                ),
+                SizedBox(height: 16.h),
+              ],
+            ),
+          ),
+          _ScrollShadow(visible: _scrolled),
           Expanded(
             child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildImageCarousel(context),
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(24.w, 20.h, 24.w, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.product.name,
-                                style: AppTypography.h1.copyWith(
-                                  color: AppColors.neutralDark1,
-                                ),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () =>
-                                  setState(() => _favorite = !_favorite),
-                              child: Icon(
-                                _favorite
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                size: 24.w,
-                                color: _favorite
-                                    ? AppColors.highlight1
-                                    : AppColors.neutralDark1,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 8.h),
-                        Text(
-                          '\$ ${widget.product.price.toStringAsFixed(2)}',
-                          style: AppTypography.h2.copyWith(
-                            color: AppColors.neutralDark1,
-                          ),
-                        ),
-                        SizedBox(height: 16.h),
-                        Text(
-                          widget.product.description,
-                          style: AppTypography.bodyM.copyWith(
-                            color: AppColors.neutralDark4,
-                            height: 1.5,
-                          ),
-                        ),
-                        SizedBox(height: 24.h),
-                        Text(
-                          'Size',
-                          style: AppTypography.h4.copyWith(
-                            color: AppColors.neutralDark1,
-                          ),
-                        ),
-                        SizedBox(height: 10.h),
-                        _buildSizeChips(),
-                        SizedBox(height: 20.h),
-                        Text(
-                          'Color',
-                          style: AppTypography.h4.copyWith(
-                            color: AppColors.neutralDark1,
-                          ),
-                        ),
-                        SizedBox(height: 10.h),
-                        _buildColorSwatches(),
-                        SizedBox(height: 16.h),
-                      ],
+              controller: _scrollController,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(24.w, 4.h, 24.w, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.product.description,
+                      style: AppTypography.bodyS.copyWith(
+                        color: AppColors.neutralDark4,
+                        height: 1.5,
+                      ),
                     ),
-                  ),
-                ],
+                    SizedBox(height: 24.h),
+                    Text(
+                      'Size',
+                      style: AppTypography.h4.copyWith(
+                        color: AppColors.neutralDark1,
+                      ),
+                    ),
+                    SizedBox(height: 10.h),
+                    _buildSizeChips(),
+                    SizedBox(height: 20.h),
+                    Text(
+                      'Color',
+                      style: AppTypography.h4.copyWith(
+                        color: AppColors.neutralDark1,
+                      ),
+                    ),
+                    SizedBox(height: 10.h),
+                    _buildColorSwatches(),
+                    SizedBox(height: 16.h),
+                  ],
+                ),
               ),
             ),
           ),
@@ -163,8 +178,7 @@ class _ProductScreenState extends State<ProductScreen> {
               child: PageView.builder(
                 controller: _imageController,
                 itemCount: 5,
-                onPageChanged: (index) =>
-                    setState(() => _imageIndex = index),
+                onPageChanged: (index) => setState(() => _imageIndex = index),
                 itemBuilder: (context, index) =>
                     const ImagePlaceholder(iconSize: 40),
               ),
@@ -196,9 +210,27 @@ class _ProductScreenState extends State<ProductScreen> {
         Positioned(
           top: MediaQuery.of(context).padding.top + 12.h,
           left: 24.w,
-          child: GestureDetector(
-            onTap: () => context.pop(),
-            child: Icon(Icons.close, size: 26.w, color: AppColors.neutralDark1),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.neutralLight5,
+              shape: BoxShape.rectangle,
+              borderRadius: BorderRadius.circular(8.r),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.neutralDark1.withValues(alpha: 0.4),
+                  blurRadius: 4.r,
+                  offset: Offset(0, 2.h),
+                ),
+              ],
+            ),
+            child: GestureDetector(
+              onTap: () => context.pop(),
+              child: Icon(
+                Icons.close_outlined,
+                size: 32.w,
+                color: AppColors.neutralDark1,
+              ),
+            ),
           ),
         ),
       ],
@@ -213,10 +245,9 @@ class _ProductScreenState extends State<ProductScreen> {
         return GestureDetector(
           onTap: () => setState(() => _selectedSize = size),
           child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 8.h),
+            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
             decoration: BoxDecoration(
-              color:
-                  isSelected ? AppColors.highlight1 : AppColors.highlight5,
+              color: isSelected ? AppColors.highlight1 : AppColors.highlight5,
               borderRadius: BorderRadius.circular(20.r),
             ),
             child: Text(
@@ -224,7 +255,7 @@ class _ProductScreenState extends State<ProductScreen> {
               style: AppTypography.actionM.copyWith(
                 color: isSelected
                     ? AppColors.neutralLight5
-                    : AppColors.neutralDark1,
+                    : AppColors.highlight1,
               ),
             ),
           ),
@@ -237,8 +268,7 @@ class _ProductScreenState extends State<ProductScreen> {
     return Row(
       children: widget.product.colors.map((color) {
         final bool isSelected = color == _selectedColor;
-        final Color swatch =
-            _colorSwatches[color] ?? AppColors.neutralLight2;
+        final Color swatch = _colorSwatches[color] ?? AppColors.neutralLight2;
         return GestureDetector(
           onTap: () => setState(() => _selectedColor = color),
           child: Container(
@@ -271,6 +301,33 @@ class _ProductScreenState extends State<ProductScreen> {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+class _ScrollShadow extends StatelessWidget {
+  const _ScrollShadow({required this.visible});
+
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: visible ? 1 : 0,
+      duration: const Duration(milliseconds: 150),
+      child: Container(
+        height: 1,
+        decoration: BoxDecoration(
+          color: AppColors.neutralLight3,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.neutralDark1.withValues(alpha: 0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

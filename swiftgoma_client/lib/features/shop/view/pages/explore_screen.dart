@@ -33,23 +33,30 @@ class _ExploreScreenState extends State<ExploreScreen> {
     return Scaffold(
       backgroundColor: AppColors.neutralLight5,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(context),
-              _buildBanner(),
-              SizedBox(height: 24.h),
-              _buildSection(context, 'Perfect for you', Product.samples),
-              SizedBox(height: 24.h),
-              _buildSection(
-                context,
-                'For this summer',
-                Product.samples.reversed.toList(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(context),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildBanner(),
+                    SizedBox(height: 24.h),
+                    _buildSection(context, 'Perfect for you', Product.samples),
+                    SizedBox(height: 24.h),
+                    _buildSection(
+                      context,
+                      'For this summer',
+                      Product.samples.reversed.toList(),
+                    ),
+                    SizedBox(height: 24.h),
+                  ],
+                ),
               ),
-              SizedBox(height: 24.h),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -62,11 +69,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
         children: [
           GestureDetector(
             onTap: () => context.push(AppRoutes.search),
-            child: Icon(Icons.search, size: 26.w, color: AppColors.neutralDark1),
+            child: Icon(Icons.search_outlined, size: 24.w, color: AppColors.neutralDark1),
           ),
           const Spacer(),
           Icon(Icons.favorite_border, size: 24.w, color: AppColors.neutralDark1),
-          SizedBox(width: 20.w),
+          SizedBox(width: 16.w),
           GestureDetector(
             onTap: () => context.push(AppRoutes.cart),
             child: BlocBuilder<CartCubit, List<CartItem>>(
@@ -82,10 +89,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     ),
                     if (count > 0)
                       Positioned(
-                        right: -4.w,
-                        bottom: -2.h,
+                        right: -1.w,
+                        bottom: -8.h,
                         child: Container(
-                          padding: EdgeInsets.all(4.w),
+                          padding: EdgeInsets.all(5.w),
                           decoration: const BoxDecoration(
                             color: AppColors.highlight1,
                             shape: BoxShape.circle,
@@ -109,36 +116,41 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Widget _buildBanner() {
-    return Column(
-      children: [
-        SizedBox(
-          height: 200.h,
-          child: PageView.builder(
+    return SizedBox(
+      height: 200.h,
+      child: Stack(
+        children: [
+          PageView.builder(
             controller: _bannerController,
             itemCount: 5,
             onPageChanged: (index) => setState(() => _bannerIndex = index),
             itemBuilder: (context, index) => const ImagePlaceholder(),
           ),
-        ),
-        SizedBox(height: 12.h),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(5, (index) {
-            final bool isActive = index == _bannerIndex;
-            return Container(
-              margin: EdgeInsets.symmetric(horizontal: 4.w),
-              width: 8.w,
-              height: 8.w,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isActive
-                    ? AppColors.highlight1
-                    : AppColors.neutralLight2,
-              ),
-            );
-          }),
-        ),
-      ],
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 12.h,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                final isActive = index == _bannerIndex;
+
+                return Container(
+                  margin: EdgeInsets.symmetric(horizontal: 4.w),
+                  width: 8.w,
+                  height: 8.w,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isActive
+                        ? AppColors.highlight1
+                        : AppColors.neutralLight2,
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -184,7 +196,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             separatorBuilder: (_, _) => SizedBox(width: 16.w),
             itemBuilder: (context, index) => ProductCard(
               product: products[index],
-              width: 160.w,
+              width: 180.w,
               onTap: () =>
                   context.push(AppRoutes.product, extra: products[index]),
             ),
