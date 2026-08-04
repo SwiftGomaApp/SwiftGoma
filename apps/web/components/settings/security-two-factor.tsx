@@ -20,8 +20,10 @@ export function SecurityTwoFactor() {
   const [confirmCode, setConfirmCode] = useState("");
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
   const [disableCode, setDisableCode] = useState("");
+  const [regenerateCode, setRegenerateCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showDisableForm, setShowDisableForm] = useState(false);
+  const [showRegenerateForm, setShowRegenerateForm] = useState(false);
 
   const isEnabled = user?.twoFactorEnabled ?? false;
 
@@ -49,6 +51,24 @@ export function SecurityTwoFactor() {
       setBackupCodes(result.backupCodes);
       setStep("backup-codes");
       await refresh();
+    } catch (err) {
+      toast.error(err instanceof ApiException ? err.message : "Code invalide.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleRegenerate(e: React.FormEvent) {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const result = await authApi.regenerateBackupCodes({
+        code: regenerateCode,
+      });
+      setBackupCodes(result.backupCodes);
+      setStep("backup-codes");
+      setShowRegenerateForm(false);
+      setRegenerateCode("");
     } catch (err) {
       toast.error(err instanceof ApiException ? err.message : "Code invalide.");
     } finally {
@@ -130,14 +150,47 @@ export function SecurityTwoFactor() {
                   </Button>
                 </div>
               </form>
+            ) : showRegenerateForm ? (
+              <form onSubmit={handleRegenerate} className="flex flex-col gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Vos anciens codes de secours seront invalidés et remplacés par
+                  un nouveau jeu.
+                </p>
+                <Input
+                  value={regenerateCode}
+                  onChange={(e) => setRegenerateCode(e.target.value)}
+                  placeholder="Code de votre application ou code de secours"
+                  autoFocus
+                  required
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowRegenerateForm(false)}
+                  >
+                    Annuler
+                  </Button>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? "Génération..." : "Régénérer"}
+                  </Button>
+                </div>
+              </form>
             ) : (
-              <Button
-                variant="outline"
-                onClick={() => setShowDisableForm(true)}
-                className="self-start"
-              >
-                Désactiver
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowRegenerateForm(true)}
+                >
+                  Régénérer les codes de secours
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDisableForm(true)}
+                >
+                  Désactiver
+                </Button>
+              </div>
             )
           ) : (
             <Button

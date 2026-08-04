@@ -3,6 +3,7 @@ require("./src/instrument");
 const createApp = require("./src/app");
 const { env } = require("./src/config/env");
 const { initSocket } = require("./src/config/socket");
+const Sentry = require("@sentry/node");
 const http = require("http");
 const {
   startSubscriptionRenewalJob,
@@ -34,7 +35,7 @@ function crash(label, err) {
   console.error(`[${label}]`, err);
   Sentry.captureException(err);
   Sentry.flush(2000).finally(() => {
-    server.close(() => process.exit(1));
+    httpServer.close(() => process.exit(1));
     setTimeout(() => process.exit(1), 3000).unref();
   });
 }

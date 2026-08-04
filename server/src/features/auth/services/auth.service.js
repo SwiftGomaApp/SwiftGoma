@@ -656,7 +656,7 @@ async function getCurrentUser(userId) {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { emails: true, twoFactorAuth: true },
+    include: { emails: true, twoFactorAuth: true, passkeys: true },
   });
 
   if (!user) {
