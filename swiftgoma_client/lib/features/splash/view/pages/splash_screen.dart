@@ -20,18 +20,14 @@ class _SplashScreenState extends State<SplashScreen>
 
   late final AnimationController _controller;
 
-  // Phase 1: icon appears in the center.
   late final Animation<double> _iconOpacity;
   late final Animation<double> _iconPopScale;
 
-  // Phase 2: icon shrinks + slides left while the text reveals.
   late final Animation<double> _iconSize;
   late final Animation<double> _textReveal;
 
-  // Phase 3: the orange dot pops in.
   late final Animation<double> _dotScale;
 
-  // Bottom version label.
   late final Animation<double> _versionOpacity;
 
   @override
@@ -80,7 +76,7 @@ class _SplashScreenState extends State<SplashScreen>
   void _onAnimationStatus(AnimationStatus status) {
     if (status != AnimationStatus.completed) return;
     Future.delayed(_holdAfterAnimation, () {
-      if (mounted) context.go(AppRoutes.home);
+      if (mounted) context.go(AppRoutes.onboarding);
     });
   }
 
@@ -142,8 +138,6 @@ class _SplashScreenState extends State<SplashScreen>
       color: AppColors.neutralDark1,
     );
 
-    // ClipRect + widthFactor reveals the text from left to right. As the
-    // centered row widens, the icon is pushed to the left.
     return ClipRect(
       child: Align(
         alignment: Alignment.centerLeft,

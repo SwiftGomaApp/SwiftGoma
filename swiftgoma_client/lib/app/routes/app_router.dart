@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:swiftgoma_client/app/routes/app_routes.dart';
 import 'package:swiftgoma_client/features/home/view/pages/home.dart';
+import 'package:swiftgoma_client/features/splash/view/pages/onboarding_screen.dart';
 import 'package:swiftgoma_client/features/splash/view/pages/splash_screen.dart';
 
 class AppRouter {
@@ -19,6 +20,11 @@ class AppRouter {
         path: AppRoutes.splash,
         name: 'splash',
         builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.onboarding,
+        name: 'onboarding',
+        builder: (context, state) => const OnboardingScreen(),
       ),
       GoRoute(
         path: AppRoutes.home,

@@ -39,7 +39,7 @@ class AppButton extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: AppTypography.actionL.copyWith(color: style.foregroundColor),
+            style: AppTypography.actionM.copyWith(color: style.foregroundColor),
           ),
         ),
       ),
