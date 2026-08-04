@@ -33,6 +33,7 @@ type CartContextValue = {
   }) => void;
   updateQuantity: (shopId: string, itemId: string, quantity: number) => void;
   removeItem: (shopId: string, itemId: string) => void;
+  clearCartLocal: (shopId: string) => void;
   openCart: () => void;
 };
 
@@ -251,6 +252,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   }
 
+  function clearCartLocal(shopId: string) {
+    setCarts((prev) => withoutShop(prev, shopId));
+  }
+
   function openCart() {
     const all = Object.values(carts);
     const nonEmpty = all.filter((c) => c.items.length > 0);
@@ -282,6 +287,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         addToCart,
         updateQuantity,
         removeItem,
+        clearCartLocal,
         openCart,
       }}
     >

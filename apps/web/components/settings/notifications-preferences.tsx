@@ -230,7 +230,7 @@ export function NotificationsPreferences() {
   }
 
   useEffect(() => {
-    loadOneSignal();
+    // loadOneSignal();
     setPushPermission(getPushPermission());
   }, []);
 
