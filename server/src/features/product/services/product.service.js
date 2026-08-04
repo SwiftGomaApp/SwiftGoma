@@ -115,6 +115,140 @@ async function invalidateProductCaches(slug) {
   }
 }
 
+// async function createProduct({
+//   shopId,
+//   sellerProfileId,
+//   subcategoryId,
+//   name,
+//   description,
+//   brand,
+//   unit,
+//   weightGrams,
+//   expiresAt,
+//   currency,
+//   variants,
+//   imageBuffers,
+// }) {
+//   await assertShopOwnedBySeller(shopId, sellerProfileId);
+//   const subcategory = await getSubcategoryWithCategory(subcategoryId);
+
+//   const subscription = await getActiveSubscriptionWithPlan(sellerProfileId);
+//   if (!subscription || subscription.status !== "ACTIVE") {
+//     throw new ConflictError(
+//       "Un abonnement actif est requis pour créer un produit.",
+//     );
+//   }
+
+//   const currentProductCount = await prisma.product.count({
+//     where: { shopId },
+//   });
+//   assertCanCreateProduct(
+//     currentProductCount,
+//     subscription.plan.maxProducts,
+//     subscription.plan.name,
+//   );
+
+//   assertValidProductInput({ name, description, currency, unit, weightGrams });
+//   assertExpiryRequiredIfFood(subcategory.category.slug, expiresAt);
+
+//   if (!variants || variants.length === 0) {
+//     throw new ConflictError("Au moins une variante est requise.");
+//   }
+//   const hasVariants = variants.length > 1;
+//   variants.forEach((v) => assertValidVariantInput(v, currency));
+
+//   const photoCount = imageBuffers?.length || 0;
+//   assertPhotoLimitNotExceeded(
+//     0,
+//     photoCount,
+//     subscription.plan.maxPhotosPerProduct,
+//     subscription.plan.name,
+//   );
+
+//   const slug = await generateUniqueSlug(name);
+
+//   const uploadedImages = imageBuffers?.length
+//     ? await Promise.all(
+//         imageBuffers.map((img, i) =>
+//           uploadImage(img.buffer, CLOUDINARY_FOLDERS.PRODUCT_IMAGES).then(
+//             (res) => ({
+//               url: res.url,
+//               publicId: res.publicId,
+//               position: i,
+//             }),
+//           ),
+//         ),
+//       )
+//     : [];
+
+//   try {
+//     return await prisma.$transaction(async (tx) => {
+//       const product = await tx.product.create({
+//         data: {
+//           shopId,
+//           subcategoryId,
+//           name: name.trim(),
+//           slug,
+//           description,
+//           brand: brand || null,
+//           unit: unit || "piece",
+//           weightGrams: weightGrams || null,
+//           expiresAt: expiresAt ? new Date(expiresAt) : null,
+//           currency,
+//           status: "DRAFT",
+//           hasVariants,
+//         },
+//       });
+
+//       for (const img of uploadedImages) {
+//         await tx.productImage.create({
+//           data: { productId: product.id, ...img },
+//         });
+//       }
+
+//       for (const v of variants) {
+//         const variant = await tx.productVariant.create({
+//           data: {
+//             productId: product.id,
+//             name: v.name || null,
+//             attributes: v.attributes || undefined,
+//             sku: v.sku || null,
+//             price: v.price,
+//             stock: v.stock,
+//             isDefault: !hasVariants,
+//           },
+//         });
+
+//         if (v.stock > 0) {
+//           await tx.stockMovement.create({
+//             data: {
+//               variantId: variant.id,
+//               type: "RESTOCK",
+//               amount: v.stock,
+//               reason: "Stock initial à la création du produit",
+//               stockBefore: 0,
+//               stockAfter: v.stock,
+//             },
+//           });
+//         }
+//       }
+
+//       return tx.product.findUnique({
+//         where: { id: product.id },
+//         include: { images: true, variants: true },
+//       });
+//     });
+//   } catch (err) {
+//     await Promise.all(
+//       uploadedImages.map((img) => deleteAsset(img.publicId, "image")),
+//     );
+//     throw err;
+//   }
+//   // Note: new products start as DRAFT, so they aren't visible in any
+//   // cached PUBLISHED listing yet — no cache invalidation needed here.
+//   // setProductStatus() invalidates once the product actually publishes.
+// }
+
 async function createProduct({
   shopId,
   sellerProfileId,
@@ -182,33 +316,36 @@ async function createProduct({
     : [];
 
   try {
-    return await prisma.$transaction(async (tx) => {
-      const product = await tx.product.create({
-        data: {
-          shopId,
-          subcategoryId,
-          name: name.trim(),
-          slug,
-          description,
-          brand: brand || null,
-          unit: unit || "piece",
-          weightGrams: weightGrams || null,
-          expiresAt: expiresAt ? new Date(expiresAt) : null,
-          currency,
-          status: "DRAFT",
-          hasVariants,
-        },
-      });
-
-      for (const img of uploadedImages) {
-        await tx.productImage.create({
-          data: { productId: product.id, ...img },
-        });
-      }
-
-      for (const v of variants) {
-        const variant = await tx.productVariant.create({
+    return await prisma.$transaction(
+      async (tx) => {
+        const product = await tx.product.create({
           data: {
+            shopId,
+            subcategoryId,
+            name: name.trim(),
+            slug,
+            description,
+            brand: brand || null,
+            unit: unit || "piece",
+            weightGrams: weightGrams || null,
+            expiresAt: expiresAt ? new Date(expiresAt) : null,
+            currency,
+            status: "DRAFT",
+            hasVariants,
+          },
+        });
+
+        if (uploadedImages.length > 0) {
+          await tx.productImage.createMany({
+            data: uploadedImages.map((img) => ({
+              productId: product.id,
+              ...img,
+            })),
+          });
+        }
+
+        const createdVariants = await tx.productVariant.createManyAndReturn({
+          data: variants.map((v) => ({
             productId: product.id,
             name: v.name || null,
             attributes: v.attributes || undefined,
@@ -216,28 +353,30 @@ async function createProduct({
             price: v.price,
             stock: v.stock,
             isDefault: !hasVariants,
-          },
+          })),
         });
 
-        if (v.stock > 0) {
-          await tx.stockMovement.create({
-            data: {
-              variantId: variant.id,
+        const restockedVariants = createdVariants.filter((v) => v.stock > 0);
+        if (restockedVariants.length > 0) {
+          await tx.stockMovement.createMany({
+            data: restockedVariants.map((v) => ({
+              variantId: v.id,
               type: "RESTOCK",
               amount: v.stock,
               reason: "Stock initial à la création du produit",
               stockBefore: 0,
               stockAfter: v.stock,
-            },
+            })),
           });
         }
-      }
 
-      return tx.product.findUnique({
-        where: { id: product.id },
-        include: { images: true, variants: true },
-      });
-    });
+        return tx.product.findUnique({
+          where: { id: product.id },
+          include: { images: true, variants: true },
+        });
+      },
+      { timeout: 15000 },
+    );
   } catch (err) {
     await Promise.all(
       uploadedImages.map((img) => deleteAsset(img.publicId, "image")),
@@ -292,7 +431,19 @@ async function getProductBySlug(slug) {
       throw new NotFoundError("Produit introuvable.");
     }
 
-    return product;
+    const {
+      getProductRatingSummary,
+      listProductReviews,
+      getPurchaseCount,
+    } = require("./productReview.service");
+
+    const [rating, reviews, purchaseCount] = await Promise.all([
+      getProductRatingSummary(product.id),
+      listProductReviews(product.id),
+      getPurchaseCount(product.id),
+    ]);
+
+    return { ...product, rating, reviews, purchaseCount };
   });
 }
 
@@ -465,6 +616,152 @@ async function getStockHistory(
   };
 }
 
+// async function listAllProducts(params = {}) {
+//   const {
+//     page = 1,
+//     limit = 20,
+//     categoryId,
+//     subcategoryId,
+//     shopId,
+//     minPrice,
+//     maxPrice,
+//     currency,
+//     search,
+//     inStockOnly,
+//     city,
+//     sortBy = "recent",
+//   } = params;
+
+//   const version = await cache.getVersion("products");
+//   const cacheKey = `products:list:v${version}:${JSON.stringify(params)}`;
+
+//   return cache.getOrSet(cacheKey, 120, async () => {
+//     const safePage = Math.max(parseInt(page, 10) || 1, 1);
+//     const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+//     const skip = (safePage - 1) * safeLimit;
+
+//     const baseWhere = {
+//       status: "PUBLISHED",
+//       shop: {
+//         status: "PUBLISHED",
+//         deletedAt: null,
+//         ...(city ? { sellerProfile: { city } } : {}),
+//       },
+//       ...(shopId ? { shopId } : {}),
+//       ...(subcategoryId ? { subcategoryId } : {}),
+//       ...(categoryId ? { subcategory: { categoryId } } : {}),
+//       ...(currency ? { currency } : {}),
+//       ...(search
+//         ? {
+//             OR: [
+//               { name: { contains: search, mode: "insensitive" } },
+//               { description: { contains: search, mode: "insensitive" } },
+//               { brand: { contains: search, mode: "insensitive" } },
+//             ],
+//           }
+//         : {}),
+//       ...(inStockOnly === "true" || inStockOnly === true
+//         ? { variants: { some: { stock: { gt: 0 } } } }
+//         : {}),
+//     };
+
+//     if (sortBy === "priceAsc" || sortBy === "priceDesc") {
+//       const direction = sortBy === "priceAsc" ? "asc" : "desc";
+//       const orderedIds = await getProductIdsSortedByPrice({
+//         where: {
+//           categoryId,
+//           subcategoryId,
+//           shopId,
+//           minPrice,
+//           maxPrice,
+//           currency,
+//           search,
+//           city,
+//           inStockOnly,
+//         },
+//         direction,
+//         skip,
+//         take: safeLimit,
+//       });
+
+//       const products = await prisma.product.findMany({
+//         where: { id: { in: orderedIds } },
+//         include: {
+//           images: { orderBy: { position: "asc" }, take: 1 },
+//           variants: {
+//             select: { id: true, price: true, stock: true },
+//             take: 1,
+//             orderBy: { price: "asc" },
+//           },
+//           subcategory: { include: { category: true } },
+//           shop: {
+//             select: {
+//               id: true,
+//               name: true,
+//               slug: true,
+//               sellerProfile: { select: { city: true } },
+//             },
+//           },
+//         },
+//       });
+
+//       const productMap = new Map(products.map((p) => [p.id, p]));
+//       const orderedProducts = orderedIds
+//         .map((id) => productMap.get(id))
+//         .filter(Boolean);
+
+//       const total = await prisma.product.count({ where: baseWhere });
+
+//       return {
+//         products: orderedProducts,
+//         pagination: {
+//           page: safePage,
+//           limit: safeLimit,
+//           total,
+//           totalPages: Math.ceil(total / safeLimit) || 1,
+//         },
+//       };
+//     }
+
+//     const [total, products] = await Promise.all([
+//       prisma.product.count({ where: baseWhere }),
+//       prisma.product.findMany({
+//         where: baseWhere,
+//         skip,
+//         take: safeLimit,
+//         orderBy: { createdAt: "desc" },
+//         include: {
+//           images: { orderBy: { position: "asc" }, take: 1 },
+//           variants: {
+//             select: { id: true, price: true, stock: true },
+//             take: 1,
+//             orderBy: { price: "asc" },
+//           },
+//           subcategory: { include: { category: true } },
+//           shop: {
+//             select: {
+//               id: true,
+//               name: true,
+//               slug: true,
+//               sellerProfile: { select: { city: true } },
+//             },
+//           },
+//         },
+//       }),
+//     ]);
+
+//     return {
+//       products,
+//       pagination: {
+//         page: safePage,
+//         limit: safeLimit,
+//         total,
+//         totalPages: Math.ceil(total / safeLimit) || 1,
+//       },
+//     };
+//   });
+// }
+
 async function listAllProducts(params = {}) {
   const {
     page = 1,
@@ -489,6 +786,17 @@ async function listAllProducts(params = {}) {
     const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
     const skip = (safePage - 1) * safeLimit;
 
+    const variantConditions = {};
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      variantConditions.price = {
+        ...(minPrice !== undefined ? { gte: minPrice } : {}),
+        ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
+      };
+    }
+    if (inStockOnly === "true" || inStockOnly === true) {
+      variantConditions.stock = { gt: 0 };
+    }
+
     const baseWhere = {
       status: "PUBLISHED",
       shop: {
@@ -509,8 +817,8 @@ async function listAllProducts(params = {}) {
             ],
           }
         : {}),
-      ...(inStockOnly === "true" || inStockOnly === true
-        ? { variants: { some: { stock: { gt: 0 } } } }
+      ...(Object.keys(variantConditions).length > 0
+        ? { variants: { some: variantConditions } }
         : {}),
     };
 
@@ -538,7 +846,7 @@ async function listAllProducts(params = {}) {
         include: {
           images: { orderBy: { position: "asc" }, take: 1 },
           variants: {
-            select: { price: true, stock: true },
+            select: { id: true, price: true, stock: true },
             take: 1,
             orderBy: { price: "asc" },
           },
@@ -582,7 +890,7 @@ async function listAllProducts(params = {}) {
         include: {
           images: { orderBy: { position: "asc" }, take: 1 },
           variants: {
-            select: { price: true, stock: true },
+            select: { id: true, price: true, stock: true },
             take: 1,
             orderBy: { price: "asc" },
           },
@@ -621,4 +929,5 @@ module.exports = {
   setProductStatus,
   adjustStock,
   getStockHistory,
+  invalidateProductCaches,
 };

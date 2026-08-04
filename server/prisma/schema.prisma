@@ -197,6 +197,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   carts     Cart[]
+  favorites Favorite[]
+  productReviews ProductReview[]
+  incidents Incident[]
+  blogPosts BlogPost[]
 
   @@map("users")
 }
@@ -671,11 +675,27 @@ model Product {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   orderItems OrderItem[]
+  favorites  Favorite[]
+  reviews    ProductReview[]
 
   @@index([shopId])
   @@index([subcategoryId])
   @@index([status])
   @@map("products")
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@map("favorites")
 }
 
 model ProductImage {
@@ -1003,4 +1023,94 @@ model ExchangeRate {
 
   @@unique([fromCurrency, toCurrency])
   @@map("exchange_rates")
+}
+
+model ProductReview {
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  rating  Int
+  comment String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, userId])
+  @@index([productId])
+  @@map("product_reviews")
+}
+
+enum IncidentSeverity {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum IncidentStatus {
+  INVESTIGATING
+  IDENTIFIED
+  MONITORING
+  RESOLVED
+}
+
+model Incident {
+  id          String @id @default(uuid())
+  title       String
+  description String
+  severity    IncidentSeverity @default(MINOR)
+  status      IncidentStatus   @default(INVESTIGATING)
+
+  createdBy String?
+  creator   User?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  resolvedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("incidents")
+}
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model BlogPost {
+  id            String @id @default(uuid())
+  title         String
+  slug          String @unique
+  excerpt       String
+  content       String
+  coverImageUrl String?
+
+  status      BlogPostStatus @default(DRAFT)
+  publishedAt DateTime?
+
+  authorId String?
+  author   User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([publishedAt])
+  @@map("blog_posts")
+}
+
+model ContactMessage {
+  id      String @id @default(uuid())
+  name    String
+  email   String
+  subject String
+  message String
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("contact_messages")
 }

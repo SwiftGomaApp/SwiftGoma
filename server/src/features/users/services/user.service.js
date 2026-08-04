@@ -807,10 +807,10 @@ async function linkGoogleAccount(userId, idToken) {
   if (user.googleId) throw new ConflictError("Un compte Google est déjà lié.");
 
   const payload = await verifyGoogleIdToken(idToken);
-  if (!payload?.sub) throw new UnauthorizedError("Token Google invalide.");
+  if (!payload?.googleId) throw new UnauthorizedError("Token Google invalide.");
 
   const existing = await prisma.user.findUnique({
-    where: { googleId: payload.sub },
+    where: { googleId: payload.googleId },
   });
   if (existing) {
     throw new ConflictError(
@@ -820,7 +820,7 @@ async function linkGoogleAccount(userId, idToken) {
 
   await prisma.user.update({
     where: { id: userId },
-    data: { googleId: payload.sub },
+    data: { googleId: payload.googleId },
   });
 
   return { message: "Compte Google lié avec succès.", googleLinked: true };

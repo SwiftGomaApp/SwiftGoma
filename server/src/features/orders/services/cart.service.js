@@ -196,6 +196,7 @@ async function getCart(buyerId, shopId) {
                   slug: true,
                   currency: true,
                   status: true,
+                  images: { orderBy: { position: "asc" }, take: 1 },
                 },
               },
             },
@@ -229,11 +230,30 @@ async function listMyCarts(buyerId) {
         orderBy: { createdAt: "asc" },
         include: {
           variant: {
-            include: { product: { select: { name: true, currency: true } } },
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                  currency: true,
+                  status: true,
+                  images: { orderBy: { position: "asc" }, take: 1 },
+                },
+              },
+            },
           },
         },
       },
-      shop: { select: { id: true, name: true, slug: true } },
+      shop: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          deliveryFee: true,
+          deliveryFeeCurrency: true,
+        },
+      },
     },
     orderBy: { updatedAt: "desc" },
   });

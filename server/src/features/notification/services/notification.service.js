@@ -234,6 +234,27 @@ async function updatePreference({ userId, type, inApp, email, sms, push }) {
   return updated;
 }
 
+async function broadcastNotification({ type, title, body, data }) {
+  const users = await prisma.user.findMany({
+    where: { deletedAt: null, isBlocked: false },
+    select: { id: true },
+  });
+
+  await prisma.notification.createMany({
+    data: users.map((u) => ({
+      userId: u.id,
+      type,
+      title,
+      body,
+      data: data || undefined,
+      channels: ["inApp"],
+      isRead: false,
+    })),
+  });
+
+  return { notified: users.length };
+}
+
 module.exports = {
   createNotification,
   listNotifications,
@@ -242,4 +263,5 @@ module.exports = {
   deleteNotification,
   getPreferences,
   updatePreference,
+  broadcastNotification,
 };

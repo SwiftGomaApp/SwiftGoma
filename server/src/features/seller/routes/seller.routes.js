@@ -30,6 +30,7 @@ const {
   postReactivateShop,
   postAdminDeleteShop,
   postRestoreShop,
+  getShopsHandler,
 } = require("../controllers/shop.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
@@ -57,6 +58,7 @@ const kycFiles = documentUpload.fields([
 ]);
 
 SellerRouter.get("/shop/slug/:slug", getShopBySlugHandler);
+SellerRouter.get("/shops", getShopsHandler);
 
 SellerRouter.use(authenticate);
 

@@ -12,6 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { supportApi } from "@/lib/api/routes/support";
+import { ApiException } from "@/lib/api";
 
 const SUBJECTS = [
   { value: "general", label: "Question générale" },
@@ -32,20 +34,25 @@ export function ContactSupport() {
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!subject) return;
     setStatus("loading");
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      await supportApi.contact({ name, email, subject, message });
 
       setStatus("success");
       setName("");
       setEmail("");
       setSubject(null);
       setMessage("");
-    } catch {
+    } catch (err) {
+      setErrorMessage(
+        err instanceof ApiException ? err.message : "Une erreur est survenue.",
+      );
       setStatus("error");
     }
   };
@@ -151,9 +158,7 @@ export function ContactSupport() {
         </div>
 
         {status === "error" && (
-          <p className="text-sm text-destructive">
-            Une erreur est survenue. Veuillez réessayer.
-          </p>
+          <p className="text-sm text-destructive">{errorMessage}</p>
         )}
 
         <Button

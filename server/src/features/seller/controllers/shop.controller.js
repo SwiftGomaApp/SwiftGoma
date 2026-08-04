@@ -13,6 +13,7 @@ const {
   deleteShop,
   adminDeleteShop,
   restoreShop,
+  listPublishedShops,
 } = require("../services/shop.service");
 const { getPrismaClient } = require("../../../config/prisma");
 const { NotFoundError } = require("../../../common/errors");
@@ -184,6 +185,20 @@ async function postRestoreShop(req, res, next) {
   }
 }
 
+async function getShopsHandler(req, res, next) {
+  try {
+    const result = await listPublishedShops({
+      page: req.query.page,
+      limit: req.query.limit,
+      search: req.query.search,
+      city: req.query.city,
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   postCreateShop,
   getMyShops,
@@ -194,6 +209,7 @@ module.exports = {
   postReactivateMyShop,
   deleteMyShop,
   getShopBySlugHandler,
+  getShopsHandler,
   postSuspendShop,
   postReactivateShop,
   postAdminDeleteShop,

@@ -134,6 +134,23 @@ async function logoutAll(req, res) {
   res.status(200).json({ success: true, data: result });
 }
 
+async function listSessions(req, res) {
+  const sessions = await authService.listSessions({
+    userId: req.user.id,
+    currentSessionId: req.user.sessionId,
+  });
+  res.status(200).json({ success: true, data: sessions });
+}
+
+async function revokeSession(req, res) {
+  const { sessionId } = req.params;
+  const result = await authService.revokeSession({
+    userId: req.user.id,
+    sessionId,
+  });
+  res.status(200).json({ success: true, data: result });
+}
+
 async function createPassword(req, res) {
   const { password, locale } = req.body;
   const user = await authService.createPassword({
@@ -315,13 +332,14 @@ async function generatePasskeyLoginOptions(req, res) {
 }
 
 async function verifyPasskeyLogin(req, res) {
-  const { email, response, deviceName, locale } = req.body;
+  const { email, challengeId, response, deviceName, locale } = req.body;
   const userAgent = req.headers["user-agent"] || null;
   const ipAddress = req.ip || null;
   const isMobile = req.headers["x-client-type"] === "mobile";
 
   const result = await authService.verifyPasskeyLogin({
     email,
+    challengeId,
     response,
     userAgent,
     ipAddress,
@@ -374,6 +392,8 @@ module.exports = {
   getMe,
   logout,
   logoutAll,
+  listSessions,
+  revokeSession,
   createPassword,
   updatePassword,
   forgotPassword,

@@ -43,6 +43,10 @@ const MbiyoPayCallbackRouter = require("./features/payments/routes/mbiyopayCallb
 const MbiyoPayRouter = require("./features/payments/routes/mbiopay.routes");
 const CartRouter = require("./features/orders/routes/cart.routes");
 const OrderRouter = require("./features/orders/routes/order.routes");
+const FavoriteRouter = require("./features/favorites/routes/favorite.routes");
+const SupportRouter = require("./features/support/routes/support.routes");
+const IncidentRouter = require("./features/incidents/routes/incident.routes");
+const BlogRouter = require("./features/blog/routes/blog.routes");
 const WalletRouter = require("./features/wallet/routes/wallet.routes");
 
 const createApp = () => {
@@ -158,6 +162,10 @@ const createApp = () => {
   app.use("/api/v1/riders", RiderRouter);
   app.use("/api/v1/mbiyopay", MbiyoPayRouter);
   app.use("/api/v1/cart", CartRouter);
+  app.use("/api/v1/favorites", FavoriteRouter);
+  app.use("/api/v1/support", SupportRouter);
+  app.use("/api/v1/incidents", IncidentRouter);
+  app.use("/api/v1/blog", BlogRouter);
   app.use("/api/v1/orders", OrderRouter);
 
   app.use(notFound);

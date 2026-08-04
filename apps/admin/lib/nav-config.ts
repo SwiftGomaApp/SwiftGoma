@@ -15,6 +15,7 @@ import {
   Users,
   Bell,
   UserCog,
+  Newspaper,
 } from "lucide-react";
 
 export type AdminRole = "ADMIN" | "SUPPORT";
@@ -97,6 +98,12 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Exchange Rates",
         href: "/exchange-rates",
         icon: ArrowLeftRight,
+        roles: ["ADMIN", "SUPPORT"],
+      },
+      {
+        title: "Blog",
+        href: "/blog",
+        icon: Newspaper,
         roles: ["ADMIN", "SUPPORT"],
       },
     ],

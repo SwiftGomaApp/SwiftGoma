@@ -45,6 +45,13 @@ AuthRouter.post("/refresh-token", authController.refreshAccessToken);
 AuthRouter.get("/me", authenticate, authController.getMe);
 AuthRouter.post("/logout", authenticate, authController.logout);
 AuthRouter.post("/logout-all", authenticate, authController.logoutAll);
+AuthRouter.get("/sessions", authenticate, authController.listSessions);
+AuthRouter.delete(
+  "/sessions/:sessionId",
+  authenticate,
+  authLimiter,
+  authController.revokeSession,
+);
 AuthRouter.post(
   "/password/create",
   authenticate,

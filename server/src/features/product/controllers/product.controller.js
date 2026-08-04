@@ -9,6 +9,7 @@ const {
   adjustStock,
   getStockHistory,
 } = require("../services/product.service");
+const { submitReview } = require("../services/productReview.service");
 const { getPrismaClient } = require("../../../config/prisma");
 const { NotFoundError } = require("../../../common/errors");
 
@@ -183,6 +184,20 @@ async function getProductBySlugHandler(req, res, next) {
   }
 }
 
+async function postSubmitReview(req, res, next) {
+  try {
+    const review = await submitReview({
+      userId: req.user.id,
+      productId: req.params.productId,
+      rating: req.body.rating,
+      comment: req.body.comment,
+    });
+    res.status(201).json({ success: true, data: review });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   postCreateProduct,
   getMyShopProducts,
@@ -192,4 +207,5 @@ module.exports = {
   getVariantStockHistory,
   getProducts,
   getProductBySlugHandler,
+  postSubmitReview,
 };
