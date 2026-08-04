@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:swiftgoma_client/app/routes/app_router.dart';
-import 'package:swiftgoma_client/app/routes/app_routes.dart';
 import 'package:swiftgoma_client/core/connectivity/view/connectivity_listener.dart';
 import 'package:swiftgoma_client/core/connectivity/viewmodel/connectivity_cubit.dart';
 import 'package:swiftgoma_client/core/constants/app_design.dart';
@@ -24,12 +23,11 @@ class SwiftgomaApp extends StatelessWidget {
             BlocProvider(create: (_) => ConnectivityCubit()),
             BlocProvider(create: (_) => ToastCubit()),
           ],
-          child: MaterialApp(
+          child: MaterialApp.router(
             title: 'Swiftgoma',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.theme,
-            initialRoute: AppRoutes.home,
-            onGenerateRoute: AppRouter.onGenerateRoute,
+            routerConfig: AppRouter.router,
             builder: (context, child) {
               return ConnectivityListener(
                 child: ToastListener(child: child ?? const SizedBox.shrink()),
