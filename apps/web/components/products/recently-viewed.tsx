@@ -39,6 +39,7 @@ export function RecentlyViewed({ currentProduct }: RecentlyViewedProps) {
                 images: [item.image],
                 price: item.price,
                 currency: item.currency,
+                cart: item.cart,
               }}
               size="sm"
               className="max-w-none"

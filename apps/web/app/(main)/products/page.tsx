@@ -1,8 +1,7 @@
-// app/(main)/products/page.tsx
 import Link from "next/link";
 import { publicApi } from "@/lib/api/routes/public";
-import { ApiException } from "@/lib/api";
-import { ServerErrorBanner } from "@/components/global/server-error-banner";
+import { classifyApiError, type ApiStatus } from "@/lib/api/classify-error";
+// import { ApiStatusBanner } from "@/components/global/api-status-banner";
 import { ProductSearchBar } from "@/components/products/product-search-bar";
 import { ProductsEmptyState } from "@/components/products/empty-state";
 import { SearchTransitionProvider } from "@/components/products/search-transition-context";
@@ -51,29 +50,31 @@ export default async function ProductsPage({
   let pagination:
     | Awaited<ReturnType<typeof publicApi.listProducts>>["pagination"]
     | null = null;
-  let isServerDown = false;
+  let status: ApiStatus = null;
 
   try {
     const result = await publicApi.listProducts(listParams);
     products = result.products;
     pagination = result.pagination;
   } catch (err) {
-    if (err instanceof ApiException && err.isNetworkError) {
-      isServerDown = true;
-    } else {
-      console.error("[ProductsPage] Failed to load products:", err);
-    }
+    status = classifyApiError(err);
+    console.warn(
+      "[ProductsPage] Failed to load products:",
+      (err as Error).message,
+    );
   }
 
   let categories: Awaited<ReturnType<typeof publicApi.listCategories>> =
     CATEGORIES;
   try {
     categories = await publicApi.listCategories();
-  } catch {
-    // fall back to mock categories — sidebar stays usable even if this call fails
+  } catch (err) {
+    console.warn(
+      "[ProductsPage] Failed to load categories, using fallback:",
+      (err as Error).message,
+    );
   }
 
-  // Resolve the currently selected category/subcategory, for the search placeholder + heading.
   const selectedCategory = categories.find((c) => c.id === params.categoryId);
   const selectedSubcategory = selectedCategory?.subcategories.find(
     (s) => s.id === params.subcategoryId,
@@ -98,7 +99,8 @@ export default async function ProductsPage({
   return (
     <SearchTransitionProvider>
       <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-10">
-        {/* Search bar — live, debounced, scoped to the current category/subcategory */}
+        {/* {status && <ApiStatusBanner status={status} />} */}
+
         <ProductSearchBar
           placeholder={
             searchScopeLabel
@@ -197,8 +199,6 @@ export default async function ProductsPage({
 
           {/* Products */}
           <div className="min-w-0 flex-1">
-            {isServerDown && <ServerErrorBanner />}
-
             <div className="mb-8 flex flex-col gap-1">
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
                 {searchScopeLabel ?? "Produits"}
@@ -211,14 +211,17 @@ export default async function ProductsPage({
             </div>
 
             <ProductGridStatus>
-              {isServerDown ? (
+              {status === "offline" || status === "rate-limited" ? (
                 <div className="flex flex-col items-center gap-2 rounded-lg border border-border py-20 text-center">
                   <p className="text-sm font-medium text-foreground">
-                    Impossible de charger les produits
+                    {status === "rate-limited"
+                      ? "Trop de requêtes"
+                      : "Impossible de charger les produits"}
                   </p>
                   <p className="max-w-sm text-sm text-muted-foreground">
-                    Le serveur est actuellement inaccessible. Réessayez dans
-                    quelques instants.
+                    {status === "rate-limited"
+                      ? "Veuillez patienter quelques instants avant de réessayer."
+                      : "Le serveur est actuellement inaccessible. Réessayez dans quelques instants."}
                   </p>
                 </div>
               ) : products.length === 0 ? (

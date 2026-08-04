@@ -7,7 +7,9 @@ const EXPLORE_LINKS = [
   { href: "/products", label: "Produits" },
   { href: "/shops", label: "Boutiques" },
   { href: "/categories", label: "Catégories" },
+  { href: "/blog", label: "Blog" },
   { href: "/help", label: "Aide" },
+  { href: "/status", label: "Statut" },
 ];
 
 const SELLER_LINKS = [

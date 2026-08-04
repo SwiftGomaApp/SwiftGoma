@@ -17,6 +17,7 @@ const { sellerKycStatusEmail } = require("./templates/sellerKycStatus");
 const { subscriptionStatusEmail } = require("./templates/subscriptionStatus");
 const { shopStatusEmail } = require("./templates/shopStatus");
 const { orderStatusEmail } = require("./templates/orderStatus");
+const { contactSupportEmail } = require("./templates/contactSupport");
 
 async function sendLoginDetectedEmail(to, data) {
   const { subject, html } = loginDetectedEmail(data);
@@ -83,6 +84,11 @@ async function sendSessionsRevokedEmail(to, data) {
   return sendMail({ to, subject, html });
 }
 
+async function sendContactSupportEmail(to, data) {
+  const { subject, html } = contactSupportEmail(data);
+  return sendMail({ to, subject, html });
+}
+
 module.exports = {
   sendLoginDetectedEmail,
   sendOtpLoginEmail,
@@ -108,6 +114,7 @@ module.exports = {
   accountRecoveryOtpEmail,
   sendAccountStatusEmail,
   sendSessionsRevokedEmail,
+  sendContactSupportEmail,
   sellerProfileStatusEmail,
   sellerKycStatusEmail,
   subscriptionStatusEmail,

@@ -2,16 +2,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Heart, Minus, Plus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ShareButton } from "./share-button";
 import { RatingStars } from "./rating-stars";
+import { ProductReviews } from "./product-reviews";
 import { cn } from "@/lib/utils";
 import type {
   ProductDetail as ProductDetailData,
   ProductVariantDetail,
 } from "@/lib/api/routes/public";
+import { useCart } from "@/providers/cart-provider";
+import { useFavorites } from "@/providers/favorites-provider";
+import { reviewsApi } from "@/lib/api/routes/reviews";
+import { ApiException } from "@/lib/api";
+import { toast } from "@/lib/toast";
 
 function formatPrice(price: number, currency: string) {
   return new Intl.NumberFormat("fr-FR", {
@@ -67,10 +74,26 @@ type ProductDetailProps = {
 };
 
 export function ProductDetail({ product }: ProductDetailProps) {
+  const router = useRouter();
   const [activeImage, setActiveImage] = useState(0);
-  const [isWishlisted, setIsWishlisted] = useState(false);
+  const { isFavorited, toggleFavorite } = useFavorites();
+  const isWishlisted = isFavorited(product.id);
   const [quantity, setQuantity] = useState(1);
   const [showStickyBar, setShowStickyBar] = useState(false);
+
+  async function handleReviewSubmit(rating: number, comment: string) {
+    try {
+      await reviewsApi.submit(product.id, { rating, comment });
+      toast.success("Merci pour votre avis !");
+      router.refresh();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiException
+          ? err.message
+          : "Impossible d'envoyer votre avis.",
+      );
+    }
+  }
 
   const attributeOptions = useMemo(
     () => getAttributeOptions(product.variants),
@@ -120,12 +143,30 @@ export function ProductDetail({ product }: ProductDetailProps) {
     setQuantity(1);
   }
 
+  const { addToCart } = useCart();
+
   function handleAddToCart() {
     if (!selectedVariant) return;
-    // TODO: replace with a real client-side cart mutation once the
-    // cart API exists, e.g.:
-    // await cartApi.addItem({ variantId: selectedVariant.id, quantity });
-    console.log("add to cart:", selectedVariant.id, quantity);
+    addToCart({
+      shopId: product.shop.id,
+      variantId: selectedVariant.id,
+      quantity,
+      variant: {
+        id: selectedVariant.id,
+        name: selectedVariant.name,
+        attributes: selectedVariant.attributes,
+        price: selectedVariant.price,
+        stock: selectedVariant.stock,
+        product: {
+          id: product.id,
+          name: product.name,
+          slug: product.slug,
+          currency: product.currency,
+          status: "PUBLISHED",
+          images: product.images,
+        },
+      },
+    });
   }
 
   return (
@@ -145,7 +186,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
             <div className="absolute right-4 top-4 flex flex-col gap-2">
               <button
                 type="button"
-                onClick={() => setIsWishlisted((v) => !v)}
+                onClick={() => toggleFavorite(product.id)}
                 aria-label={
                   isWishlisted ? "Retirer des favoris" : "Ajouter aux favoris"
                 }
@@ -183,7 +224,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
                     fill
                     sizes="64px"
                     className="object-cover"
-                  /> 
+                  />
                 </button>
               ))}
             </div>
@@ -367,6 +408,13 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </div>
         </div>
       </div>
+
+      <ProductReviews
+        reviews={product.reviews ?? []}
+        averageRating={product.rating?.average ?? 0}
+        totalCount={product.rating?.count ?? 0}
+        onSubmit={handleReviewSubmit}
+      />
 
       {/* Sticky mobile add-to-cart bar */}
       {showStickyBar && (

@@ -1,5 +1,9 @@
+"use client";
+
+import { useState } from "react";
 import { RatingStars } from "./rating-stars";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 export type Review = {
   id: string;
@@ -13,6 +17,7 @@ type ProductReviewsProps = {
   reviews: Review[];
   averageRating: number;
   totalCount: number;
+  onSubmit: (rating: number, comment: string) => Promise<void>;
 };
 
 function formatDate(dateStr: string) {
@@ -36,7 +41,28 @@ export function ProductReviews({
   reviews,
   averageRating,
   totalCount,
+  onSubmit,
 }: ProductReviewsProps) {
+  const [isWriting, setIsWriting] = useState(false);
+  const [formRating, setFormRating] = useState(0);
+  const [formComment, setFormComment] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (formRating === 0 || !formComment.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit(formRating, formComment.trim());
+      setIsWriting(false);
+      setFormRating(0);
+      setFormComment("");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <section
       id="reviews"
@@ -54,10 +80,43 @@ export function ProductReviews({
             </span>
           </div>
         </div>
-        <Button variant="outline" size="sm">
-          Laisser un avis
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsWriting((v) => !v)}
+        >
+          {isWriting ? "Annuler" : "Laisser un avis"}
         </Button>
       </div>
+
+      {isWriting && (
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-3 rounded-lg border border-border p-4"
+        >
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium text-foreground">
+              Votre note
+            </span>
+            <RatingStars rating={formRating} size="md" onRate={setFormRating} />
+          </div>
+          <Textarea
+            value={formComment}
+            onChange={(e) => setFormComment(e.target.value)}
+            placeholder="Partagez votre expérience avec ce produit..."
+            rows={3}
+            required
+          />
+          <Button
+            type="submit"
+            size="sm"
+            disabled={isSubmitting || formRating === 0 || !formComment.trim()}
+            className="self-start"
+          >
+            {isSubmitting ? "Envoi..." : "Publier l'avis"}
+          </Button>
+        </form>
+      )}
 
       {reviews.length === 0 ? (
         <p className="text-sm text-muted-foreground">

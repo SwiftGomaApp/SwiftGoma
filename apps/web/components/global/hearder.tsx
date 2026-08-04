@@ -1,14 +1,19 @@
+// components/global/hearder.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "@/lib/toast";
 import {
-  Bell,
   ShoppingCart,
   User as UserIcon,
   Settings,
   SlidersHorizontal,
   LogOut,
+  Menu,
+  Heart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,10 +36,12 @@ import {
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 import { ProductFilters } from "@/components/filters/product-filters";
-import Logo from "./logo";
-
-import { useEffect } from "react";
 import { Kbd } from "@/components/ui/kbd";
+import { useAuth } from "@/providers/auth-provider";
+import { useCart } from "@/providers/cart-provider";
+import { NotificationsModal } from "@/components/global/notifications-modal";
+import { notificationsApi } from "@/lib/api/routes/notifications";
+import Logo from "./logo";
 
 const NAV_LINKS_BEFORE_CATEGORIES = [
   { href: "/", label: "Accueil" },
@@ -59,7 +66,6 @@ type Category = {
 
 type HeaderProps = {
   categories: Category[];
-  isAuthenticated?: boolean;
 };
 
 function categoryDescription(subcategories: Subcategory[]) {
@@ -69,9 +75,39 @@ function categoryDescription(subcategories: Subcategory[]) {
   return `${names.slice(0, 3).join(", ")} et plus`;
 }
 
-export function Header({ categories, isAuthenticated = false }: HeaderProps) {
-  const notificationCount = 3;
+function UserAvatar({
+  avatarUrl,
+  size = 20,
+}: {
+  avatarUrl: string | null | undefined;
+  size?: number;
+}) {
+  if (avatarUrl) {
+    return (
+      <span
+        className="relative shrink-0 overflow-hidden rounded-full"
+        style={{ width: size, height: size }}
+      >
+        <Image
+          src={avatarUrl}
+          alt=""
+          fill
+          sizes={`${size}px`}
+          className="object-cover"
+        />
+      </span>
+    );
+  }
+  return <UserIcon className="h-5 w-5" />;
+}
+
+export function Header({ categories }: HeaderProps) {
+  const router = useRouter();
+  const { user, isLoading, isLoggingOut, logout } = useAuth();
+  const { totalItemCount, openCart } = useCart();
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -84,12 +120,28 @@ export function Header({ categories, isAuthenticated = false }: HeaderProps) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    notificationsApi
+      .list({ limit: 1 })
+      .then((result) => setUnreadCount(result.unreadCount))
+      .catch(() => {});
+  }, [user]);
+
+  async function handleLogout() {
+    if (isLoggingOut) return;
+    await logout();
+    setMobileMenuOpen(false);
+    toast.success("Vous êtes déconnecté.");
+    router.push("/");
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
       <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-6 px-6 py-4">
         <Logo size={18} />
 
-        {/* Nav — centered, shadcn NavigationMenu. Only "Catégories" has a dropdown. */}
+        {/* Nav — centered, desktop only */}
         <NavigationMenu className="hidden md:flex">
           <NavigationMenuList>
             {NAV_LINKS_BEFORE_CATEGORIES.map((link) => (
@@ -156,8 +208,8 @@ export function Header({ categories, isAuthenticated = false }: HeaderProps) {
           </NavigationMenuList>
         </NavigationMenu>
 
-        <div className="flex items-center justify-end gap-2">
-          {/* Filters */}
+        <div className="flex items-center justify-end gap-1 sm:gap-2">
+          {/* Filters — icon only on mobile, full "Filtrer ⌘K" on sm+ */}
           <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
             <SheetTrigger
               render={
@@ -176,69 +228,263 @@ export function Header({ categories, isAuthenticated = false }: HeaderProps) {
             </SheetContent>
           </Sheet>
 
-          {isAuthenticated ? (
-            /* User dropdown */
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Mon compte"
-                    className="relative"
-                  />
-                }
-              >
-                <UserIcon className="h-5 w-5" />
-                {notificationCount > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-                    {notificationCount}
-                  </span>
-                )}
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>Mon compte</DropdownMenuLabel>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Filtrer les produits"
+            className="sm:hidden"
+            onClick={() => setFiltersOpen(true)}
+          >
+            <SlidersHorizontal className="h-5 w-5" />
+          </Button>
+
+          {/* Desktop auth */}
+          <div className="hidden md:block">
+            {isLoading ? (
+              <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+            ) : user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Mon compte"
+                      className="relative"
+                    />
+                  }
+                >
+                  <UserAvatar avatarUrl={user.avatarUrl} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+                      {unreadCount}
+                    </span>
+                  )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel className="flex items-center gap-2 truncate">
+                      <UserAvatar avatarUrl={user.avatarUrl} size={20} />
+                      <span className="truncate">{user.name}</span>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <NotificationsModal
+                      unreadCount={unreadCount}
+                      onUnreadCountChange={setUnreadCount}
+                      className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-muted"
+                    />
+                    <DropdownMenuItem onClick={openCart}>
+                      <ShoppingCart className="mr-2 h-4 w-4" />
+                      Panier
+                      {totalItemCount > 0 && (
+                        <span className="ml-auto rounded-full bg-primary px-1.5 text-xs text-primary-foreground">
+                          {totalItemCount}
+                        </span>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem render={<Link href="/account/profile" />}>
+                      <UserIcon className="mr-2 h-4 w-4" />
+                      Profil
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      render={<Link href="/account/favorites" />}
+                    >
+                      <Heart className="mr-2 h-4 w-4" />
+                      Favoris
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      render={<Link href="/account/settings" />}
+                    >
+                      <Settings className="mr-2 h-4 w-4" />
+                      Paramètres
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem render={<Link href="/notifications" />}>
-                    <Bell className="mr-2 h-4 w-4" />
-                    Notifications
-                    {notificationCount > 0 && (
-                      <span className="ml-auto rounded-full bg-primary px-1.5 text-xs text-primary-foreground">
-                        {notificationCount}
-                      </span>
-                    )}
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    {isLoggingOut ? "Déconnexion..." : "Déconnexion"}
                   </DropdownMenuItem>
-                  <DropdownMenuItem render={<Link href="/cart" />}>
-                    <ShoppingCart className="mr-2 h-4 w-4" />
-                    Panier
-                  </DropdownMenuItem>
-                  <DropdownMenuItem render={<Link href="/account" />}>
-                    <UserIcon className="mr-2 h-4 w-4" />
-                    Profil
-                  </DropdownMenuItem>
-                  <DropdownMenuItem render={<Link href="/account/settings" />}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Paramètres
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Déconnexion
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            /* Not logged in */
-            <Button
-              render={<Link href="/auth/sign-in" />}
-              nativeButton={false}
-              size="sm"
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                render={<Link href="/auth/sign-in" />}
+                nativeButton={false}
+                size="sm"
+              >
+                Connexion
+              </Button>
+            )}
+          </div>
+
+          {/* Mobile menu trigger */}
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Menu"
+                  className="md:hidden"
+                />
+              }
             >
-              Connexion
-            </Button>
-          )}
+              <Menu className="h-5 w-5" />
+            </SheetTrigger>
+            <SheetContent
+              side="right"
+              className="flex w-full flex-col sm:max-w-sm"
+            >
+              <div className="flex flex-col gap-6 overflow-y-auto p-6">
+                <Logo size={18} />
+
+                {/* Nav links */}
+                <nav className="flex flex-col gap-1">
+                  {NAV_LINKS_BEFORE_CATEGORIES.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="rounded-md px-2 py-2 text-sm font-medium text-foreground hover:bg-muted"
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                  {NAV_LINKS_AFTER_CATEGORIES.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="rounded-md px-2 py-2 text-sm font-medium text-foreground hover:bg-muted"
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </nav>
+
+                {/* Categories */}
+                <div className="flex flex-col gap-1 border-t border-border pt-4">
+                  <span className="px-2 pb-1 text-xs font-medium text-muted-foreground">
+                    Catégories
+                  </span>
+                  {categories.map((category) => (
+                    <details key={category.id} className="group">
+                      <summary className="flex cursor-pointer list-none items-center justify-between rounded-md px-2 py-2 text-sm text-foreground marker:content-none hover:bg-muted">
+                        {category.name}
+                        {category.subcategories.length > 0 && (
+                          <span className="text-muted-foreground transition-transform group-open:rotate-90">
+                            ›
+                          </span>
+                        )}
+                      </summary>
+                      <div className="ml-2 flex flex-col gap-0.5 border-l border-border pl-3">
+                        <Link
+                          href={`/categories/${category.slug}`}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+                        >
+                          Tout voir
+                        </Link>
+                        {category.subcategories.map((sub) => (
+                          <Link
+                            key={sub.id}
+                            href={`/categories/${category.slug}?subcategoryId=${sub.id}`}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+                          >
+                            {sub.name}
+                          </Link>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+
+                {/* Auth section */}
+                <div className="border-t border-border pt-4">
+                  {isLoading ? (
+                    <div className="h-9 w-full animate-pulse rounded-lg bg-muted" />
+                  ) : user ? (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 px-2 pb-2">
+                        <UserAvatar avatarUrl={user.avatarUrl} size={24} />
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {user.name}
+                        </p>
+                      </div>
+                      <NotificationsModal
+                        unreadCount={unreadCount}
+                        onUnreadCountChange={setUnreadCount}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-foreground hover:bg-muted"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileMenuOpen(false);
+                          openCart();
+                        }}
+                        className="flex items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-foreground hover:bg-muted"
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                        Panier
+                        {totalItemCount > 0 && (
+                          <span className="ml-auto rounded-full bg-primary px-1.5 text-xs text-primary-foreground">
+                            {totalItemCount}
+                          </span>
+                        )}
+                      </button>
+                      <Link
+                        href="/account/profile"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-muted"
+                      >
+                        <UserIcon className="h-4 w-4" />
+                        Profil
+                      </Link>
+                      <Link
+                        href="/account/favorites"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-muted"
+                      >
+                        <Heart className="h-4 w-4" />
+                        Favoris
+                      </Link>
+                      <Link
+                        href="/account/settings"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-muted"
+                      >
+                        <Settings className="h-4 w-4" />
+                        Paramètres
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        disabled={isLoggingOut}
+                        className="flex items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-destructive hover:bg-destructive/10 disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        {isLoggingOut ? "Déconnexion..." : "Déconnexion"}
+                      </button>
+                    </div>
+                  ) : (
+                    <Button
+                      render={<Link href="/auth/sign-in" />}
+                      nativeButton={false}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="w-full"
+                    >
+                      Connexion
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </header>

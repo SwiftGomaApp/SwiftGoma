@@ -86,6 +86,10 @@ const DEFAULT_SELF_REGISTRATION_ROLE = "BUYER";
 //   return role;
 // }
 
+function passkeyUsernamelessChallengeKey(challengeId) {
+  return `webauthn:auth:usernameless:${challengeId}`;
+}
+
 function assertSelfAssignableRole(role) {
   if (role === undefined || role === null || role === "") {
     return DEFAULT_SELF_REGISTRATION_ROLE;
@@ -687,6 +691,40 @@ async function logoutAll(userId, { exceptSessionId } = {}) {
     data: { isRevoked: true },
   });
   return { message: "Déconnecté de tous les appareils." };
+}
+
+async function listSessions({ userId, currentSessionId }) {
+  const prisma = getPrismaClient();
+  const sessions = await prisma.session.findMany({
+    where: { userId, isRevoked: false, expiresAt: { gt: new Date() } },
+    orderBy: { lastUsedAt: "desc" },
+  });
+
+  return sessions.map((session) => ({
+    id: session.id,
+    userAgent: session.userAgent,
+    ipAddress: session.ipAddress,
+    deviceName: session.deviceName,
+    lastUsedAt: session.lastUsedAt,
+    createdAt: session.createdAt,
+    isCurrent: session.id === currentSessionId,
+  }));
+}
+
+async function revokeSession({ userId, sessionId }) {
+  const prisma = getPrismaClient();
+  const session = await prisma.session.findUnique({ where: { id: sessionId } });
+
+  if (!session || session.userId !== userId || session.isRevoked) {
+    throw new NotFoundError("Session introuvable.");
+  }
+
+  await prisma.session.update({
+    where: { id: sessionId },
+    data: { isRevoked: true },
+  });
+
+  return { id: sessionId, revoked: true };
 }
 
 const PASSWORD_RESET_OTP_TTL_MINUTES = 15;
@@ -1524,16 +1562,34 @@ async function verifyPasskeyRegistration({ userId, response, deviceName }) {
   };
 }
 
-async function generatePasskeyLoginOptions({ email }) {
-  if (!isValidEmail(email)) {
-    throw new ValidationError("Veuillez entrer une adresse email valide.");
-  }
+async function generatePasskeyLoginOptions({ email } = {}) {
   if (!cache.isAvailable()) {
     throw new AppError(
       "La connexion par passkey est temporairement indisponible.",
       503,
       "WEBAUTHN_UNAVAILABLE",
     );
+  }
+
+  if (!email) {
+    const options = await generateAuthenticationOptions({
+      rpID: WEBAUTHN_CONFIG.rpID,
+      timeout: WEBAUTHN_CONFIG.timeoutMs,
+      userVerification: WEBAUTHN_CONFIG.userVerification,
+    });
+
+    const challengeId = crypto.randomUUID();
+    await cache.set(
+      passkeyUsernamelessChallengeKey(challengeId),
+      options.challenge,
+      WEBAUTHN_CHALLENGE_TTL_SECONDS,
+    );
+
+    return { ...options, challengeId };
+  }
+
+  if (!isValidEmail(email)) {
+    throw new ValidationError("Veuillez entrer une adresse email valide.");
   }
 
   const normalizedEmail = email.trim().toLowerCase();
@@ -1573,20 +1629,30 @@ async function generatePasskeyLoginOptions({ email }) {
 
 async function verifyPasskeyLogin({
   email,
+  challengeId,
   response,
   userAgent,
   ipAddress,
   deviceName,
   locale = "en",
 }) {
-  if (!isValidEmail(email)) {
-    throw new ValidationError("Veuillez entrer une adresse email valide.");
+  let expectedChallenge;
+  let normalizedEmail = null;
+
+  if (challengeId) {
+    expectedChallenge = await cache.get(
+      passkeyUsernamelessChallengeKey(challengeId),
+    );
+  } else {
+    if (!isValidEmail(email)) {
+      throw new ValidationError("Veuillez entrer une adresse email valide.");
+    }
+    normalizedEmail = email.trim().toLowerCase();
+    expectedChallenge = await cache.get(
+      passkeyAuthChallengeKey(normalizedEmail),
+    );
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
-  const expectedChallenge = await cache.get(
-    passkeyAuthChallengeKey(normalizedEmail),
-  );
   if (!expectedChallenge) {
     throw new AppError(
       "Le challenge de connexion a expiré. Veuillez réessayer.",
@@ -1601,11 +1667,19 @@ async function verifyPasskeyLogin({
     include: { user: { include: { emails: true, twoFactorAuth: true } } },
   });
 
-  const matchesEmail =
-    passkey && passkey.user.emails.some((e) => e.email === normalizedEmail);
-  if (!matchesEmail) {
+  if (!passkey) {
     throw new UnauthorizedError("Passkey non reconnu.");
   }
+
+  if (normalizedEmail) {
+    const matchesEmail = passkey.user.emails.some(
+      (e) => e.email === normalizedEmail,
+    );
+    if (!matchesEmail) {
+      throw new UnauthorizedError("Passkey non reconnu.");
+    }
+  }
+
   if (passkey.user.isBlocked) {
     throw new ForbiddenError("Ce compte a été bloqué. Contactez le support.");
   }
@@ -1647,7 +1721,11 @@ async function verifyPasskeyLogin({
     },
   });
 
-  await cache.del(passkeyAuthChallengeKey(normalizedEmail));
+  if (challengeId) {
+    await cache.del(passkeyUsernamelessChallengeKey(challengeId));
+  } else {
+    await cache.del(passkeyAuthChallengeKey(normalizedEmail));
+  }
 
   const user = passkey.user;
 
@@ -1710,6 +1788,8 @@ module.exports = {
   getCurrentUser,
   logout,
   logoutAll,
+  listSessions,
+  revokeSession,
   createPassword,
   updatePassword,
   forgotPassword,

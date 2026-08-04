@@ -9,6 +9,7 @@ import { ImageWithFallback } from "@/components/global/image-with-fallback";
 import { ServerErrorBanner } from "@/components/global/server-error-banner";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 import { ShopEmptyState } from "@/components/products/shop-empty-state";
+import { RatingStars } from "@/components/products/rating-stars";
 
 type ShopPageProps = {
   params: Promise<{ slug: string }>;
@@ -151,6 +152,15 @@ export default async function ShopPage({
                     <MapPin className="h-3.5 w-3.5" />
                     {shop.sellerProfile.city}
                   </div>
+                  {shop.rating && shop.rating.count > 0 && (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <RatingStars rating={shop.rating.average} />
+                      <span className="text-xs text-muted-foreground">
+                        {shop.rating.average.toFixed(1)} ({shop.rating.count}{" "}
+                        avis)
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

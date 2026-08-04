@@ -81,4 +81,8 @@ export class ApiException extends Error {
   get isNetworkError() {
     return this.code === "NETWORK_ERROR";
   }
+
+  get isRateLimited() {
+    return this.code === "TOO_MANY_REQUESTS";
+  }
 }

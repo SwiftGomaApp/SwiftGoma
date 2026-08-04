@@ -156,7 +156,11 @@ async function getShopBySlug(slug) {
       },
     });
     if (!shop) throw new NotFoundError("Boutique introuvable.");
-    return shop;
+
+    const { getShopRatingSummary } = require("../../product/services/productReview.service");
+    const rating = await getShopRatingSummary(shop.id);
+
+    return { ...shop, rating };
   });
 }
 
@@ -612,4 +616,5 @@ module.exports = {
   adminDeleteShop,
   restoreShop,
   listPublishedShops,
+  invalidateShopCache,
 };

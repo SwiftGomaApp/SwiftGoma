@@ -26,7 +26,12 @@ function processQueue(error: unknown) {
   });
   pendingQueue = [];
 }
-const NO_REFRESH_PATHS = ["/auth/refresh-token", "/auth/login", "/auth/logout"];
+const NO_REFRESH_PATHS = [
+  "/auth/refresh-token",
+  "/auth/login",
+  "/auth/logout",
+  "/auth/me",
+];
 
 function shouldAttemptRefresh(config: AxiosRequestConfig) {
   const url = config.url ?? "";
@@ -62,7 +67,10 @@ api.interceptors.response.use(
         return api(original);
       } catch (refreshError) {
         processQueue(refreshError);
-        if (typeof window !== "undefined") {
+        if (
+          typeof window !== "undefined" &&
+          !window.location.pathname.startsWith("/auth/")
+        ) {
           window.location.href = "/auth/sign-in";
         }
         return Promise.reject(

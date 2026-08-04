@@ -178,6 +178,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
               image: product.images[0].url,
               price: Number(defaultVariant?.price ?? 0),
               currency: product.currency,
+              cart: defaultVariant
+                ? {
+                    shopId: product.shop.id,
+                    productId: product.id,
+                    variantId: defaultVariant.id,
+                    price: String(defaultVariant.price),
+                    stock: defaultVariant.stock,
+                  }
+                : undefined,
             }}
           />
         </div>

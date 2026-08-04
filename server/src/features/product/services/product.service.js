@@ -431,7 +431,19 @@ async function getProductBySlug(slug) {
       throw new NotFoundError("Produit introuvable.");
     }
 
-    return product;
+    const {
+      getProductRatingSummary,
+      listProductReviews,
+      getPurchaseCount,
+    } = require("./productReview.service");
+
+    const [rating, reviews, purchaseCount] = await Promise.all([
+      getProductRatingSummary(product.id),
+      listProductReviews(product.id),
+      getPurchaseCount(product.id),
+    ]);
+
+    return { ...product, rating, reviews, purchaseCount };
   });
 }
 
@@ -677,7 +689,7 @@ async function getStockHistory(
 //         include: {
 //           images: { orderBy: { position: "asc" }, take: 1 },
 //           variants: {
-//             select: { price: true, stock: true },
+//             select: { id: true, price: true, stock: true },
 //             take: 1,
 //             orderBy: { price: "asc" },
 //           },
@@ -721,7 +733,7 @@ async function getStockHistory(
 //         include: {
 //           images: { orderBy: { position: "asc" }, take: 1 },
 //           variants: {
-//             select: { price: true, stock: true },
+//             select: { id: true, price: true, stock: true },
 //             take: 1,
 //             orderBy: { price: "asc" },
 //           },
@@ -834,7 +846,7 @@ async function listAllProducts(params = {}) {
         include: {
           images: { orderBy: { position: "asc" }, take: 1 },
           variants: {
-            select: { price: true, stock: true },
+            select: { id: true, price: true, stock: true },
             take: 1,
             orderBy: { price: "asc" },
           },
@@ -878,7 +890,7 @@ async function listAllProducts(params = {}) {
         include: {
           images: { orderBy: { position: "asc" }, take: 1 },
           variants: {
-            select: { price: true, stock: true },
+            select: { id: true, price: true, stock: true },
             take: 1,
             orderBy: { price: "asc" },
           },
@@ -917,4 +929,5 @@ module.exports = {
   setProductStatus,
   adjustStock,
   getStockHistory,
+  invalidateProductCaches,
 };

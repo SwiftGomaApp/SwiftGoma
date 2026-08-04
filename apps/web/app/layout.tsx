@@ -4,6 +4,11 @@ import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { ConsentBanner } from "@/components/global/consent-banner";
+import { AuthProvider } from "@/providers/auth-provider";
+import { CartProvider } from "@/providers/cart-provider";
+import { FavoritesProvider } from "@/providers/favorites-provider";
+import { Toaster } from "@/components/ui/toast";
+import { SocketProvider } from "@/providers/socket-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -72,7 +77,6 @@ export const metadata: Metadata = {
     description:
       "Achetez, vendez et livrez avec Swiftgoma — la plateforme conçue pour la RDC et le Rwanda.",
     images: ["/og-image.png"],
-    // creator: "@swiftgoma",
   },
   icons: {
     icon: "/favicon.ico",
@@ -108,16 +112,27 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <TooltipProvider>
-            {children} <ConsentBanner />
-          </TooltipProvider>
-        </ThemeProvider>
+        <Toaster>
+          <AuthProvider>
+            <SocketProvider>
+              <CartProvider>
+                <FavoritesProvider>
+                  <ThemeProvider
+                    attribute="class"
+                    defaultTheme="system"
+                    enableSystem
+                    disableTransitionOnChange
+                  >
+                    <TooltipProvider>
+                      {children}
+                      <ConsentBanner />
+                    </TooltipProvider>
+                  </ThemeProvider>
+                </FavoritesProvider>
+              </CartProvider>
+            </SocketProvider>
+          </AuthProvider>
+        </Toaster>
       </body>
     </html>
   );

@@ -11,11 +11,19 @@ import { mapProductToCardData } from "@/lib/api/routes/products";
 import { FeaturedProductCard } from "@/components/products/product-card";
 import { ProductCardSkeleton } from "./product-card-skeleton";
 
+type FetchPage = (
+  params: ProductListParams,
+) => Promise<{
+  products: ProductListItem[];
+  pagination: { page: number; totalPages: number };
+}>;
+
 type InfiniteProductGridProps = {
   initialProducts: ProductListItem[];
   initialPage: number;
   initialTotalPages: number;
   filters: Omit<ProductListParams, "page">;
+  fetchPage?: FetchPage;
 };
 
 export function InfiniteProductGrid({
@@ -23,6 +31,7 @@ export function InfiniteProductGrid({
   initialPage,
   initialTotalPages,
   filters,
+  fetchPage = publicApi.listProducts,
 }: InfiniteProductGridProps) {
   const [products, setProducts] = useState(initialProducts);
   const [page, setPage] = useState(initialPage);
@@ -38,7 +47,7 @@ export function InfiniteProductGrid({
 
     try {
       const nextPage = page + 1;
-      const result = await publicApi.listProducts({
+      const result = await fetchPage({
         ...filters,
         page: nextPage,
       });
@@ -52,7 +61,7 @@ export function InfiniteProductGrid({
     } finally {
       setIsLoadingMore(false);
     }
-  }, [filters, hasMore, isLoadingMore, page]);
+  }, [fetchPage, filters, hasMore, isLoadingMore, page]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;

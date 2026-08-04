@@ -39,7 +39,7 @@ export type ProductListItem = {
   slug: string;
   currency: string;
   images: { url: string; position: number }[];
-  variants: { price: string; stock: number }[];
+  variants: { id: string; price: string; stock: number }[];
   subcategory: { id: string; name: string; category: Category };
   shop: {
     id: string;
@@ -87,6 +87,10 @@ export type Shop = {
     contactEmail: string;
     whatsappNumber: string;
     city: string;
+  };
+  rating?: {
+    average: number;
+    count: number;
   };
 };
 

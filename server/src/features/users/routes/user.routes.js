@@ -33,27 +33,37 @@ UserRouter.post(
 UserRouter.post(
   "/phone/request",
   authenticate,
+  authLimiter,
   userController.requestPhoneVerification,
 );
-UserRouter.post("/phone/verify", authenticate, userController.verifyPhone);
+UserRouter.post(
+  "/phone/verify",
+  authenticate,
+  authLimiter,
+  userController.verifyPhone,
+);
 UserRouter.post(
   "/phone/update/request",
   authenticate,
+  authLimiter,
   userController.requestPhoneUpdate,
 );
 UserRouter.post(
   "/phone/update/verify",
   authenticate,
+  authLimiter,
   userController.verifyPhoneUpdate,
 );
 UserRouter.post(
   "/email/secondary/request",
   authenticate,
+  authLimiter,
   userController.requestSecondaryEmail,
 );
 UserRouter.post(
   "/email/secondary/verify",
   authenticate,
+  authLimiter,
   userController.verifySecondaryEmail,
 );
 

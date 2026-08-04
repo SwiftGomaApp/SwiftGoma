@@ -16,6 +16,7 @@ const {
   getVariantStockHistory,
   getProducts,
   getProductBySlugHandler,
+  postSubmitReview,
 } = require("../controllers/product.controller");
 const {
   postCreateExchangeRate,
@@ -80,6 +81,9 @@ ProductRouter.post(
 ProductRouter.get("/shop/:shopId", authorize("SELLER"), getMyShopProducts);
 ProductRouter.put("/:id", authorize("SELLER"), putUpdateProduct);
 ProductRouter.post("/:id/status", authorize("SELLER"), postSetProductStatus);
+
+// ----- Reviews (acheteur) -----
+ProductRouter.post("/:productId/reviews", postSubmitReview);
 
 // ----- Stock (vendeur) -----
 ProductRouter.post(

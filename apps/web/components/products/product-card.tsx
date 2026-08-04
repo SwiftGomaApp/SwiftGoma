@@ -7,6 +7,8 @@ import { ChevronLeft, ChevronRight, Heart, Minus, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useCart } from "@/providers/cart-provider";
+import { useFavorites } from "@/providers/favorites-provider";
 
 export type ProductCardData = {
   slug: string;
@@ -19,6 +21,13 @@ export type ProductCardData = {
   tags?: string[];
   subtitle?: string;
   size?: string;
+  cart?: {
+    shopId: string;
+    productId: string;
+    variantId: string;
+    price: string;
+    stock: number;
+  };
 };
 
 export type CardSize = "sm" | "md" | "lg";
@@ -80,13 +89,48 @@ export function FeaturedProductCard({
   onAddToCart,
   className,
 }: FeaturedProductCardProps) {
-  const [isWishlisted, setIsWishlisted] = useState(false);
+  const { addToCart } = useCart();
+  const { isFavorited, toggleFavorite } = useFavorites();
+  const favoriteProductId = product.cart?.productId;
+  const isWishlisted = favoriteProductId
+    ? isFavorited(favoriteProductId)
+    : false;
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const config = FEATURED_SIZE_CONFIG[size];
 
   const images =
     product.images.length > 0 ? product.images : ["/placeholder-product.png"];
+
+  const outOfStock = product.cart !== undefined && product.cart.stock <= 0;
+
+  function handleAddToCart() {
+    if (!product.cart) {
+      onAddToCart?.(product.slug);
+      return;
+    }
+
+    addToCart({
+      shopId: product.cart.shopId,
+      variantId: product.cart.variantId,
+      quantity: 1,
+      variant: {
+        id: product.cart.variantId,
+        name: null,
+        attributes: null,
+        price: product.cart.price,
+        stock: product.cart.stock,
+        product: {
+          id: product.cart.productId,
+          name: product.name,
+          slug: product.slug,
+          currency: product.currency,
+          status: "PUBLISHED",
+          images: product.images.map((url, position) => ({ url, position })),
+        },
+      },
+    });
+  }
 
   function handleScroll() {
     const el = scrollerRef.current;
@@ -186,13 +230,14 @@ export function FeaturedProductCard({
           type="button"
           onClick={(e) => {
             e.preventDefault();
-            setIsWishlisted((v) => !v);
+            if (favoriteProductId) toggleFavorite(favoriteProductId);
           }}
+          disabled={!favoriteProductId}
           aria-label={
             isWishlisted ? "Retirer des favoris" : "Ajouter aux favoris"
           }
           aria-pressed={isWishlisted}
-          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur transition-colors hover:bg-background"
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur transition-colors hover:bg-background disabled:pointer-events-none disabled:opacity-40"
         >
           <Heart
             className={cn(
@@ -244,10 +289,11 @@ export function FeaturedProductCard({
               </span>
             </div>
             <Button
-              onClick={() => onAddToCart?.(product.slug)}
+              onClick={handleAddToCart}
+              disabled={outOfStock}
               className="w-full"
             >
-              Ajouter au panier
+              {outOfStock ? "Rupture de stock" : "Ajouter au panier"}
             </Button>
           </div>
         ) : (
@@ -258,8 +304,8 @@ export function FeaturedProductCard({
                 {formatPrice(product.price, product.currency)}
               </span>
             </div>
-            <Button onClick={() => onAddToCart?.(product.slug)}>
-              Ajouter au panier
+            <Button onClick={handleAddToCart} disabled={outOfStock}>
+              {outOfStock ? "Rupture de stock" : "Ajouter au panier"}
             </Button>
           </div>
         )}

@@ -1,6 +1,7 @@
 import { ProductCardData } from "@/components/products/product-card";
 
 type ApiProduct = {
+  id: string;
   slug: string;
   name: string;
   brand?: string | null;
@@ -8,10 +9,12 @@ type ApiProduct = {
   currency: string;
   images: { url: string; position: number }[];
   variants: {
-    price: string | number; // Decimal serializes as string over JSON
+    id: string;
+    price: string | number;
     stock: number;
     isDefault?: boolean;
   }[];
+  shop: { id: string };
 };
 
 export function mapProductToCardData(product: ApiProduct): ProductCardData {
@@ -30,5 +33,14 @@ export function mapProductToCardData(product: ApiProduct): ProductCardData {
     price: variant ? Number(variant.price) : 0,
     currency: product.currency,
     description: product.description ?? undefined,
+    cart: variant
+      ? {
+          shopId: product.shop.id,
+          productId: product.id,
+          variantId: variant.id,
+          price: String(variant.price),
+          stock: variant.stock,
+        }
+      : undefined,
   };
 }

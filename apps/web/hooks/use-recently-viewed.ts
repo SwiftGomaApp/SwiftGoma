@@ -9,6 +9,13 @@ export type RecentlyViewedItem = {
   image: string;
   price: number;
   currency: string;
+  cart?: {
+    shopId: string;
+    productId: string;
+    variantId: string;
+    price: string;
+    stock: number;
+  };
 };
 
 export function recordRecentlyViewed(item: RecentlyViewedItem) {

@@ -1,9 +1,11 @@
 const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/redis-adapter");
 const jwt = require("jsonwebtoken");
+const cookie = require("cookie");
 const { env } = require("./env");
 const { getPrismaClient } = require("./prisma");
 const { getRedisClient } = require("./redis");
+const { getAccessTokenFromRequest } = require("../features/auth/utils/cookies");
 
 let io = null;
 
@@ -55,7 +57,19 @@ function initSocket(httpServer) {
   }
 
   io.use((socket, next) => {
-    const token = socket.handshake.auth?.token;
+    // Web clients: httpOnly access-token cookie sent automatically with the
+    // handshake request. Parse the raw Cookie header into the shape
+    // getAccessTokenFromRequest expects (req.cookies, as cookie-parser
+    // would produce it).
+    const rawCookieHeader = socket.handshake.headers.cookie || "";
+    const parsedCookies = cookie.parse(rawCookieHeader);
+
+    // Mobile clients: token sent explicitly via handshake.auth.token,
+    // since they don't have a browser cookie jar.
+    const token =
+      getAccessTokenFromRequest({ cookies: parsedCookies }) ||
+      socket.handshake.auth?.token;
+
     if (!token) return next(new Error("UNAUTHORIZED"));
 
     try {
