@@ -20,6 +20,7 @@ export function ProductSearchBar({ placeholder }: ProductSearchBarProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing local state to URL param
     setValue(searchParams.get("search") ?? "");
   }, [searchParams]);
 

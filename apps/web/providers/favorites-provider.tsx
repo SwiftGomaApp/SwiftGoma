@@ -33,6 +33,7 @@ export function FavoritesProvider({
 
   useEffect(() => {
     if (!currentUserId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clearing local state on logout
       setFavoriteIds(new Set());
       return;
     }

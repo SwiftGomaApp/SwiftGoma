@@ -50,6 +50,7 @@ export function AuthProvider({
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional fetch on mount when no server-provided user
     if (initialUser === null) refresh();
   }, []);
 

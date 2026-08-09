@@ -13,6 +13,7 @@ export function ConsentBanner() {
   useEffect(() => {
     const consent = localStorage.getItem(CONSENT_KEY);
     if (!consent) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reading localStorage on mount
       setVisible(true);
     }
   }, []);

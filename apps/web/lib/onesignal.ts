@@ -1,6 +1,21 @@
+// Minimal surface of the OneSignal Web SDK actually used here — the SDK
+// itself ships no types, so this stands in for `any` on the deferred
+// initializer callbacks below.
+interface OneSignalSDK {
+  init(options: {
+    appId: string;
+    allowLocalhostAsSecureOrigin?: boolean;
+  }): Promise<void>;
+  login(externalId: string): void;
+  logout(): void;
+  Notifications: {
+    requestPermission(): Promise<boolean>;
+  };
+}
+
 declare global {
   interface Window {
-    OneSignalDeferred?: Array<(OneSignal: any) => void>;
+    OneSignalDeferred?: Array<(OneSignal: OneSignalSDK) => void>;
   }
 }
 
@@ -28,7 +43,7 @@ export function loadOneSignal() {
   document.head.appendChild(script);
 
   window.OneSignalDeferred = window.OneSignalDeferred || [];
-  window.OneSignalDeferred.push(async (OneSignal: any) => {
+  window.OneSignalDeferred.push(async (OneSignal: OneSignalSDK) => {
     try {
       await OneSignal.init({
         appId,
@@ -42,14 +57,14 @@ export function loadOneSignal() {
 
 export function oneSignalLogin(userId: string) {
   window.OneSignalDeferred = window.OneSignalDeferred || [];
-  window.OneSignalDeferred.push((OneSignal: any) => {
+  window.OneSignalDeferred.push((OneSignal: OneSignalSDK) => {
     OneSignal.login(userId);
   });
 }
 
 export function oneSignalLogout() {
   window.OneSignalDeferred = window.OneSignalDeferred || [];
-  window.OneSignalDeferred.push((OneSignal: any) => {
+  window.OneSignalDeferred.push((OneSignal: OneSignalSDK) => {
     OneSignal.logout();
   });
 }
@@ -86,7 +101,7 @@ export function requestPushPermission(): Promise<boolean> {
     loadOneSignal();
 
     window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async (OneSignal: any) => {
+    window.OneSignalDeferred.push(async (OneSignal: OneSignalSDK) => {
       try {
         const granted = await OneSignal.Notifications.requestPermission();
         resolve(Boolean(granted));
