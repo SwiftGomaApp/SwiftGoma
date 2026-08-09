@@ -160,6 +160,7 @@ model User {
   password     String?
   role         Role    @default(BUYER)
   avatarUrl    String?
+  preferredCurrency String?
 
   isPhoneVerified Boolean @default(false)
   isBlocked       Boolean @default(false)

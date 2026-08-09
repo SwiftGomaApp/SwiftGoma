@@ -29,11 +29,14 @@ const {
 } = require("../controllers/exchangeRate.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
-const { imageUpload } = require("../../../common/middleware/upload");
+const {
+  imageUpload,
+  verifyImageContents,
+} = require("../../../common/middleware/upload");
 
 const ProductRouter = express.Router();
 
-const productImages = imageUpload.array("images", 10);
+const productImages = [imageUpload.array("images", 10), verifyImageContents];
 
 // -----------------------------
 // PUBLIC — pas d'auth

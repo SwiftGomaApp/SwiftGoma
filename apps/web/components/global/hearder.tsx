@@ -14,6 +14,7 @@ import {
   LogOut,
   Menu,
   Heart,
+  Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -282,6 +283,10 @@ export function Header({ categories }: HeaderProps) {
                         </span>
                       )}
                     </DropdownMenuItem>
+                    <DropdownMenuItem render={<Link href="/orders" />}>
+                      <Package className="mr-2 h-4 w-4" />
+                      Mes commandes
+                    </DropdownMenuItem>
                     <DropdownMenuItem render={<Link href="/account/profile" />}>
                       <UserIcon className="mr-2 h-4 w-4" />
                       Profil
@@ -437,6 +442,14 @@ export function Header({ categories }: HeaderProps) {
                           </span>
                         )}
                       </button>
+                      <Link
+                        href="/orders"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-foreground hover:bg-muted"
+                      >
+                        <Package className="h-4 w-4" />
+                        Mes commandes
+                      </Link>
                       <Link
                         href="/account/profile"
                         onClick={() => setMobileMenuOpen(false)}

@@ -18,6 +18,8 @@ const {
   signAccessToken,
   signRefreshToken,
   verifyRefreshToken,
+  signMfaPendingToken,
+  verifyMfaPendingToken,
 } = require("../../../config/jwt");
 const {
   sendOtpLoginEmail,
@@ -570,7 +572,10 @@ async function loginWithPassword({
   }
 
   if (user.twoFactorAuth && user.twoFactorAuth.isEnabled) {
-    return { requiresTotp: true, userId: user.id };
+    return {
+      requiresTotp: true,
+      pendingToken: signMfaPendingToken({ userId: user.id }),
+    };
   }
 
   const { accessToken, refreshToken, sessionId } = await issueSessionAndNotify(
@@ -1199,14 +1204,14 @@ async function disableTotp({ userId, code, locale = "en" }) {
 }
 
 async function loginWithTotp({
-  userId,
+  pendingToken,
   code,
   userAgent,
   ipAddress,
   deviceName,
   locale = "en",
 }) {
-  if (!userId) {
+  if (!pendingToken) {
     throw new ValidationError(
       "Session de connexion manquante. Veuillez vous reconnecter.",
     );
@@ -1214,6 +1219,16 @@ async function loginWithTotp({
   if (!code || typeof code !== "string" || !code.trim()) {
     throw new ValidationError("Veuillez entrer votre code à deux facteurs.");
   }
+
+  let claims;
+  try {
+    claims = verifyMfaPendingToken(pendingToken);
+  } catch (err) {
+    throw new UnauthorizedError(
+      "Session de connexion expirée. Veuillez vous reconnecter.",
+    );
+  }
+  const userId = claims.sub;
 
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
@@ -1229,6 +1244,8 @@ async function loginWithTotp({
   if (user.isBlocked) {
     throw new ForbiddenError("Ce compte a été bloqué. Contactez le support.");
   }
+
+  assertAccountNotDeleted(user);
 
   const record = user.twoFactorAuth;
   if (!record || !record.isEnabled) {
@@ -1418,7 +1435,10 @@ async function loginWithGoogle({
   assertAccountNotDeleted(user);
 
   if (user.twoFactorAuth && user.twoFactorAuth.isEnabled) {
-    return { requiresTotp: true, userId: user.id };
+    return {
+      requiresTotp: true,
+      pendingToken: signMfaPendingToken({ userId: user.id }),
+    };
   }
 
   const { accessToken, refreshToken, sessionId } = await issueSessionAndNotify(
@@ -1730,7 +1750,10 @@ async function verifyPasskeyLogin({
   const user = passkey.user;
 
   if (user.twoFactorAuth && user.twoFactorAuth.isEnabled) {
-    return { requiresTotp: true, userId: user.id };
+    return {
+      requiresTotp: true,
+      pendingToken: signMfaPendingToken({ userId: user.id }),
+    };
   }
 
   const { accessToken, refreshToken, sessionId } = await issueSessionAndNotify(

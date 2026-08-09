@@ -1,7 +1,3 @@
-// scripts/seedProducts.js
-// Usage: node scripts/seedProducts.js <shopId>
-// If no shopId is given, uses the first shop found.
-
 const { getPrismaClient } = require("../src/config/prisma");
 
 const prisma = getPrismaClient();
@@ -15,10 +11,6 @@ function generateSlug(name) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 80);
 }
-
-// ============================================================
-// Real categories/subcategories — actual IDs from your DB
-// ============================================================
 
 const CATEGORIES = [
   {

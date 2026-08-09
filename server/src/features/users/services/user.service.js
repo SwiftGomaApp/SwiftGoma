@@ -1,5 +1,6 @@
 const { getPrismaClient } = require("../../../config/prisma");
 const { env } = require("../../../config/env");
+const { PRODUCT_CONFIG } = require("../../product/config/product.config");
 const {
   sendOtpLoginEmail,
   sendPhoneChangedEmail,
@@ -122,7 +123,7 @@ async function getTargetUserOrThrow(targetUserId) {
   return { ...targetUser, email: targetUser.emails[0]?.email ?? "" };
 }
 
-async function updateProfile({ userId, name, avatarUrl }) {
+async function updateProfile({ userId, name, avatarUrl, preferredCurrency }) {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
@@ -140,6 +141,13 @@ async function updateProfile({ userId, name, avatarUrl }) {
 
   if (avatarUrl !== undefined) {
     data.avatarUrl = avatarUrl;
+  }
+
+  if (preferredCurrency !== undefined) {
+    if (!PRODUCT_CONFIG.SUPPORTED_CURRENCIES.includes(preferredCurrency)) {
+      throw new ValidationError("Devise non prise en charge.");
+    }
+    data.preferredCurrency = preferredCurrency;
   }
 
   if (Object.keys(data).length === 0) {

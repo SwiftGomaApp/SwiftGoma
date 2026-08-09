@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ShieldCheck, Bell, Laptop } from "lucide-react";
+import { ShieldCheck, Bell, Laptop, Coins } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SecurityPassword } from "@/components/settings/security-password";
 import { SecurityTwoFactor } from "@/components/settings/security-two-factor";
@@ -10,13 +10,15 @@ import { NotificationsPreferences } from "@/components/settings/notifications-pr
 import { DevicesSessions } from "@/components/settings/devices-sessions";
 import { SecurityPhone } from "@/components/settings/security-phone";
 import { SecurityConnectedAccounts } from "@/components/settings/security-connected-accounts";
+import { CurrencyPreference } from "@/components/settings/currency-preference";
 
-type Section = "security" | "notifications" | "devices";
+type Section = "security" | "notifications" | "devices" | "currency";
 
 const SECTIONS: { key: Section; label: string; icon: typeof ShieldCheck }[] = [
   { key: "security", label: "Sécurité", icon: ShieldCheck },
   { key: "notifications", label: "Notifications", icon: Bell },
   { key: "devices", label: "Appareils et sessions", icon: Laptop },
+  { key: "currency", label: "Devise", icon: Coins },
 ];
 
 export default function SettingsPage() {
@@ -72,6 +74,7 @@ export default function SettingsPage() {
           )}
           {activeSection === "notifications" && <NotificationsPreferences />}
           {activeSection === "devices" && <DevicesSessions />}
+          {activeSection === "currency" && <CurrencyPreference />}
         </div>
       </div>
     </div>

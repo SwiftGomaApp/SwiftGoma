@@ -10,7 +10,12 @@ const {
 
 async function postMbiyoPayCallback(req, res, next) {
   try {
-    const rawBody = JSON.stringify(req.body);
+    // Use the exact bytes MbiyoPay signed (captured by the express.json
+    // `verify` hook in app.js) rather than re-serializing req.body — a
+    // JSON.stringify round-trip isn't guaranteed to byte-match what was
+    // actually sent (key order, number formatting, escaping), which could
+    // cause legitimate callbacks to fail signature verification.
+    const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body || {}));
     const signature = req.headers["signature"];
 
     if (!verifyWebhookSignature(rawBody, signature)) {

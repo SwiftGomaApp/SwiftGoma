@@ -110,6 +110,25 @@ reviews:
           in the UI.
         - Check API routes for input validation and proper error responses.
 
+    - path: "apps/web/**/*.{ts,tsx}"
+      instructions: |
+        - This is the public buyer-facing storefront (product browsing, cart, checkout, order
+          tracking, buyer accounts) — treat checkout/payment-flow changes with the highest
+          scrutiny, same bar as server/src/features/payments/**.
+        - Protected routes (checkout, account, orders) must be gated server-side (a Server
+          Component checking the session, e.g. lib/api/get-server-user.ts) — a client-only
+          useEffect redirect that flashes protected content first is not sufficient.
+        - Auth/session tokens must stay in httpOnly cookies. Flag any token, session id, or
+          other credential written to localStorage/sessionStorage or a client-readable cookie.
+        - Flag any `dangerouslySetInnerHTML`, or any other unescaped rendering of seller/buyer-
+          supplied content (product name/description, reviews, support messages) — this is a
+          public page, so stored XSS here is exploitable by any seller account.
+        - A multi-step auth flow (e.g. first factor → 2FA) must carry a server-issued, short-
+          lived token between steps, not a raw user id or other client-guessable identifier —
+          the server must be able to verify the earlier step actually happened.
+        - The client must never be trusted for an order/cart total — confirm checkout only
+          sends item/variant selections and lets the server compute the charged amount.
+
     - path: "**/*.md"
       instructions: |
         - Check for clarity and accuracy. Flag outdated references to flows or decisions that

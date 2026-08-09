@@ -5,6 +5,7 @@ const {
   assertCartNotFull,
 } = require("../utils/cart.utils");
 const { convertAmount } = require("../../product/utils/exchangeRate.utils");
+const { PRODUCT_CONFIG } = require("../../product/config/product.config");
 
 const prisma = getPrismaClient();
 
@@ -128,12 +129,25 @@ async function removeCartItem(buyerId, cartItemId) {
   return { id: cartItemId, deleted: true };
 }
 
-async function attachDisplayPrices(cart) {
+async function getPreferredCurrency(buyerId) {
+  const user = await prisma.user.findUnique({
+    where: { id: buyerId },
+    select: { preferredCurrency: true },
+  });
+  return user?.preferredCurrency ?? null;
+}
+
+async function attachDisplayPrices(cart, preferredCurrency) {
   if (!cart || cart.items.length === 0) {
     return { ...cart, cartCurrency: null, items: [] };
   }
 
-  const cartCurrency = cart.items[0].variant.product.currency;
+  const firstItemCurrency = cart.items[0].variant.product.currency;
+  const cartCurrency =
+    preferredCurrency &&
+    PRODUCT_CONFIG.SUPPORTED_CURRENCIES.includes(preferredCurrency)
+      ? preferredCurrency
+      : firstItemCurrency;
 
   const itemsWithConversion = await Promise.all(
     cart.items.map(async (item) => {
@@ -219,7 +233,8 @@ async function getCart(buyerId, shopId) {
     return { id: null, shopId, items: [], shop: null, cartCurrency: null };
   }
 
-  return attachDisplayPrices(cart);
+  const preferredCurrency = await getPreferredCurrency(buyerId);
+  return attachDisplayPrices(cart, preferredCurrency);
 }
 
 async function listMyCarts(buyerId) {
@@ -258,7 +273,12 @@ async function listMyCarts(buyerId) {
     orderBy: { updatedAt: "desc" },
   });
 
-  return Promise.all(carts.map((cart) => attachDisplayPrices(cart)));
+  if (carts.length === 0) return [];
+
+  const preferredCurrency = await getPreferredCurrency(buyerId);
+  return Promise.all(
+    carts.map((cart) => attachDisplayPrices(cart, preferredCurrency)),
+  );
 }
 
 async function clearCart(buyerId, shopId) {

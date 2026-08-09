@@ -84,7 +84,9 @@ function SignInForm() {
   const [otpStep, setOtpStep] = useState<"email" | "code">("email");
   const [otpCode, setOtpCode] = useState("");
 
-  const [totpUserId, setTotpUserId] = useState<string | null>(null);
+  const [totpPendingToken, setTotpPendingToken] = useState<string | null>(
+    null,
+  );
   const [totpCode, setTotpCode] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
@@ -93,7 +95,7 @@ function SignInForm() {
     setMethod(next);
     setOtpStep("email");
     setOtpCode("");
-    setTotpUserId(null);
+    setTotpPendingToken(null);
     setTotpCode("");
   }
 
@@ -139,7 +141,7 @@ function SignInForm() {
         locale: detectLocale(),
       });
       if ("requiresTotp" in result) {
-        setTotpUserId(result.userId);
+        setTotpPendingToken(result.pendingToken);
       } else {
         await completeLogin();
       }
@@ -152,10 +154,13 @@ function SignInForm() {
 
   async function handleTotpVerify(e: React.FormEvent) {
     e.preventDefault();
-    if (!totpUserId) return;
+    if (!totpPendingToken) return;
     setIsLoading(true);
     try {
-      await authApi.loginWithTotp({ userId: totpUserId, code: totpCode });
+      await authApi.loginWithTotp({
+        pendingToken: totpPendingToken,
+        code: totpCode,
+      });
       await completeLogin();
     } catch (err) {
       toast.error(getErrorMessage(err, "Code invalide."));
@@ -172,7 +177,7 @@ function SignInForm() {
         locale: detectLocale(),
       });
       if ("requiresTotp" in result) {
-        setTotpUserId(result.userId);
+        setTotpPendingToken(result.pendingToken);
       } else {
         await completeLogin();
       }
@@ -199,7 +204,7 @@ function SignInForm() {
         response,
       });
       if ("requiresTotp" in result) {
-        setTotpUserId(result.userId);
+        setTotpPendingToken(result.pendingToken);
       } else {
         await completeLogin();
       }
@@ -226,13 +231,13 @@ function SignInForm() {
               Connectez-vous à votre compte.
             </h1>
             <p className="text-sm text-muted-foreground">
-              {totpUserId
+              {totpPendingToken
                 ? "Entrez le code de votre application d'authentification."
                 : "Entrez votre email pour recevoir un code, ou utilisez un mot de passe."}
             </p>
           </div>
 
-          {totpUserId ? (
+          {totpPendingToken ? (
             <form
               onSubmit={handleTotpVerify}
               className="mt-8 flex flex-col gap-4"

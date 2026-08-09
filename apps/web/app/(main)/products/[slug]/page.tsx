@@ -114,7 +114,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
     <div className="mx-auto max-w-7xl px-6 py-10">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        // JSON.stringify doesn't escape "<" — a seller-controlled name or
+        // description containing a literal "</script>" would otherwise
+        // break out of this tag and inject arbitrary markup for every
+        // visitor of this public page. Escaping "<" keeps the JSON-LD
+        // valid while making that impossible.
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
       />
 
       {/* Breadcrumb */}
