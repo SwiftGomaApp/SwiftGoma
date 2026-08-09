@@ -14,51 +14,13 @@ import {
   type OrderStatus,
 } from "@/lib/api/routes/orders";
 import { ApiException } from "@/lib/api";
-
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  AWAITING_PAYMENT: "En attente de paiement",
-  PENDING_SELLER_REVIEW: "En attente du vendeur",
-  ACCEPTED: "Acceptée",
-  PREPARING: "En préparation",
-  READY_FOR_PICKUP: "Prête pour retrait",
-  RIDER_ASSIGNED: "Livreur assigné",
-  PICKED_UP: "Récupérée par le livreur",
-  ON_THE_WAY: "En route",
-  DELIVERED: "Livrée",
-  COMPLETED: "Terminée",
-  REJECTED: "Refusée",
-  CANCELLED: "Annulée",
-  EXPIRED: "Expirée",
-  FAILED: "Échouée",
-};
-
-const TERMINAL_STATUSES: OrderStatus[] = [
-  "COMPLETED",
-  "CANCELLED",
-  "REJECTED",
-  "EXPIRED",
-  "FAILED",
-];
-
-function formatPrice(price: number, currency: string) {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency,
-    currencyDisplay: "narrowSymbol",
-    minimumFractionDigits: currency === "CDF" ? 0 : 2,
-    maximumFractionDigits: currency === "CDF" ? 0 : 2,
-  }).format(price);
-}
-
-function formatDate(dateStr: string) {
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(dateStr));
-}
+import {
+  ORDER_STATUS_LABELS,
+  TERMINAL_ORDER_STATUSES,
+  orderStatusBadgeVariant,
+  formatOrderPrice,
+  formatOrderDate,
+} from "@/lib/orders";
 
 export default function OrderDetailPage() {
   const params = useParams<{ orderId: string }>();
@@ -114,7 +76,7 @@ export default function OrderDetailPage() {
     if (
       !order ||
       order.status === "AWAITING_PAYMENT" ||
-      TERMINAL_STATUSES.includes(order.status)
+      TERMINAL_ORDER_STATUSES.includes(order.status)
     ) {
       return;
     }
@@ -195,19 +157,11 @@ export default function OrderDetailPage() {
             Commande
           </h1>
           <p className="text-sm text-muted-foreground">
-            {formatDate(order.createdAt)}
+            {formatOrderDate(order.createdAt)}
           </p>
         </div>
-        <Badge
-          variant={
-            order.status === "COMPLETED"
-              ? "default"
-              : TERMINAL_STATUSES.includes(order.status)
-                ? "destructive"
-                : "secondary"
-          }
-        >
-          {STATUS_LABEL[order.status]}
+        <Badge variant={orderStatusBadgeVariant(order.status)}>
+          {ORDER_STATUS_LABELS[order.status]}
         </Badge>
       </div>
 
@@ -252,7 +206,7 @@ export default function OrderDetailPage() {
                 </p>
               </div>
               <span className="font-semibold text-foreground">
-                {formatPrice(Number(item.subtotal), currency)}
+                {formatOrderPrice(Number(item.subtotal), currency)}
               </span>
             </div>
           ))}
@@ -287,7 +241,7 @@ export default function OrderDetailPage() {
         <div className="flex justify-between border-t border-border pt-3">
           <span className="font-semibold text-foreground">Total</span>
           <span className="text-lg font-bold text-foreground">
-            {formatPrice(Number(order.total), currency)}
+            {formatOrderPrice(Number(order.total), currency)}
           </span>
         </div>
       </div>

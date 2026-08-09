@@ -1,4 +1,3 @@
-// components/global/notifications-modal.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -37,7 +36,7 @@ function formatRelativeTime(dateStr: string) {
 
 function notificationHref(notification: Notification): string | null {
   const data = notification.data as { orderId?: string } | null;
-  if (data?.orderId) return `/account/orders/${data.orderId}`;
+  if (data?.orderId) return `/orders/${data.orderId}`;
   return null;
 }
 

@@ -13,6 +13,9 @@ const {
   startPayoutReconciliationJob,
 } = require("./src/jobs/payoutReconciliation.job");
 const {
+  startOrderPaymentReconciliationJob,
+} = require("./src/jobs/orderPaymentReconciliation.job");
+const {
   startInvoiceDocumentsWorker,
 } = require("./src/jobs/invoiceDocuments.job");
 const { startPayoutsWorker } = require("./src/jobs/payouts.job");
@@ -28,6 +31,7 @@ httpServer.listen(env.port, () => {
 startSubscriptionRenewalJob();
 startOrderReviewJob();
 startPayoutReconciliationJob();
+startOrderPaymentReconciliationJob();
 startPayoutsWorker();
 startInvoiceDocumentsWorker();
 

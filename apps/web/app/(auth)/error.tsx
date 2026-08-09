@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { RotateCw, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ApiException } from "@/lib/api/api-exception";
@@ -33,14 +34,23 @@ export default function Error({
         <p className="max-w-sm text-sm text-muted-foreground">
           {isNetworkError
             ? "Vérifiez votre connexion internet, ou réessayez dans quelques instants."
-            : "Quelque chose s'est mal passé. Notre équipe a été notifiée."}
+            : "La connexion a échoué. Vous pouvez réessayer ou revenir à la page de connexion."}
         </p>
       </div>
 
-      <Button onClick={() => reset()}>
-        <RotateCw className="mr-2 h-4 w-4" />
-        Réessayer
-      </Button>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <Button onClick={() => reset()}>
+          <RotateCw className="mr-2 h-4 w-4" />
+          Réessayer
+        </Button>
+
+        <Link
+          href="/auth/sign-in"
+          className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+        >
+          Retour à la connexion
+        </Link>
+      </div>
     </main>
   );
 }

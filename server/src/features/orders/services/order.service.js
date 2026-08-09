@@ -15,6 +15,7 @@ const { getCart, clearCart } = require("./cart.service");
 const {
   initiatePayin,
   initiatePayout,
+  checkTransactionStatus,
 } = require("../../payments/services/mbioyopay.service");
 const {
   createNotification,
@@ -560,9 +561,20 @@ async function confirmOrderPayment(transactionId, orderId) {
     return { payment, order: payment.order };
   }
 
-  const updatedPayment = await prisma.orderPayment.update({
-    where: { id: payment.id },
+  // Atomic claim — guards against a duplicate/concurrent webhook delivery
+  // (MbiyoPay can redeliver the same callback) both passing the in-memory
+  // check above and both applying the order transition, enqueuing a
+  // duplicate invoice/receipt job, and double-notifying the seller.
+  const claimed = await prisma.orderPayment.updateMany({
+    where: { id: payment.id, status: { not: "SUCCEEDED" } },
     data: { status: "SUCCEEDED", heldAt: new Date() },
+  });
+  if (claimed.count !== 1) {
+    return { payment, order: payment.order }; // lost the race
+  }
+
+  const updatedPayment = await prisma.orderPayment.findUnique({
+    where: { id: payment.id },
   });
 
   if (TERMINAL_ORDER_STATUSES.includes(payment.order.status)) {
@@ -628,9 +640,17 @@ async function failOrderPayment(transactionId, failureReason, orderId) {
     return { payment, order: payment.order };
   }
 
-  const updatedPayment = await prisma.orderPayment.update({
-    where: { id: payment.id },
+  // Same atomic-claim reasoning as confirmOrderPayment above.
+  const claimed = await prisma.orderPayment.updateMany({
+    where: { id: payment.id, status: { not: "FAILED" } },
     data: { status: "FAILED", failureReason },
+  });
+  if (claimed.count !== 1) {
+    return { payment, order: payment.order }; // lost the race
+  }
+
+  const updatedPayment = await prisma.orderPayment.findUnique({
+    where: { id: payment.id },
   });
 
   if (
@@ -657,6 +677,70 @@ async function failOrderPayment(transactionId, failureReason, orderId) {
   });
 
   return { payment: updatedPayment, order: updatedOrder };
+}
+
+// ---------------------------------------------------------------------------
+// Reconciliation — for orders left in AWAITING_PAYMENT because MbiyoPay's
+// cashin callback was never delivered (network failure, dropped webhook,
+// etc.). Mirrors wallet.service.js's reconcilePendingPayouts for the
+// payout leg — same "poll the provider's own status endpoint after a
+// grace period" approach.
+// ---------------------------------------------------------------------------
+
+async function reconcileOnePendingOrderPayment(payment) {
+  const reference = payment.payinTransactionId || payment.payinOrderId;
+  if (!reference) {
+    console.error(
+      `[order] Pending order payment ${payment.id} has no payinTransactionId/payinOrderId to reconcile — skipping.`,
+    );
+    return null;
+  }
+
+  let status;
+  try {
+    const result = await checkTransactionStatus(reference);
+    status = result?.status;
+  } catch (err) {
+    console.error(
+      `[order] Reconciliation status check failed for order payment ${payment.id} (${reference}):`,
+      err.message,
+    );
+    return null;
+  }
+
+  if (status === "successful") {
+    return confirmOrderPayment(payment.payinTransactionId, payment.payinOrderId);
+  }
+  if (status === "failed") {
+    return failOrderPayment(
+      payment.payinTransactionId,
+      "MbiyoPay payin failed (reconciled via status poll)",
+      payment.payinOrderId,
+    );
+  }
+
+  return null;
+}
+
+async function reconcilePendingOrderPayments() {
+  const threshold = new Date(
+    Date.now() -
+      ORDER_CONFIG.PENDING_PAYMENT_RECONCILE_AFTER_MINUTES * 60 * 1000,
+  );
+
+  const stalePayments = await prisma.orderPayment.findMany({
+    where: {
+      status: "PENDING",
+      createdAt: { lte: threshold },
+      order: { status: "AWAITING_PAYMENT" },
+    },
+  });
+
+  const results = await Promise.allSettled(
+    stalePayments.map((payment) => reconcileOnePendingOrderPayment(payment)),
+  );
+
+  return results.filter((r) => r.status === "fulfilled" && r.value).length;
 }
 
 async function acceptOrder(orderId, sellerProfileId) {
@@ -1347,6 +1431,7 @@ module.exports = {
   getOrderQrCode,
   cancelOrder,
   expireUnansweredOrders,
+  reconcilePendingOrderPayments,
   getOrderById,
   listOrdersForBuyer,
   listOrdersForShop,

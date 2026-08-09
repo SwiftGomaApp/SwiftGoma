@@ -8,11 +8,12 @@ const {
 } = require("../../auth/utils/cookies");
 
 async function updateProfile(req, res) {
-  const { name, avatarUrl } = req.body;
+  const { name, avatarUrl, preferredCurrency } = req.body;
   const user = await userService.updateProfile({
     userId: req.user.id,
     name,
     avatarUrl,
+    preferredCurrency,
   });
   res.status(200).json({ success: true, data: user });
 }

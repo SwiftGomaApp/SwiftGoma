@@ -1,4 +1,3 @@
-// components/settings/notifications-preferences.tsx
 "use client";
 
 import { useEffect, useState } from "react";

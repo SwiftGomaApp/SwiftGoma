@@ -25,10 +25,9 @@ jobs:
       # These match what lib/api/config/env.ts actually reads and
       # validates at module-load time (assertRequiredEnv-style check).
       # `next build` runs that same code, so a mismatched var name here
-      # (the old API_URL didn't match anything) makes the Build step
-      # fail with "[env] Missing required environment variable: ...".
-      # Placeholder values only — no real network call happens at build
-      # time, they just need to exist and be non-empty.
+      # makes the Build step fail with "[env] Missing required environment
+      # variable: ...". Placeholder values only — no real network call
+      # happens at build time, they just need to exist and be non-empty.
       NEXT_PUBLIC_API_BASE_URL: http://localhost:4000/api/v1
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       API_BASE_URL: http://localhost:4000/api/v1
@@ -44,32 +43,17 @@ jobs:
           cache: "npm"
           cache-dependency-path: apps/admin/package-lock.json
 
-      - name: Check app is scaffolded
-        id: scaffolded
-        run: |
-          if [ -f "package.json" ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::apps/admin has no package.json yet — skipping install/lint/build until the app is scaffolded."
-          fi
-
       - name: Install dependencies
-        if: steps.scaffolded.outputs.exists == 'true'
         run: npm ci
 
       - name: Lint
-        if: steps.scaffolded.outputs.exists == 'true'
         run: npm run lint --if-present
 
       - name: Type check
-        if: steps.scaffolded.outputs.exists == 'true'
         run: npx tsc --noEmit
 
       - name: Test
-        if: steps.scaffolded.outputs.exists == 'true'
         run: npm test --if-present
 
       - name: Build
-        if: steps.scaffolded.outputs.exists == 'true'
         run: npm run build

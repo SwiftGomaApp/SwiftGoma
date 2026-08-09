@@ -57,6 +57,15 @@ function signRefreshToken({ userId, sessionId }) {
   );
 }
 
+function signMfaPendingToken({ userId }) {
+  return jwt.sign({ sub: userId, type: "mfa_pending" }, env.jwt.accessSecret, {
+    algorithm: "HS256",
+    expiresIn: "5m",
+    issuer: ISSUER,
+    audience: AUDIENCE,
+  });
+}
+
 function verify(token, secret, expectedType) {
   let payload;
   try {
@@ -87,9 +96,15 @@ function verifyRefreshToken(token) {
   return verify(token, env.jwt.refreshSecret, "refresh");
 }
 
+function verifyMfaPendingToken(token) {
+  return verify(token, env.jwt.accessSecret, "mfa_pending");
+}
+
 module.exports = {
   signAccessToken,
   signRefreshToken,
   verifyAccessToken,
+  signMfaPendingToken,
+  verifyMfaPendingToken,
   verifyRefreshToken,
 };

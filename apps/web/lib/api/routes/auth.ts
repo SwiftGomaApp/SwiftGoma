@@ -28,6 +28,7 @@ export type User = {
   isPhoneVerified: boolean;
   googleId: string | null;
   avatarUrl: string | null;
+  preferredCurrency: "USD" | "CDF" | null;
   createdAt: string;
 };
 
@@ -42,7 +43,7 @@ export type Session = {
 };
 
 export type AuthResult = { user: User };
-export type RequiresTotpResult = { requiresTotp: true; userId: string };
+export type RequiresTotpResult = { requiresTotp: true; pendingToken: string };
 
 function unwrap<T>(promise: Promise<{ data: { data: T } }>) {
   return promise.then((res) => res.data.data);
@@ -88,7 +89,7 @@ export const authApi = {
   },
 
   loginWithTotp(input: {
-    userId: string;
+    pendingToken: string;
     code: string;
     deviceName?: string;
     locale?: string;

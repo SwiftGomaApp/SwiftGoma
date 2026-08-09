@@ -50,7 +50,11 @@ export const userApi = {
     return unwrap<User>(api.post("/users/google/unlink"));
   },
 
-  updateProfile(input: { name?: string; avatarUrl?: string }) {
+  updateProfile(input: {
+    name?: string;
+    avatarUrl?: string;
+    preferredCurrency?: "USD" | "CDF";
+  }) {
     return unwrap<User>(api.patch("/users/profile", input));
   },
 

@@ -74,7 +74,7 @@ async function loginWithPassword(req, res) {
   if (result.requiresTotp) {
     return res.status(200).json({
       success: true,
-      data: { requiresTotp: true, userId: result.userId },
+      data: { requiresTotp: true, pendingToken: result.pendingToken },
     });
   }
 
@@ -212,13 +212,13 @@ async function disableTotp(req, res) {
 }
 
 async function loginWithTotp(req, res) {
-  const { userId, code, deviceName, locale } = req.body;
+  const { pendingToken, code, deviceName, locale } = req.body;
   const userAgent = req.headers["user-agent"] || null;
   const ipAddress = req.ip || null;
   const isMobile = req.headers["x-client-type"] === "mobile";
 
   const { user, accessToken, refreshToken } = await authService.loginWithTotp({
-    userId,
+    pendingToken,
     code,
     userAgent,
     ipAddress,
@@ -291,7 +291,7 @@ async function loginWithGoogle(req, res) {
   if (result.requiresTotp) {
     return res.status(200).json({
       success: true,
-      data: { requiresTotp: true, userId: result.userId },
+      data: { requiresTotp: true, pendingToken: result.pendingToken },
     });
   }
 
@@ -350,7 +350,7 @@ async function verifyPasskeyLogin(req, res) {
   if (result.requiresTotp) {
     return res.status(200).json({
       success: true,
-      data: { requiresTotp: true, userId: result.userId },
+      data: { requiresTotp: true, pendingToken: result.pendingToken },
     });
   }
 

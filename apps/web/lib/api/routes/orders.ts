@@ -69,6 +69,22 @@ export type CheckoutResult = {
   payin?: { transaction_id: string };
 };
 
+export type OrderListParams = {
+  page?: number;
+  limit?: number;
+  status?: OrderStatus;
+};
+
+export type OrderListResponse = {
+  orders: Order[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
 function unwrap<T>(promise: Promise<{ data: { data: T } }>) {
   return promise.then((res) => res.data.data);
 }
@@ -76,6 +92,10 @@ function unwrap<T>(promise: Promise<{ data: { data: T } }>) {
 export const ordersApi = {
   checkout(input: CheckoutInput) {
     return unwrap<CheckoutResult>(api.post("/orders/checkout", input));
+  },
+
+  listOrders(params: OrderListParams = {}) {
+    return unwrap<OrderListResponse>(api.get("/orders/me", { params }));
   },
 
   getOrder(orderId: string) {

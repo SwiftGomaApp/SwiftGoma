@@ -110,6 +110,16 @@ function assertRequiredEnv() {
   if (!env.cloudinary.apiSecret) missing.push("CLOUDINARY_API_SECRET");
   if (!env.totpSecretEncryptionKey) missing.push("TOTP_SECRET_ENCRYPTION_KEY");
 
+  // Checked whenever this process is a production deployment — not gated
+  // on PAWAPAY_ENVIRONMENT — because the risk is a publicly reachable
+  // callback URL with signature verification off (see
+  // pawapayCallback.controller.js), which can happen even while PawaPay
+  // itself is still pointed at sandbox. Refuse to boot rather than risk
+  // that going unnoticed.
+  if (!env.pawapay.signingEnabled) {
+    missing.push("PAWAPAY_SIGNING_ENABLED=true");
+  }
+
   if (env.pawapay.environment === "production") {
     if (!env.pawapay.production.apiToken)
       missing.push("PAWAPAY_PRODUCTION_API_TOKEN");
@@ -119,13 +129,6 @@ function assertRequiredEnv() {
       missing.push("PAWAPAY_PRODUCTION_KEY_ID");
     if (!env.pawapay.production.publicKeyPem)
       missing.push("PAWAPAY_PRODUCTION_PUBLIC_KEY_PEM");
-    // Without this, a production deploy could silently run with signature
-    // verification disabled (see pawapayCallback.controller.js) — the
-    // deposit webhook would accept unsigned/forged payloads from anyone
-    // who discovers the callback URL. Refuse to boot rather than risk that
-    // going unnoticed.
-    if (!env.pawapay.signingEnabled)
-      missing.push("PAWAPAY_SIGNING_ENABLED=true");
   }
   if (
     env.mbiyopay.environment === "production" &&

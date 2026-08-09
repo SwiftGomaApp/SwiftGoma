@@ -33,6 +33,7 @@ const {
   acceptOrder,
   rejectOrder,
   completePickupHandoff,
+  confirmOrderPayment,
 } = require("../../src/features/orders/services/order.service");
 const {
   initiatePayout,
@@ -425,5 +426,73 @@ describe("order concurrency: refund idempotency", () => {
       where: { orderId: order.id },
     });
     expect(payment.status).toBe("REFUNDED");
+  }, 30000);
+});
+
+describe("order concurrency: duplicate MbiyoPay payin webhook delivery", () => {
+  test("two concurrent confirmOrderPayment calls for the same callback only transition the order once", async () => {
+    const { profile: sellerProfile, shop } = await createTestSeller("payin");
+    const buyer = await createTestBuyer("payin");
+    const variant = await createVariant(shop.id, 10, 20);
+
+    const order = await prisma.order.create({
+      data: {
+        buyerId: buyer.id,
+        shopId: shop.id,
+        paymentMethod: "ONLINE_PAYMENT",
+        fulfillmentMethod: "PICKUP",
+        status: "AWAITING_PAYMENT",
+        currency: "USD",
+        subtotal: 20,
+        deliveryFee: 0,
+        total: 20,
+        qrToken: crypto.randomBytes(24).toString("hex"),
+        items: {
+          create: {
+            productId: variant.productId,
+            variantId: variant.id,
+            productName: "Test Product",
+            unitPrice: 20,
+            quantity: 1,
+            subtotal: 20,
+          },
+        },
+      },
+    });
+
+    const transactionId = `${RUN_ID}-payin-txn`;
+    const payinOrderId = `SWG-ORD-${order.id}`;
+
+    await prisma.orderPayment.create({
+      data: {
+        orderId: order.id,
+        amount: 20,
+        currency: "USD",
+        status: "PENDING",
+        payinOrderId,
+        payinTransactionId: transactionId,
+      },
+    });
+
+    // Simulates MbiyoPay redelivering the same "successful" callback twice
+    // (its own retry policy can do this) before the first delivery's DB
+    // write has landed — the exact race confirmOrderPayment's atomic
+    // updateMany claim guards against.
+    const results = await Promise.allSettled([
+      confirmOrderPayment(transactionId, payinOrderId),
+      confirmOrderPayment(transactionId, payinOrderId),
+    ]);
+
+    expect(results.every((r) => r.status === "fulfilled")).toBe(true);
+
+    const finalOrder = await prisma.order.findUnique({
+      where: { id: order.id },
+    });
+    expect(finalOrder.status).toBe("PENDING_SELLER_REVIEW");
+
+    const finalPayment = await prisma.orderPayment.findUnique({
+      where: { orderId: order.id },
+    });
+    expect(finalPayment.status).toBe("SUCCEEDED");
   }, 30000);
 });

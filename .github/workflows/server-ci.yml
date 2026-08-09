@@ -42,7 +42,10 @@ jobs:
       NODE_ENV: test
       # Set in the repo's Settings -> Secrets and variables -> Actions.
       # Point this at a dedicated Neon test branch, NOT production —
-      # migrate deploy + the test suite both write data.
+      # migrate deploy + the test suite both write data. Neon branches can
+      # scale to zero between runs, so the first query of a run may be
+      # slow to wake it — that's why the concurrency-heavy order tests
+      # give their own cleanup hooks a generous explicit timeout.
       DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
       DIRECT_URL: ${{ secrets.TEST_DATABASE_URL }}
       REDIS_URL: redis://localhost:6379
@@ -50,7 +53,9 @@ jobs:
       # config module's own validation (e.g. JWT secrets ≥32 chars, TOTP key
       # must be a 32-byte hex string) so the app boots and signs/verifies
       # tokens correctly during tests. Nothing here ever talks to a real
-      # third-party service — emails/SMS are mocked in the test suite itself.
+      # third-party service — emails/SMS are mocked in the test suite
+      # itself, and Cloudinary/MbiyoPay are only exercised by tests that
+      # set their own values directly.
       JWT_ACCESS_SECRET: ci-test-access-secret-at-least-32-characters-long
       JWT_REFRESH_SECRET: ci-test-refresh-secret-different-from-access-key
       TOTP_SECRET_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
@@ -59,6 +64,10 @@ jobs:
       WEBAUTHN_RP_NAME: Swiftgoma CI
       CLIENT_ORIGINS: http://localhost:3000
       APP_URL: http://localhost:3000
+      MBIYOPAY_WEBHOOK_SECRET: ci-test-mbiyopay-webhook-secret
+      CLOUDINARY_CLOUD_NAME: ci-test-cloud
+      CLOUDINARY_API_KEY: ci-test-key
+      CLOUDINARY_API_SECRET: ci-test-secret
 
     steps:
       - name: Checkout
@@ -71,18 +80,7 @@ jobs:
           cache: "npm"
           cache-dependency-path: server/package-lock.json
 
-      - name: Check app is scaffolded
-        id: scaffolded
-        run: |
-          if [ -f "package.json" ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::server has no package.json yet — skipping install/lint/test until the app is scaffolded."
-          fi
-
       - name: Check TEST_DATABASE_URL is configured
-        if: steps.scaffolded.outputs.exists == 'true'
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::TEST_DATABASE_URL secret is not set. Add a dedicated Neon test branch connection string in repo Settings > Secrets and variables > Actions."
@@ -90,24 +88,33 @@ jobs:
           fi
 
       - name: Install dependencies
-        if: steps.scaffolded.outputs.exists == 'true'
         run: npm ci
 
       - name: Generate Prisma client
-        if: steps.scaffolded.outputs.exists == 'true'
         run: npx prisma generate
 
       - name: Apply migrations to the test database
-        if: steps.scaffolded.outputs.exists == 'true'
-        run: npx prisma migrate deploy
+        # Retries on transient failure — a PR check and a push-to-branch
+        # run can both land here within seconds of each other against the
+        # same shared Neon test branch, and `migrate deploy` takes a
+        # Postgres advisory lock for the duration. One run waiting on the
+        # other's lock is normal contention, not a real failure; only
+        # treat it as broken if it still can't get through after retrying.
+        run: |
+          for attempt in 1 2 3; do
+            if npx prisma migrate deploy; then
+              exit 0
+            fi
+            echo "::warning::prisma migrate deploy failed (attempt $attempt/3) — likely advisory-lock contention from a concurrent CI run. Retrying in 15s..."
+            sleep 15
+          done
+          echo "::error::prisma migrate deploy failed after 3 attempts."
+          exit 1
 
       - name: Lint
-        if: steps.scaffolded.outputs.exists == 'true'
-        # --if-present: no-ops instead of failing if package.json has no
-        # "lint" script (it doesn't yet — no ESLint config exists in this
-        # repo as of this writing).
+        # --if-present: no-ops instead of failing — no ESLint config exists
+        # in this repo yet.
         run: npm run lint --if-present
 
       - name: Run tests
-        if: steps.scaffolded.outputs.exists == 'true'
         run: npm test

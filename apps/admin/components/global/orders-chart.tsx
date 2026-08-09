@@ -73,8 +73,8 @@ export function MetricsChart() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional refetch on range change
     loadMetrics(range);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range]);
 
   const activeMetric = METRIC_OPTIONS.find((m) => m.key === metric)!;
@@ -112,9 +112,9 @@ export function MetricsChart() {
             </SelectContent>
           </Select>
           <ToggleGroup
-            type="single"
-            value={String(range)}
-            onValueChange={(value) => {
+            value={[String(range)]}
+            onValueChange={(values) => {
+              const value = values[0];
               if (value) setRange(Number(value) as 7 | 30 | 90);
             }}
             variant="outline"
@@ -179,8 +179,8 @@ export function MetricsChart() {
                 cursor={false}
                 content={
                   <ChartTooltipContent
-                    labelFormatter={(value: string) =>
-                      new Date(value).toLocaleDateString("en-US", {
+                    labelFormatter={(value) =>
+                      new Date(value as string).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
                       })
