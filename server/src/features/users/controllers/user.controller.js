@@ -25,8 +25,8 @@ async function deleteAccount(req, res) {
     reason,
     locale,
   });
-  clearAccessTokenCookie(res);
-  clearRefreshTokenCookie(res);
+  clearAccessTokenCookie(res, req);
+  clearRefreshTokenCookie(res, req);
   res.status(200).json({ success: true, data: result });
 }
 
@@ -66,8 +66,8 @@ async function verifyAccountRecovery(req, res) {
       .json({ success: true, data: { user, accessToken, refreshToken } });
   }
 
-  setAccessTokenCookie(res, accessToken);
-  setRefreshTokenCookie(res, refreshToken);
+  setAccessTokenCookie(res, accessToken, req);
+  setRefreshTokenCookie(res, refreshToken, req);
   res.status(200).json({ success: true, data: { user } });
 }
 

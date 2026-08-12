@@ -263,6 +263,16 @@ async function notifyRider(riderUserId, { title, body, action, orderId }) {
 // failure (Cloudinary hiccup, DB blip) never gets retried and never
 // gets reported — the gap found via scripts/testInvoiceJobError.js.
 async function sendOrderPaymentDocuments(orderPaymentId, orderId) {
+  const payment = await prisma.orderPayment.findUnique({
+    where: { id: orderPaymentId },
+  });
+  if (!payment) {
+    console.warn(
+      `[order] Skipping stale invoice job — payment ${orderPaymentId} not found (order ${orderId}).`,
+    );
+    return;
+  }
+
   let invoiceRecord = null;
   let invoiceBuffer = null;
   let receiptRecord = null;
