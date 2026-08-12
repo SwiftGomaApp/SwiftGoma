@@ -342,8 +342,13 @@ export default function SubscriptionsPage() {
                       </TableCell>
                       <TableCell>{sub._count.payments}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/subscriptions/${sub.id}`}>Voir</Link>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          nativeButton={false}
+                          render={<Link href={`/subscriptions/${sub.id}`} />}
+                        >
+                          Voir
                         </Button>
                       </TableCell>
                     </TableRow>

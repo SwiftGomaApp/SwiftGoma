@@ -169,15 +169,20 @@ export default function BillingInvoicesPage() {
                         {invoice.sellerProfile.businessName}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" asChild>
-                          <a
-                            href={invoice.pdfUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                            Ouvrir
-                          </a>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          nativeButton={false}
+                          render={
+                            <a
+                              href={invoice.pdfUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            />
+                          }
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Ouvrir
                         </Button>
                       </TableCell>
                     </TableRow>

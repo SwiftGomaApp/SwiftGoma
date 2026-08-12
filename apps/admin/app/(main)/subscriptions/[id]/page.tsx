@@ -76,11 +76,15 @@ export default function SubscriptionDetailPage() {
   if (error || !subscription) {
     return (
       <div className="flex flex-col gap-4">
-        <Button variant="ghost" size="sm" asChild className="w-fit">
-          <Link href="/subscriptions">
-            <ArrowLeft className="h-4 w-4" />
-            Retour
-          </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          className="w-fit"
+          render={<Link href="/subscriptions" />}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Retour
         </Button>
         <p className="text-destructive text-sm">{error ?? "Abonnement introuvable."}</p>
       </div>
@@ -91,11 +95,15 @@ export default function SubscriptionDetailPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Button variant="ghost" size="sm" asChild className="mb-2 -ml-2">
-            <Link href="/subscriptions">
-              <ArrowLeft className="h-4 w-4" />
-              Abonnements
-            </Link>
+          <Button
+            variant="ghost"
+            size="sm"
+            nativeButton={false}
+            className="mb-2 -ml-2"
+            render={<Link href="/subscriptions" />}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Abonnements
           </Button>
           <h1 className="text-xl font-bold">{subscription.sellerProfile.businessName}</h1>
           <p className="text-muted-foreground text-sm">
