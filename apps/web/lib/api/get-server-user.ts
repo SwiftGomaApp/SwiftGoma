@@ -1,20 +1,26 @@
 import { cookies } from "next/headers";
+import { env } from "@/lib/api/config/env";
 import type { User } from "./routes/auth";
+
+const ACCESS_TOKEN_COOKIE = "swg_access_token";
 
 export async function getServerUser(): Promise<User | null> {
   const cookieStore = await cookies();
-  const cookieHeader = cookieStore.toString();
+  if (!cookieStore.get(ACCESS_TOKEN_COOKIE)) return null;
 
-  if (!cookieHeader) return null;
+  const cookieHeader = cookieStore
+    .getAll()
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
 
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1"}/auth/me`,
-      {
-        headers: { Cookie: cookieHeader },
-        cache: "no-store",
+    const res = await fetch(`${env.server.apiBaseUrl}/auth/me`, {
+      headers: {
+        Cookie: cookieHeader,
+        "User-Agent": "SwiftGomaWeb-Server/1.0 (+Next.js server-side fetch)",
       },
-    );
+      cache: "no-store",
+    });
 
     if (!res.ok) return null;
 
