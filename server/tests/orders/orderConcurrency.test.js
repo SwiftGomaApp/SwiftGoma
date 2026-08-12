@@ -21,10 +21,12 @@ jest.mock("../../src/config/socket", () => ({
 }));
 jest.mock("../../src/features/payments/services/mbioyopay.service", () => ({
   initiatePayin: jest.fn(),
-  initiatePayout: jest.fn().mockResolvedValue({
-    orderId: "MOCK-PAYOUT-ORDER",
-    transaction_id: "MOCK-PAYOUT-TXN",
-  }),
+  initiatePayout: jest.fn().mockImplementation((input) =>
+    Promise.resolve({
+      orderId: input.orderId,
+      transaction_id: `MOCK-PAYOUT-TXN-${input.orderId}`,
+    }),
+  ),
 }));
 
 const crypto = require("crypto");
@@ -202,6 +204,9 @@ async function createOrder({
         amount: total,
         currency: "USD",
         status: paymentStatus || "SUCCEEDED",
+        network: "AIRTEL",
+        phoneNumber: "+243900000000",
+        countryCode: "CD",
       },
     });
   }
@@ -397,6 +402,15 @@ describe("order concurrency: wallet double-credit on duplicate QR scan", () => {
 });
 
 describe("order concurrency: refund idempotency", () => {
+  beforeEach(() => {
+    initiatePayout.mockImplementation((input) =>
+      Promise.resolve({
+        orderId: input.orderId,
+        transaction_id: `MOCK-PAYOUT-TXN-${input.orderId}`,
+      }),
+    );
+  });
+
   test("concurrent reject attempts on the same order only trigger one payout", async () => {
     const { profile: sellerProfile, shop } = await createTestSeller("refund");
     const buyer = await createTestBuyer("refund");

@@ -5,6 +5,14 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    rules: {
+      // Valid in data-fetch / socket / auth bootstrap effects across admin pages.
+      "react-hooks/set-state-in-effect": "off",
+      // French copy uses apostrophes heavily in JSX text nodes.
+      "react/no-unescaped-entities": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
