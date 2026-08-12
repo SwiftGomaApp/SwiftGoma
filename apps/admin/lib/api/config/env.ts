@@ -18,6 +18,11 @@ function resolvePublicApiBaseUrl(): string {
 
 function resolveServerApiBaseUrl(publicApiBaseUrl: string): string {
   if (publicApiBaseUrl.startsWith("/")) {
+    // Browser code only needs the relative proxy path (env.api.baseUrl).
+    if (typeof window !== "undefined") {
+      return publicApiBaseUrl;
+    }
+
     const appUrl = required(
       process.env.NEXT_PUBLIC_APP_URL ||
         process.env.NEXT_PUBLIC_ADMIN_URL ||
@@ -64,6 +69,8 @@ export const env = {
 export const isProduction = env.nodeEnv === "production";
 
 function assertRequiredEnv() {
+  // Server-only vars (API_BASE_URL) are not in the browser bundle.
+  if (typeof window !== "undefined") return;
   if (!isProduction) return;
 
   const missing: string[] = [];

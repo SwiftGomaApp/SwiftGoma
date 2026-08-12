@@ -18,6 +18,11 @@ function resolvePublicApiUrl(): string {
 
 function resolveServerApiUrl(publicApiUrl: string): string {
   if (publicApiUrl.startsWith("/")) {
+    // Browser code only needs the relative proxy path (env.api.baseUrl).
+    if (typeof window !== "undefined") {
+      return publicApiUrl;
+    }
+
     const siteUrl = required(
       process.env.NEXT_PUBLIC_SITE_URL ||
         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined),
@@ -56,6 +61,8 @@ export const env = {
 export const isProduction = env.nodeEnv === "production";
 
 function assertRequiredEnv() {
+  // Server-only vars (API_BASE_URL) are not in the browser bundle.
+  if (typeof window !== "undefined") return;
   if (!isProduction) return;
 
   const missing: string[] = [];
