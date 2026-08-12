@@ -2,8 +2,16 @@ import axios, { AxiosError, type AxiosRequestConfig } from "axios";
 import { ApiException } from "./api-exception";
 import { env } from "./config/env";
 
+function resolveApiBaseUrl(): string {
+  // Relative /api/v1 works in the browser; SSR needs an absolute same-origin URL.
+  if (typeof window === "undefined") {
+    return env.server.apiBaseUrl;
+  }
+  return env.api.baseUrl;
+}
+
 export const api = axios.create({
-  baseURL: env.api.baseUrl,
+  baseURL: resolveApiBaseUrl(),
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
