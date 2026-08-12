@@ -74,6 +74,7 @@ export async function handleApiProxy(
   for (const cookie of setCookies) {
     responseHeaders.append("set-cookie", sanitizeSetCookie(cookie));
   }
+  responseHeaders.set("cache-control", "no-store");
 
   return new NextResponse(upstream.body, {
     status: upstream.status,
