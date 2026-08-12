@@ -2,9 +2,17 @@ const { isbot } = require("isbot");
 
 const { ForbiddenError } = require("../errors");
 
+const TRUSTED_USER_AGENT_PREFIXES = [
+  "SwiftGomaAdmin-Server/",
+  "SwiftGomaWeb-Server/",
+];
+
 function looksLikeBot(req) {
   const userAgent = req.headers["user-agent"] || "";
   if (!userAgent) return true;
+  if (TRUSTED_USER_AGENT_PREFIXES.some((prefix) => userAgent.startsWith(prefix))) {
+    return false;
+  }
   return isbot(userAgent);
 }
 

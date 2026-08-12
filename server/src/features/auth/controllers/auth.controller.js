@@ -51,8 +51,8 @@ async function verifyLoginOtp(req, res) {
       .json({ success: true, data: { user, accessToken, refreshToken } });
   }
 
-  setAccessTokenCookie(res, accessToken);
-  setRefreshTokenCookie(res, refreshToken);
+  setAccessTokenCookie(res, accessToken, req);
+  setRefreshTokenCookie(res, refreshToken, req);
   res.status(200).json({ success: true, data: { user } });
 }
 
@@ -86,8 +86,8 @@ async function loginWithPassword(req, res) {
       .json({ success: true, data: { user, accessToken, refreshToken } });
   }
 
-  setAccessTokenCookie(res, accessToken);
-  setRefreshTokenCookie(res, refreshToken);
+  setAccessTokenCookie(res, accessToken, req);
+  setRefreshTokenCookie(res, refreshToken, req);
   res.status(200).json({ success: true, data: { user } });
 }
 
@@ -110,8 +110,8 @@ async function refreshAccessToken(req, res) {
     });
   }
 
-  setAccessTokenCookie(res, result.accessToken);
-  setRefreshTokenCookie(res, result.refreshToken);
+  setAccessTokenCookie(res, result.accessToken, req);
+  setRefreshTokenCookie(res, result.refreshToken, req);
   res.status(200).json({ success: true, data: { user: result.user } });
 }
 
@@ -122,15 +122,15 @@ async function getMe(req, res) {
 
 async function logout(req, res) {
   const result = await authService.logout(req.user.sessionId);
-  clearAccessTokenCookie(res);
-  clearRefreshTokenCookie(res);
+  clearAccessTokenCookie(res, req);
+  clearRefreshTokenCookie(res, req);
   res.status(200).json({ success: true, data: result });
 }
 
 async function logoutAll(req, res) {
   const result = await authService.logoutAll(req.user.id);
-  clearAccessTokenCookie(res);
-  clearRefreshTokenCookie(res);
+  clearAccessTokenCookie(res, req);
+  clearRefreshTokenCookie(res, req);
   res.status(200).json({ success: true, data: result });
 }
 
@@ -232,8 +232,8 @@ async function loginWithTotp(req, res) {
       .json({ success: true, data: { user, accessToken, refreshToken } });
   }
 
-  setAccessTokenCookie(res, accessToken);
-  setRefreshTokenCookie(res, refreshToken);
+  setAccessTokenCookie(res, accessToken, req);
+  setRefreshTokenCookie(res, refreshToken, req);
   res.status(200).json({ success: true, data: { user } });
 }
 
@@ -269,8 +269,8 @@ async function registerWithGoogle(req, res) {
       .json({ success: true, data: { user, accessToken, refreshToken } });
   }
 
-  setAccessTokenCookie(res, accessToken);
-  setRefreshTokenCookie(res, refreshToken);
+  setAccessTokenCookie(res, accessToken, req);
+  setRefreshTokenCookie(res, refreshToken, req);
   res.status(201).json({ success: true, data: { user } });
 }
 
@@ -303,8 +303,8 @@ async function loginWithGoogle(req, res) {
       .json({ success: true, data: { user, accessToken, refreshToken } });
   }
 
-  setAccessTokenCookie(res, accessToken);
-  setRefreshTokenCookie(res, refreshToken);
+  setAccessTokenCookie(res, accessToken, req);
+  setRefreshTokenCookie(res, refreshToken, req);
   res.status(200).json({ success: true, data: { user } });
 }
 
@@ -362,8 +362,8 @@ async function verifyPasskeyLogin(req, res) {
       .json({ success: true, data: { user, accessToken, refreshToken } });
   }
 
-  setAccessTokenCookie(res, accessToken);
-  setRefreshTokenCookie(res, refreshToken);
+  setAccessTokenCookie(res, accessToken, req);
+  setRefreshTokenCookie(res, refreshToken, req);
   res.status(200).json({ success: true, data: { user } });
 }
 

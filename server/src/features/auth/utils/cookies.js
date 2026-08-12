@@ -7,49 +7,64 @@ const REFRESH_TOKEN_MAX_AGE_MS =
   env.jwt.refreshExpiresInDays * 24 * 60 * 60 * 1000;
 const ACCESS_TOKEN_MAX_AGE_MS = env.jwt.accessExpiresInMinutes * 60 * 1000;
 
-function baseCookieOptions() {
+function shouldUseSharedCookieDomain(req) {
+  if (!env.cookie.domain) return false;
+
+  const origin = req?.headers?.origin;
+  if (!origin) return true;
+
+  const bareDomain = env.cookie.domain.replace(/^\./, "");
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === bareDomain || hostname.endsWith(`.${bareDomain}`);
+  } catch {
+    return false;
+  }
+}
+
+function baseCookieOptions(req) {
   return {
     httpOnly: true,
     secure: isProduction,
     sameSite: env.cookie.sameSite,
-    ...(env.cookie.domain && { domain: env.cookie.domain }),
+    ...(shouldUseSharedCookieDomain(req) ? { domain: env.cookie.domain } : {}),
   };
 }
 
-function refreshCookieOptions() {
+function refreshCookieOptions(req) {
   return {
-    ...baseCookieOptions(),
+    ...baseCookieOptions(req),
     path: "/api/v1/auth",
     maxAge: REFRESH_TOKEN_MAX_AGE_MS,
   };
 }
 
-function accessCookieOptions() {
+function accessCookieOptions(req) {
   return {
-    ...baseCookieOptions(),
+    ...baseCookieOptions(req),
     path: "/",
     maxAge: ACCESS_TOKEN_MAX_AGE_MS,
   };
 }
 
-function setRefreshTokenCookie(res, token) {
-  res.cookie(REFRESH_TOKEN_COOKIE, token, refreshCookieOptions());
+function setRefreshTokenCookie(res, token, req) {
+  res.cookie(REFRESH_TOKEN_COOKIE, token, refreshCookieOptions(req));
 }
 
-function clearRefreshTokenCookie(res) {
-  res.clearCookie(REFRESH_TOKEN_COOKIE, refreshCookieOptions());
+function clearRefreshTokenCookie(res, req) {
+  res.clearCookie(REFRESH_TOKEN_COOKIE, refreshCookieOptions(req));
 }
 
 function getRefreshTokenFromRequest(req) {
   return req.cookies?.[REFRESH_TOKEN_COOKIE] || null;
 }
 
-function setAccessTokenCookie(res, token) {
-  res.cookie(ACCESS_TOKEN_COOKIE, token, accessCookieOptions());
+function setAccessTokenCookie(res, token, req) {
+  res.cookie(ACCESS_TOKEN_COOKIE, token, accessCookieOptions(req));
 }
 
-function clearAccessTokenCookie(res) {
-  res.clearCookie(ACCESS_TOKEN_COOKIE, accessCookieOptions());
+function clearAccessTokenCookie(res, req) {
+  res.clearCookie(ACCESS_TOKEN_COOKIE, accessCookieOptions(req));
 }
 
 function getAccessTokenFromRequest(req) {
