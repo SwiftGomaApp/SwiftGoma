@@ -1,8 +1,9 @@
 import axios, { AxiosError, type AxiosRequestConfig } from "axios";
 import { ApiException } from "./api-exception";
+import { env } from "./config/env";
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1",
+  baseURL: env.api.baseUrl,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",
