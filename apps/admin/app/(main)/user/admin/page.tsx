@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,22 +8,19 @@ import {
   getAdminOverview,
   type AdminOverview,
 } from "@/lib/api/routes/dashboard";
-import { ApiError } from "@/lib/api/client";
+import { getErrorMessage } from "@/lib/get-error-message";
 import { MetricsChart } from "@/components/global/orders-chart";
-
-function getErrorMessage(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) return err.message;
-  if (err instanceof Error) return err.message;
-  return fallback;
-}
+import { ui } from "@/lib/i18n/common";
 
 function StatCard({
   title,
   value,
+  subtitle,
   isLoading,
 }: {
   title: string;
   value: string | number;
+  subtitle?: string;
   isLoading: boolean;
 }) {
   return (
@@ -39,18 +34,19 @@ function StatCard({
         {isLoading ? (
           <Skeleton className="h-8 w-20" />
         ) : (
-          <p className="text-2xl font-bold">{value}</p>
+          <>
+            <p className="text-2xl font-bold">{value}</p>
+            {subtitle && (
+              <p className="text-muted-foreground mt-1 text-xs">{subtitle}</p>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
   );
 }
 
-const AdminDarshboard = () => {
-  const router = useRouter();
-  const { logout, user } = useAuth();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-
+export default function AdminDashboardPage() {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [isLoadingOverview, setIsLoadingOverview] = useState(true);
   const [overviewError, setOverviewError] = useState<string | null>(null);
@@ -63,7 +59,7 @@ const AdminDarshboard = () => {
       setOverview(data);
     } catch (err) {
       setOverviewError(
-        getErrorMessage(err, "Couldn't load the dashboard overview."),
+        getErrorMessage(err, "Impossible de charger l'aperçu du tableau de bord."),
       );
     } finally {
       setIsLoadingOverview(false);
@@ -75,52 +71,29 @@ const AdminDarshboard = () => {
     loadOverview();
   }, []);
 
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    try {
-      await logout();
-      router.push("/auth/login");
-    } finally {
-      setIsLoggingOut(false);
-    }
-  };
-
   const gmvTotal = overview?.orders.gmvByCurrency
     .map((row) => `${row.total} ${row.currency}`)
     .join(" · ");
 
+  const subscriptionStats = overview?.subscriptions;
+  const invoiceStats = overview?.invoices;
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">Dashboard</h1>
-          {user && (
-            <p className="text-muted-foreground text-sm">
-              Logged in as {user.name} ({user.role})
-            </p>
-          )}
-        </div>
-        <Button
-          type="button"
-          variant="destructive"
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-        >
-          {isLoggingOut ? "Logging out..." : "Logout"}
-        </Button>
+      <div>
+        <h1 className="text-xl font-bold">Tableau de bord</h1>
+        <p className="text-muted-foreground text-sm">
+          Activité de la marketplace en un coup d'œil — utilisateurs, vendeurs,
+          commandes et revenus.
+        </p>
       </div>
 
       {overviewError && (
         <Card className="border-destructive">
           <CardContent className="flex items-center justify-between pt-6">
             <p className="text-destructive text-sm">{overviewError}</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={loadOverview}
-            >
-              Retry
+            <Button type="button" variant="outline" size="sm" onClick={loadOverview}>
+              {ui.retry}
             </Button>
           </CardContent>
         </Card>
@@ -128,43 +101,60 @@ const AdminDarshboard = () => {
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
         <StatCard
-          title="Total Users"
+          title="Total utilisateurs"
           value={overview?.users.total ?? 0}
+          subtitle={`${overview?.users.byRole.SELLER ?? 0} vendeurs`}
           isLoading={isLoadingOverview}
         />
         <StatCard
-          title="Active Sellers"
+          title="Vendeurs actifs"
           value={overview?.sellerProfiles.byStatus.ACTIVE ?? 0}
           isLoading={isLoadingOverview}
         />
         <StatCard
-          title="Pending KYC"
+          title="KYC en attente"
           value={overview?.kyc.pendingAction ?? 0}
           isLoading={isLoadingOverview}
         />
         <StatCard
-          title="Published Shops"
+          title="Boutiques publiées"
           value={overview?.shops.byStatus.PUBLISHED ?? 0}
           isLoading={isLoadingOverview}
         />
         <StatCard
-          title="Published Products"
+          title="Produits publiés"
           value={overview?.products.byStatus.PUBLISHED ?? 0}
           isLoading={isLoadingOverview}
         />
         <StatCard
-          title="Total Orders"
+          title="Total commandes"
           value={overview?.orders.total ?? 0}
+          subtitle={`${overview?.orders.awaitingAction ?? 0} en attente d'action`}
           isLoading={isLoadingOverview}
         />
         <StatCard
-          title="Orders Awaiting Action"
-          value={overview?.orders.awaitingAction ?? 0}
-          isLoading={isLoadingOverview}
-        />
-        <StatCard
-          title="GMV (completed)"
+          title="GMV (terminées)"
           value={gmvTotal || "—"}
+          isLoading={isLoadingOverview}
+        />
+        <StatCard
+          title="Abonnements actifs"
+          value={subscriptionStats?.byStatus.ACTIVE ?? 0}
+          subtitle={
+            subscriptionStats?.totalSubscriptions
+              ? `${subscriptionStats.totalSubscriptions} au total`
+              : undefined
+          }
+          isLoading={isLoadingOverview}
+        />
+        <StatCard
+          title="Factures"
+          value={invoiceStats?.totalDocuments ?? 0}
+          subtitle={
+            invoiceStats?.byType
+              ? `${invoiceStats.byType.INVOICE ?? 0} factures · ${invoiceStats.byType.RECEIPT ?? 0} reçus`
+              : undefined
+          }
           isLoading={isLoadingOverview}
         />
       </div>
@@ -172,6 +162,4 @@ const AdminDarshboard = () => {
       <MetricsChart />
     </div>
   );
-};
-
-export default AdminDarshboard;
+}

@@ -1,8 +1,13 @@
 import { LegalDocument } from "../legal-document/legal-document";
+import type { Metadata } from "next";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Conditions générales d'utilisation",
-};
+  description:
+    "Conditions générales d'utilisation de la plateforme SwiftGoma.",
+  path: "/legal/terms",
+});
 
 export default function TermsPage() {
   return (

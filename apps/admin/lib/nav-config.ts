@@ -16,9 +16,16 @@ import {
   Bell,
   UserCog,
   Newspaper,
+  MessageSquare,
+  Banknote,
+  History,
+  AlertTriangle,
+  ShoppingBag,
+  Boxes,
+  FileText,
 } from "lucide-react";
 
-export type AdminRole = "ADMIN" | "SUPPORT";
+export type AdminRole = "ADMIN" | "SUPPORT" | "ACCOUNTANT";
 
 export interface NavItem {
   title: string;
@@ -34,68 +41,104 @@ export interface NavGroup {
 
 export const NAV_GROUPS: NavGroup[] = [
   {
-    label: "Overview",
+    label: "Vue d'ensemble",
     items: [
       {
-        title: "Dashboard",
+        title: "Tableau de bord",
         href: "/user/admin",
         icon: LayoutDashboard,
         roles: ["ADMIN"],
       },
+      {
+        title: "Tableau de bord",
+        href: "/user/support",
+        icon: LayoutDashboard,
+        roles: ["SUPPORT"],
+      },
+      {
+        title: "Tableau de bord",
+        href: "/user/accountant",
+        icon: LayoutDashboard,
+        roles: ["ACCOUNTANT"],
+      },
     ],
   },
   {
-    label: "Payments",
+    label: "Paiements",
     items: [
       {
         title: "PawaPay",
         href: "/payments/pawapay",
         icon: CreditCard,
-        roles: ["ADMIN"],
+        roles: ["ADMIN", "ACCOUNTANT"],
       },
       {
         title: "MbiyoPay",
         href: "/payments/mbiyopay",
         icon: Wallet,
-        roles: ["ADMIN"],
+        roles: ["ADMIN", "ACCOUNTANT"],
       },
       {
-        title: "Active Configuration",
+        title: "Historique des transactions",
+        href: "/payments/transactions",
+        icon: History,
+        roles: ["ADMIN", "ACCOUNTANT"],
+      },
+      {
+        title: "Configuration active",
         href: "/payments/active-configuration",
         icon: SlidersHorizontal,
         roles: ["ADMIN", "SUPPORT"],
       },
       {
-        title: "Billing Stats",
+        title: "Statistiques de facturation",
         href: "/billing/stats",
         icon: Receipt,
-        roles: ["ADMIN"],
+        roles: ["ADMIN", "ACCOUNTANT"],
+      },
+      {
+        title: "Documents",
+        href: "/billing/invoices",
+        icon: FileText,
+        roles: ["ADMIN", "ACCOUNTANT"],
+      },
+      {
+        title: "Dépenses SwiftGoma",
+        href: "/expenses",
+        icon: Banknote,
+        roles: ["ADMIN", "ACCOUNTANT"],
       },
     ],
   },
   {
-    label: "Marketplace",
+    label: "Place de marché",
     items: [
       {
-        title: "Plans",
+        title: "Forfaits",
         href: "/plans",
         icon: Package,
         roles: ["ADMIN"],
       },
       {
-        title: "Subscriptions",
-        href: "/subscriptions",
-        icon: TrendingUp,
-        roles: ["ADMIN"],
+        title: "Commandes",
+        href: "/orders",
+        icon: ShoppingBag,
+        roles: ["ADMIN", "SUPPORT"],
       },
       {
-        title: "Categories",
+        title: "Abonnements",
+        href: "/subscriptions",
+        icon: TrendingUp,
+        roles: ["ADMIN", "ACCOUNTANT"],
+      },
+      {
+        title: "Catégories",
         href: "/categories",
         icon: Tags,
         roles: ["ADMIN", "SUPPORT"],
       },
       {
-        title: "Exchange Rates",
+        title: "Taux de change",
         href: "/exchange-rates",
         icon: ArrowLeftRight,
         roles: ["ADMIN", "SUPPORT"],
@@ -109,33 +152,39 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "Sellers",
+    label: "Vendeurs",
     items: [
       {
-        title: "Sellers",
+        title: "Vendeurs",
         href: "/sellers",
         icon: Building2,
         roles: ["ADMIN", "SUPPORT"],
       },
       {
-        title: "KYC Review",
+        title: "Revue KYC",
         href: "/sellers/kyc",
         icon: ShieldCheck,
         roles: ["ADMIN", "SUPPORT"],
       },
       {
-        title: "Shops",
+        title: "Boutiques",
         href: "/shops",
         icon: Store,
+        roles: ["ADMIN", "SUPPORT"],
+      },
+      {
+        title: "Produits",
+        href: "/products",
+        icon: Boxes,
         roles: ["ADMIN", "SUPPORT"],
       },
     ],
   },
   {
-    label: "People",
+    label: "Utilisateurs",
     items: [
       {
-        title: "Users",
+        title: "Utilisateurs",
         href: "/users",
         icon: Users,
         roles: ["ADMIN", "SUPPORT"],
@@ -146,15 +195,32 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Bell,
         roles: ["ADMIN", "SUPPORT"],
       },
+      {
+        title: "Messages",
+        href: "/messages",
+        icon: MessageSquare,
+        roles: ["ADMIN", "SUPPORT"],
+      },
+    ],
+  },
+  {
+    label: "Système",
+    items: [
+      {
+        title: "Incidents",
+        href: "/incidents",
+        icon: AlertTriangle,
+        roles: ["ADMIN", "SUPPORT"],
+      },
     ],
   },
 ];
 
 export const ACCOUNT_NAV_ITEMS: NavItem[] = [
   {
-    title: "Profile & Security",
+    title: "Profil et sécurité",
     href: "/account/security",
     icon: UserCog,
-    roles: ["ADMIN", "SUPPORT"],
+    roles: ["ADMIN", "SUPPORT", "ACCOUNTANT"],
   },
 ];

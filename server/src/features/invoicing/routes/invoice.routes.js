@@ -14,6 +14,6 @@ InvoiceRouter.use(authenticate);
 InvoiceRouter.get("/me", getMyInvoices);
 InvoiceRouter.get("/me/download/:id", downloadMyInvoice);
 
-InvoiceRouter.get("/stats", authorize("ADMIN"), getInvoiceStatsHandler);
+InvoiceRouter.get("/stats", authorize("ADMIN", "ACCOUNTANT"), getInvoiceStatsHandler);
 
 module.exports = InvoiceRouter;

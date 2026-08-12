@@ -45,7 +45,8 @@ export function CartModal({ shopId, open, onOpenChange }: CartModalProps) {
       (sum, i) => sum + (i.displayPrice ?? Number(i.variant.price)) * i.quantity,
       0,
     ) ?? 0;
-  const deliveryFee = cart?.shop ? Number(cart.shop.deliveryFee) : 0;
+  const deliveryFee =
+    cart?.displayDeliveryFee ?? (cart?.shop ? Number(cart.shop.deliveryFee) : 0);
   const grandTotal = itemsTotal + deliveryFee;
 
   return (

@@ -41,6 +41,9 @@ const {
 } = require("./features/payments/config/mbiopay.config");
 const MbiyoPayCallbackRouter = require("./features/payments/routes/mbiyopayCallback.routes");
 const MbiyoPayRouter = require("./features/payments/routes/mbiopay.routes");
+const AdminTransactionsRouter = require("./features/payments/routes/adminTransactions.routes");
+const PaymentLedgerRouter =
+  require("./features/payments/routes/adminTransactions.routes").PaymentLedgerRouter;
 const CartRouter = require("./features/orders/routes/cart.routes");
 const OrderRouter = require("./features/orders/routes/order.routes");
 const FavoriteRouter = require("./features/favorites/routes/favorite.routes");
@@ -48,6 +51,12 @@ const SupportRouter = require("./features/support/routes/support.routes");
 const IncidentRouter = require("./features/incidents/routes/incident.routes");
 const BlogRouter = require("./features/blog/routes/blog.routes");
 const WalletRouter = require("./features/wallet/routes/wallet.routes");
+const AccountingRouter = require("./features/accounting/routes/accounting.routes");
+const ExpenseRouter = require("./features/expenses/routes/expense.routes");
+const AdminOrderRouter = require("./features/orders/routes/adminOrder.routes");
+const AdminProductRouter = require("./features/product/routes/adminProduct.routes");
+const AdminSubscriptionRouter = require("./features/subscriptions/routes/adminSubscription.routes");
+const AdminInvoiceRouter = require("./features/invoicing/routes/adminInvoice.routes");
 
 const createApp = () => {
   const app = express();
@@ -152,12 +161,19 @@ const createApp = () => {
   app.use("/api/v1/notifications", NotificationRouter);
   app.use("/api/v1/seller", SellerRouter);
   app.use("/api/v1/pawapay", PawapayRouter);
+  app.use("/api/v1/payments/transactions", AdminTransactionsRouter);
+  app.use("/api/v1/payments/ledger", PaymentLedgerRouter);
   app.use("/api/v1/plans", PlansRouter);
+  app.use("/api/v1/subscriptions/admin", AdminSubscriptionRouter);
   app.use("/api/v1/subscriptions", SubscriptionRouter);
+  app.use("/api/v1/invoices/admin", AdminInvoiceRouter);
   app.use("/api/v1/invoices", InvoiceRouter);
   app.use("/api/v1/dashboard", DashboardRouter);
   app.use("/api/v1/wallet-settings", WalletSettingsRouter);
   app.use("/api/v1/wallet", WalletRouter);
+  app.use("/api/v1/orders/admin", AdminOrderRouter);
+  app.use("/api/v1/orders", OrderRouter);
+  app.use("/api/v1/products/admin", AdminProductRouter);
   app.use("/api/v1/products", ProductRouter);
   app.use("/api/v1/riders", RiderRouter);
   app.use("/api/v1/mbiyopay", MbiyoPayRouter);
@@ -166,7 +182,8 @@ const createApp = () => {
   app.use("/api/v1/support", SupportRouter);
   app.use("/api/v1/incidents", IncidentRouter);
   app.use("/api/v1/blog", BlogRouter);
-  app.use("/api/v1/orders", OrderRouter);
+  app.use("/api/v1/accounting", AccountingRouter);
+  app.use("/api/v1/expenses", ExpenseRouter);
 
   app.use(notFound);
 

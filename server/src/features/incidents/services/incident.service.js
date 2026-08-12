@@ -51,13 +51,20 @@ async function updateIncident(id, { status, description, severity }) {
     throw new ValidationError("Sévérité invalide.");
   }
 
+  const resolvedAt =
+    status === "RESOLVED"
+      ? new Date()
+      : status !== undefined && existing.status === "RESOLVED"
+        ? null
+        : undefined;
+
   const incident = await prisma.incident.update({
     where: { id },
     data: {
       ...(status !== undefined && { status }),
       ...(description !== undefined && { description: description.trim() }),
       ...(severity !== undefined && { severity }),
-      ...(status === "RESOLVED" && { resolvedAt: new Date() }),
+      ...(resolvedAt !== undefined && { resolvedAt }),
     },
   });
 

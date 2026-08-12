@@ -2,6 +2,8 @@ const { verifyWebhookSignature } = require("../utils/mbiyopay.utils");
 const {
   confirmOrderPayment,
   failOrderPayment,
+  confirmOrderRefund,
+  failOrderRefund,
 } = require("../../orders/services/order.service");
 const {
   confirmSellerPayout,
@@ -52,15 +54,29 @@ async function postMbiyoPayCallback(req, res, next) {
     }
 
     if (type === "cashout") {
+      const isOrderRefund =
+        typeof order_id === "string" && order_id.startsWith("SWG-REFUND-");
       try {
         if (status === "successful") {
-          await confirmSellerPayout(transaction_id, order_id);
+          if (isOrderRefund) {
+            await confirmOrderRefund(transaction_id, order_id);
+          } else {
+            await confirmSellerPayout(transaction_id, order_id);
+          }
         } else if (status === "failed" || status === "cancelled") {
-          await failSellerPayout(
-            transaction_id,
-            `MbiyoPay payout ${status} (order_id: ${order_id})`,
-            order_id,
-          );
+          if (isOrderRefund) {
+            await failOrderRefund(
+              transaction_id,
+              `MbiyoPay refund payout ${status} (order_id: ${order_id})`,
+              order_id,
+            );
+          } else {
+            await failSellerPayout(
+              transaction_id,
+              `MbiyoPay payout ${status} (order_id: ${order_id})`,
+              order_id,
+            );
+          }
         }
       } catch (err) {
         console.error(

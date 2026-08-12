@@ -1,5 +1,18 @@
 import { apiClient } from "@/lib/api/client";
 import { unwrap } from "@/lib/api/utils";
+import type {
+  SubscriptionStats,
+  SubscriptionRevenue,
+} from "@/lib/api/routes/subscriptions";
+
+export interface InvoiceStats {
+  totalDocuments: number;
+  byType: {
+    INVOICE: number;
+    RECEIPT: number;
+  };
+  byMonth: unknown[];
+}
 
 export interface UserStats {
   total: number;
@@ -78,13 +91,9 @@ export interface AdminOverview {
   orders: OrderStats;
   shops: ShopStats;
   products: ProductStats;
-  // Shapes from getSubscriptionStats()/getSubscriptionRevenue()/
-  // getInvoiceStats() aren't fully confirmed against source in this
-  // session — kept loose rather than typing fields I haven't verified.
-  // Narrow these once you're reading real response data.
-  subscriptions: unknown;
-  revenue: unknown;
-  invoices: unknown;
+  subscriptions: SubscriptionStats;
+  revenue: SubscriptionRevenue;
+  invoices: InvoiceStats;
   generatedAt: string;
 }
 
@@ -117,4 +126,49 @@ export async function getDashboardMetrics(
 export async function getAdminOverview(): Promise<AdminOverview> {
   const res = await apiClient.get("/dashboard/overview");
   return unwrap<AdminOverview>(res);
+}
+
+export interface SupportOverview {
+  users: {
+    total: number;
+    byRole: { BUYER: number; SELLER: number; RIDER: number };
+    blocked: number;
+  };
+  sellerProfiles: SellerProfileStats;
+  kyc: KycStats & {
+    awaitingSupportReview: number;
+    awaitingAdminApproval: number;
+  };
+  shops: ShopStats;
+  products: ProductStats;
+  catalog: { categories: number; blogPosts: number };
+  contactMessages: { total: number; last7Days: number };
+  generatedAt: string;
+}
+
+export interface SupportMetricPoint {
+  date: string;
+  newUsers: number;
+  newSellers: number;
+  kycSubmissions: number;
+  shopsPublished: number;
+}
+
+export interface SupportMetricsResponse {
+  days: number;
+  series: SupportMetricPoint[];
+}
+
+export async function getSupportOverview(): Promise<SupportOverview> {
+  const res = await apiClient.get("/dashboard/support-overview");
+  return unwrap<SupportOverview>(res);
+}
+
+export async function getSupportMetrics(
+  days: 7 | 30 | 90 = 30,
+): Promise<SupportMetricsResponse> {
+  const res = await apiClient.get("/dashboard/support-metrics", {
+    params: { days },
+  });
+  return unwrap<SupportMetricsResponse>(res);
 }

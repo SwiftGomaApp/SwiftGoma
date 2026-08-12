@@ -67,7 +67,9 @@ export function ForgotPasswordForm({
       setSecondsLeft(RESEND_COOLDOWN_SECONDS);
       setStep("reset");
     } catch (err) {
-      setError(getErrorMessage(err, "Something went wrong. Please try again."));
+      setError(
+        getErrorMessage(err, "Une erreur s'est produite. Veuillez réessayer."),
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -80,7 +82,7 @@ export function ForgotPasswordForm({
     try {
       await forgotPassword({ email, locale: getDeviceLocale() });
     } catch (err) {
-      setError(getErrorMessage(err, "Couldn't resend the code."));
+      setError(getErrorMessage(err, "Impossible de renvoyer le code."));
     }
   };
 
@@ -89,15 +91,15 @@ export function ForgotPasswordForm({
     setError(null);
 
     if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters.");
+      setError("Le mot de passe doit contenir au moins 8 caractères.");
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError("Passwords don't match.");
+      setError("Les mots de passe ne correspondent pas.");
       return;
     }
     if (code.length !== 6) {
-      setError("Enter the 6-digit code from your email.");
+      setError("Saisissez le code à 6 chiffres reçu par e-mail.");
       return;
     }
 
@@ -111,7 +113,7 @@ export function ForgotPasswordForm({
       });
       setStep("done");
     } catch (err) {
-      setError(getErrorMessage(err, "Something went wrong."));
+      setError(getErrorMessage(err, "Une erreur s'est produite."));
     } finally {
       setIsSubmitting(false);
     }
@@ -124,14 +126,15 @@ export function ForgotPasswordForm({
         {...props}
       >
         <div className="flex flex-col items-center gap-1.5">
-          <h1 className="text-xl font-bold">Password changed</h1>
+          <h1 className="text-xl font-bold">Mot de passe modifié</h1>
           <FieldDescription className="text-center">
-            Your password has been reset. You&apos;ve been signed out of all
-            devices — log in again with your new password.
+            Votre mot de passe a été réinitialisé. Vous avez été déconnecté de
+            tous vos appareils — reconnectez-vous avec votre nouveau mot de
+            passe.
           </FieldDescription>
         </div>
         <Button className="mt-2" onClick={() => router.push("/auth/login")}>
-          Back to login
+          Retour à la connexion
         </Button>
       </div>
     );
@@ -143,16 +146,16 @@ export function ForgotPasswordForm({
         <form onSubmit={handleResetPassword}>
           <FieldGroup className="gap-4">
             <div className="flex flex-col items-center gap-1.5 text-center">
-              <h1 className="text-xl font-bold">Reset your password</h1>
+              <h1 className="text-xl font-bold">Réinitialiser votre mot de passe</h1>
               <FieldDescription className="text-center">
-                Enter the code we sent to{" "}
-                <span className="font-medium">{email}</span> and choose a new
-                password.
+                Saisissez le code envoyé à{" "}
+                <span className="font-medium">{email}</span> et choisissez un
+                nouveau mot de passe.
               </FieldDescription>
             </div>
 
             <Field>
-              <FieldLabel htmlFor="reset-code">Reset code</FieldLabel>
+              <FieldLabel htmlFor="reset-code">Code de réinitialisation</FieldLabel>
               <InputOTP
                 id="reset-code"
                 maxLength={6}
@@ -178,14 +181,14 @@ export function ForgotPasswordForm({
                   className="text-muted-foreground hover:text-foreground text-xs font-medium underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
                 >
                   {secondsLeft > 0
-                    ? `Resend code in ${secondsLeft}s`
-                    : "Resend code"}
+                    ? `Renvoyer le code dans ${secondsLeft} s`
+                    : "Renvoyer le code"}
                 </button>
               </div>
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="new-password">New password</FieldLabel>
+              <FieldLabel htmlFor="new-password">Nouveau mot de passe</FieldLabel>
               <div className="relative">
                 <Input
                   id="new-password"
@@ -201,7 +204,11 @@ export function ForgotPasswordForm({
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="text-muted-foreground hover:text-foreground absolute inset-y-0 right-0 flex items-center px-3"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={
+                    showPassword
+                      ? "Masquer le mot de passe"
+                      : "Afficher le mot de passe"
+                  }
                 >
                   {showPassword ? (
                     <EyeOff className="size-4" />
@@ -210,12 +217,12 @@ export function ForgotPasswordForm({
                   )}
                 </button>
               </div>
-              <FieldDescription>At least 8 characters.</FieldDescription>
+              <FieldDescription>Au moins 8 caractères.</FieldDescription>
             </Field>
 
             <Field>
               <FieldLabel htmlFor="confirm-password">
-                Confirm new password
+                Confirmer le nouveau mot de passe
               </FieldLabel>
               <Input
                 id="confirm-password"
@@ -232,13 +239,13 @@ export function ForgotPasswordForm({
 
             <Field>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Resetting..." : "Reset password"}
+                {isSubmitting ? "Réinitialisation…" : "Réinitialiser le mot de passe"}
               </Button>
             </Field>
 
             <FieldDescription className="text-center">
               <Link href="/auth/login" className="underline underline-offset-4">
-                Back to login
+                Retour à la connexion
               </Link>
             </FieldDescription>
           </FieldGroup>
@@ -252,19 +259,19 @@ export function ForgotPasswordForm({
       <form onSubmit={handleRequestCode}>
         <FieldGroup className="gap-4">
           <div className="flex flex-col items-center gap-1.5 text-center">
-            <h1 className="text-xl font-bold">Forgot password?</h1>
+            <h1 className="text-xl font-bold">Mot de passe oublié ?</h1>
             <FieldDescription className="text-center">
-              Enter your email and we&apos;ll send you a code to reset your
-              password.
+              Saisissez votre e-mail et nous vous enverrons un code pour
+              réinitialiser votre mot de passe.
             </FieldDescription>
           </div>
 
           <Field>
-            <FieldLabel htmlFor="email">Email</FieldLabel>
+            <FieldLabel htmlFor="email">E-mail</FieldLabel>
             <Input
               id="email"
               type="email"
-              placeholder="m@example.com"
+              placeholder="m@exemple.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -276,14 +283,14 @@ export function ForgotPasswordForm({
 
           <Field>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Sending..." : "Send reset code"}
+              {isSubmitting ? "Envoi…" : "Envoyer le code de réinitialisation"}
             </Button>
           </Field>
 
           <FieldDescription className="text-center">
-            Remembered your password?{" "}
+            Vous vous souvenez de votre mot de passe ?{" "}
             <Link href="/auth/login" className="underline underline-offset-4">
-              Back to login
+              Retour à la connexion
             </Link>
           </FieldDescription>
         </FieldGroup>

@@ -148,6 +148,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         shopId,
         items,
         cartCurrency: previous?.cartCurrency ?? variant.product.currency,
+        displayDeliveryFee: previous?.displayDeliveryFee ?? null,
         shop: previous?.shop ?? null,
       };
 

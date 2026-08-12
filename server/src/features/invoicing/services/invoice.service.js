@@ -319,6 +319,55 @@ async function listInvoicesForSeller(
   };
 }
 
+async function listInvoicesForAdmin(query = {}) {
+  const page = Math.max(1, Number(query.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+  const skip = (page - 1) * limit;
+
+  const where = {};
+  if (query.type) where.type = query.type;
+
+  const search = typeof query.search === "string" ? query.search.trim() : "";
+  if (search) {
+    where.OR = [
+      { documentNumber: { contains: search, mode: "insensitive" } },
+      { sellerProfile: { businessName: { contains: search, mode: "insensitive" } } },
+    ];
+  }
+
+  const [total, invoices] = await Promise.all([
+    prisma.invoice.count({ where }),
+    prisma.invoice.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { issuedAt: "desc" },
+      include: {
+        sellerProfile: {
+          select: { id: true, businessName: true },
+        },
+        subscriptionPayment: {
+          select: { amount: true, currency: true, status: true },
+        },
+        orderPayment: {
+          select: { amount: true, currency: true, status: true },
+        },
+        walletTransaction: {
+          select: { amount: true, currency: true, status: true },
+        },
+      },
+    }),
+  ]);
+
+  return {
+    items: invoices,
+    total,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+  };
+}
+
 async function getInvoiceById(invoiceId) {
   const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
   if (!invoice) throw new NotFoundError("Document introuvable.");
@@ -331,6 +380,17 @@ async function getInvoiceForDownload(invoiceId, sellerProfileId) {
   if (invoice.sellerProfileId !== sellerProfileId) {
     throw new NotFoundError("Document introuvable.");
   }
+  return invoice;
+}
+
+async function getInvoiceForAdminDownload(invoiceId) {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: {
+      sellerProfile: { select: { id: true, businessName: true } },
+    },
+  });
+  if (!invoice) throw new NotFoundError("Document introuvable.");
   return invoice;
 }
 
@@ -422,9 +482,11 @@ module.exports = {
   generateReceiptDocument,
   generateInvoiceAndReceipt,
   listInvoicesForSeller,
+  listInvoicesForAdmin,
   getInvoiceById,
   getInvoiceStats,
   getInvoiceForDownload,
+  getInvoiceForAdminDownload,
   generateOrderInvoiceAndReceipt,
   generatePayoutReceipt,
 };

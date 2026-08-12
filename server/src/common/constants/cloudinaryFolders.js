@@ -9,6 +9,9 @@ const CLOUDINARY_FOLDERS = {
   SELLER_KYC_ID: "swiftgoma/seller-kyc/id-documents",
   SELLER_KYC_ADDRESS: "swiftgoma/seller-kyc/proof-of-address",
   SELLER_KYC_RCCM: "swiftgoma/seller-kyc/rccm-documents",
+  BLOG_COVERS: "swiftgoma/blog-covers",
+  ACCOUNTANT_REPORTS: "swiftgoma/accountant-reports",
+  EXPENSE_RECEIPTS: "swiftgoma/expense-receipts",
 };
 
 module.exports = { CLOUDINARY_FOLDERS };

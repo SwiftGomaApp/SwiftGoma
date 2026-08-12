@@ -4,6 +4,7 @@ const {
   reactivateRider,
   deleteRider,
   getRiderDeliveryHistory,
+  listRidersForSeller,
 } = require("../services/rider.service");
 const { getPrismaClient } = require("../../../config/prisma");
 const { NotFoundError } = require("../../../common/errors");
@@ -21,6 +22,16 @@ async function getSellerProfileIdForUser(userId) {
 // -----------------------------
 // VENDEUR (authentifié)
 // -----------------------------
+
+async function getSellerRiders(req, res, next) {
+  try {
+    const sellerProfileId = await getSellerProfileIdForUser(req.user.id);
+    const riders = await listRidersForSeller(sellerProfileId);
+    res.status(200).json({ success: true, data: riders });
+  } catch (err) {
+    next(err);
+  }
+}
 
 async function postCreateRider(req, res, next) {
   try {
@@ -96,6 +107,7 @@ async function getMyDeliveryHistory(req, res, next) {
 }
 
 module.exports = {
+  getSellerRiders,
   postCreateRider,
   postSuspendRider,
   postReactivateRider,

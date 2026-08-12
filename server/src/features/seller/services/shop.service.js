@@ -3,6 +3,7 @@ const {
   NotFoundError,
   ConflictError,
   ForbiddenError,
+  BadRequestError,
 } = require("../../../common/errors");
 const {
   uploadImage,
@@ -600,6 +601,52 @@ async function listPublishedShops({ page = 1, limit = 20, search, city } = {}) {
   });
 }
 
+// Admin/support moderation view — unlike listPublishedShops, this isn't
+// restricted to status: "PUBLISHED" (an admin needs to find DRAFT and
+// SUSPENDED shops too, e.g. to review a suspension or publish on a
+// seller's behalf) and isn't cached, since it's low-traffic and needs to
+// reflect the latest state right after a moderation action.
+async function listAllShops({ page = 1, limit = 20, search, status } = {}) {
+  const safePage = Math.max(parseInt(page, 10) || 1, 1);
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+  const skip = (safePage - 1) * safeLimit;
+
+  const VALID_STATUSES = ["DRAFT", "PUBLISHED", "SUSPENDED"];
+  if (status && !VALID_STATUSES.includes(status)) {
+    throw new BadRequestError("Statut de filtre invalide.");
+  }
+
+  const where = {
+    deletedAt: null,
+    ...(status ? { status } : {}),
+    ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+  };
+
+  const [total, shops] = await Promise.all([
+    prisma.shop.count({ where }),
+    prisma.shop.findMany({
+      where,
+      skip,
+      take: safeLimit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        sellerProfile: { select: { id: true, businessName: true } },
+        _count: { select: { products: true } },
+      },
+    }),
+  ]);
+
+  return {
+    shops,
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.ceil(total / safeLimit) || 1,
+    },
+  };
+}
+
 module.exports = {
   createShop,
   getShopById,
@@ -616,5 +663,6 @@ module.exports = {
   adminDeleteShop,
   restoreShop,
   listPublishedShops,
+  listAllShops,
   invalidateShopCache,
 };

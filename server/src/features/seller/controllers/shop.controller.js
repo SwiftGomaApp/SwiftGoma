@@ -14,6 +14,7 @@ const {
   adminDeleteShop,
   restoreShop,
   listPublishedShops,
+  listAllShops,
 } = require("../services/shop.service");
 const { getPrismaClient } = require("../../../config/prisma");
 const { NotFoundError } = require("../../../common/errors");
@@ -199,6 +200,21 @@ async function getShopsHandler(req, res, next) {
   }
 }
 
+// ADMIN + SUPPORT — unlike getShopsHandler, not restricted to PUBLISHED.
+async function getShopsAdminHandler(req, res, next) {
+  try {
+    const result = await listAllShops({
+      page: req.query.page,
+      limit: req.query.limit,
+      search: req.query.search,
+      status: req.query.status,
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   postCreateShop,
   getMyShops,
@@ -210,6 +226,7 @@ module.exports = {
   deleteMyShop,
   getShopBySlugHandler,
   getShopsHandler,
+  getShopsAdminHandler,
   postSuspendShop,
   postReactivateShop,
   postAdminDeleteShop,

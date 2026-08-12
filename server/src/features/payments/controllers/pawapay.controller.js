@@ -8,6 +8,11 @@ const {
   getWalletBalances,
   getActiveConfiguration,
 } = require("../services/pawapay.service");
+const {
+  requestPawaPayPayoutApproval,
+  confirmPawaPayPayout,
+} = require("../services/adminPayoutApproval.service");
+const { listAdminPayouts } = require("../services/adminPayout.service");
 
 // -----------------------------
 // DEPOSITS
@@ -71,6 +76,36 @@ async function getPayoutStatus(req, res, next) {
   }
 }
 
+async function postRequestPayoutApproval(req, res, next) {
+  try {
+    const result = await requestPawaPayPayoutApproval(req.user.id, {
+      amount: req.body.amount,
+      currency: req.body.currency,
+      country: req.body.country,
+      provider: req.body.provider,
+      recipientPhoneNumber: req.body.recipientPhoneNumber,
+      customerMessage: req.body.customerMessage,
+      clientReferenceId: req.body.clientReferenceId,
+      metadata: req.body.metadata || {},
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postConfirmPayout(req, res, next) {
+  try {
+    const result = await confirmPawaPayPayout(req.user.id, {
+      pendingId: req.body.pendingId,
+      code: req.body.code,
+    });
+    res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // -----------------------------
 // REFUNDS
 // -----------------------------
@@ -126,10 +161,22 @@ async function getConfiguration(req, res, next) {
   }
 }
 
+async function getPayoutHistory(req, res, next) {
+  try {
+    const result = await listAdminPayouts("pawapay", req.query);
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   postInitiateDeposit,
   getDepositStatus,
   postInitiatePayout,
+  postRequestPayoutApproval,
+  postConfirmPayout,
+  getPayoutHistory,
   getPayoutStatus,
   postInitiateRefund,
   getRefundStatus,

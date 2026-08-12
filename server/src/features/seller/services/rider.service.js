@@ -30,6 +30,76 @@ async function assertRiderOwnedBySeller(riderId, sellerProfileId) {
   return rider;
 }
 
+/**
+ * Resolves a rider for order assignment. Accepts either riders.id or the
+ * linked users.id — clients often send userId after invite/create.
+ */
+async function findRiderForSellerAssignment(sellerProfileId, riderIdOrUserId) {
+  if (!riderIdOrUserId || typeof riderIdOrUserId !== "string") {
+    throw new ConflictError("Identifiant du livreur requis (riderId).");
+  }
+
+  const rider = await prisma.rider.findFirst({
+    where: {
+      sellerProfileId,
+      deletedAt: null,
+      OR: [{ id: riderIdOrUserId }, { userId: riderIdOrUserId }],
+    },
+    include: { user: true },
+  });
+
+  if (!rider) {
+    throw new NotFoundError(
+      "Livreur introuvable pour votre boutique. Vérifiez que vous utilisez le riderId (pas l'identifiant utilisateur) et que ce livreur appartient à votre compte vendeur.",
+    );
+  }
+
+  return rider;
+}
+
+async function listRidersForSeller(sellerProfileId) {
+  const riders = await prisma.rider.findMany({
+    where: { sellerProfileId, deletedAt: null },
+    include: {
+      user: {
+        select: { id: true, name: true, phone: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return riders.map((rider) => ({
+    id: rider.id,
+    userId: rider.userId,
+    name: rider.user.name,
+    phone: rider.user.phone,
+    status: rider.status,
+    isAvailable: rider.isAvailable,
+    vehicleType: rider.vehicleType,
+    createdAt: rider.createdAt,
+  }));
+}
+
+async function activateRider(riderId, sellerProfileId) {
+  const rider = await assertRiderOwnedBySeller(riderId, sellerProfileId);
+
+  if (rider.status === "SUSPENDED") {
+    throw new ConflictError(
+      "Ce livreur est suspendu. Réactivez-le avant de lui assigner une commande.",
+    );
+  }
+
+  if (rider.status === "ACTIVE" && rider.isAvailable) {
+    return rider;
+  }
+
+  return prisma.rider.update({
+    where: { id: riderId },
+    data: { status: "ACTIVE", isAvailable: true },
+    include: { user: true },
+  });
+}
+
 async function createRiderAccount({
   sellerProfileId,
   name,
@@ -218,4 +288,7 @@ module.exports = {
   reactivateRider,
   deleteRider,
   getRiderDeliveryHistory,
+  findRiderForSellerAssignment,
+  listRidersForSeller,
+  activateRider,
 };

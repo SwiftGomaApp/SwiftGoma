@@ -1,10 +1,15 @@
 import { CheckCircle2, AlertTriangle } from "lucide-react";
+import type { Metadata } from "next";
 import { incidentsApi, type Incident } from "@/lib/api/routes/incidents";
 import { Badge } from "@/components/ui/badge";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Statut du système",
-};
+  description:
+    "État des services SwiftGoma, incidents en cours et disponibilité de la plateforme.",
+  path: "/status",
+});
 
 const SEVERITY_LABEL: Record<Incident["severity"], string> = {
   MINOR: "Mineur",

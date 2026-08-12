@@ -1,5 +1,8 @@
 const { getPrismaClient } = require("../../../config/prisma");
 const {
+  getContactMessageStats,
+} = require("../../support/services/support.service");
+const {
   getSubscriptionStats,
   getSubscriptionRevenue,
 } = require("../../subscriptions/services/subscription.service");
@@ -44,6 +47,7 @@ async function getUserStats() {
       RIDER: roleMap.RIDER ?? 0,
       ADMIN: roleMap.ADMIN ?? 0,
       SUPPORT: roleMap.SUPPORT ?? 0,
+      ACCOUNTANT: roleMap.ACCOUNTANT ?? 0,
     },
     blocked: blockedCount,
     active: activeCount,
@@ -241,12 +245,8 @@ const ALLOWED_METRIC_CURRENCIES = ["USD", "CDF"];
 // range (so days with zero activity show as 0, not a gap in the chart),
 // left-joined against a per-day aggregate from each relevant table.
 //
-// NOTE: table names below assume Prisma's default mapping (table name =
-// model name, no @@map override) — confirmed for how the rest of this
-// codebase queries these models (prisma.order, prisma.user,
-// prisma.sellerProfile, prisma.sellerKyc, prisma.shop). If this schema
-// uses @@map to rename any of them, this throws a clear
-// "relation ... does not exist" error pointing at exactly which one.
+// Table names must match @@map values in schema.prisma (snake_case), not
+// Prisma model names — e.g. Order → "orders", User → "users".
 //
 // GMV is currency-scoped (defaults to USD) rather than summed across
 // currencies — same reasoning as gmvByCurrency in getOrderStats():
@@ -274,13 +274,13 @@ async function getDashboardMetrics({ days = 30, currency = "USD" } = {}) {
     ),
     orders_by_day AS (
       SELECT DATE("createdAt") AS date, COUNT(*)::int AS orders
-      FROM "Order"
+      FROM "orders"
       WHERE "createdAt" >= (SELECT start_date FROM bounds)
       GROUP BY DATE("createdAt")
     ),
     gmv_by_day AS (
       SELECT DATE("createdAt") AS date, COALESCE(SUM(total), 0)::float AS gmv
-      FROM "Order"
+      FROM "orders"
       WHERE status = 'COMPLETED'
         AND currency = ${safeCurrency}
         AND "createdAt" >= (SELECT start_date FROM bounds)
@@ -288,25 +288,25 @@ async function getDashboardMetrics({ days = 30, currency = "USD" } = {}) {
     ),
     users_by_day AS (
       SELECT DATE("createdAt") AS date, COUNT(*)::int AS "newUsers"
-      FROM "User"
+      FROM "users"
       WHERE "createdAt" >= (SELECT start_date FROM bounds)
       GROUP BY DATE("createdAt")
     ),
     sellers_by_day AS (
       SELECT DATE("createdAt") AS date, COUNT(*)::int AS "newSellers"
-      FROM "SellerProfile"
+      FROM "seller_profiles"
       WHERE "createdAt" >= (SELECT start_date FROM bounds)
       GROUP BY DATE("createdAt")
     ),
     kyc_by_day AS (
       SELECT DATE("createdAt") AS date, COUNT(*)::int AS "kycSubmissions"
-      FROM "SellerKyc"
+      FROM "seller_kyc"
       WHERE "createdAt" >= (SELECT start_date FROM bounds)
       GROUP BY DATE("createdAt")
     ),
     shops_by_day AS (
       SELECT DATE("publishedAt") AS date, COUNT(*)::int AS "shopsPublished"
-      FROM "Shop"
+      FROM "shops"
       WHERE "publishedAt" IS NOT NULL
         AND "publishedAt" >= (SELECT start_date FROM bounds)
       GROUP BY DATE("publishedAt")
@@ -333,6 +333,116 @@ async function getDashboardMetrics({ days = 30, currency = "USD" } = {}) {
     days: safeDays,
     currency: safeCurrency,
     series: rows,
+  };
+}
+
+async function getSupportMetrics({ days = 30 } = {}) {
+  const safeDays = ALLOWED_METRIC_DAYS.includes(Number(days))
+    ? Number(days)
+    : 30;
+
+  const rows = await prisma.$queryRaw`
+    WITH bounds AS (
+      SELECT
+        (CURRENT_DATE - (${safeDays}::int - 1)) AS start_date,
+        CURRENT_DATE AS end_date
+    ),
+    date_series AS (
+      SELECT generate_series(
+        (SELECT start_date FROM bounds),
+        (SELECT end_date FROM bounds),
+        INTERVAL '1 day'
+      )::date AS date
+    ),
+    users_by_day AS (
+      SELECT DATE("createdAt") AS date, COUNT(*)::int AS "newUsers"
+      FROM "users"
+      WHERE "createdAt" >= (SELECT start_date FROM bounds)
+      GROUP BY DATE("createdAt")
+    ),
+    sellers_by_day AS (
+      SELECT DATE("createdAt") AS date, COUNT(*)::int AS "newSellers"
+      FROM "seller_profiles"
+      WHERE "createdAt" >= (SELECT start_date FROM bounds)
+      GROUP BY DATE("createdAt")
+    ),
+    kyc_by_day AS (
+      SELECT DATE("createdAt") AS date, COUNT(*)::int AS "kycSubmissions"
+      FROM "seller_kyc"
+      WHERE "createdAt" >= (SELECT start_date FROM bounds)
+      GROUP BY DATE("createdAt")
+    ),
+    shops_by_day AS (
+      SELECT DATE("publishedAt") AS date, COUNT(*)::int AS "shopsPublished"
+      FROM "shops"
+      WHERE "publishedAt" IS NOT NULL
+        AND "publishedAt" >= (SELECT start_date FROM bounds)
+      GROUP BY DATE("publishedAt")
+    )
+    SELECT
+      TO_CHAR(ds.date, 'YYYY-MM-DD') AS date,
+      COALESCE(u."newUsers", 0) AS "newUsers",
+      COALESCE(sp."newSellers", 0) AS "newSellers",
+      COALESCE(k."kycSubmissions", 0) AS "kycSubmissions",
+      COALESCE(sh."shopsPublished", 0) AS "shopsPublished"
+    FROM date_series ds
+    LEFT JOIN users_by_day u ON u.date = ds.date
+    LEFT JOIN sellers_by_day sp ON sp.date = ds.date
+    LEFT JOIN kyc_by_day k ON k.date = ds.date
+    LEFT JOIN shops_by_day sh ON sh.date = ds.date
+    ORDER BY ds.date ASC;
+  `;
+
+  return { days: safeDays, series: rows };
+}
+
+async function getSupportOverview() {
+  const [
+    users,
+    sellerProfiles,
+    kyc,
+    shops,
+    products,
+    categoriesCount,
+    blogPostsCount,
+    contactMessages,
+  ] = await Promise.all([
+    getUserStats(),
+    getSellerProfileStats(),
+    getKycStats(),
+    getShopStats(),
+    getProductStats(),
+    prisma.category.count(),
+    prisma.blogPost.count(),
+    getContactMessageStats(),
+  ]);
+
+  return {
+    users: {
+      total: users.total,
+      byRole: {
+        BUYER: users.byRole.BUYER ?? 0,
+        SELLER: users.byRole.SELLER ?? 0,
+        RIDER: users.byRole.RIDER ?? 0,
+      },
+      blocked: users.blocked,
+    },
+    sellerProfiles,
+    kyc: {
+      total: kyc.total,
+      byStatus: kyc.byStatus,
+      pendingAction: kyc.pendingAction,
+      awaitingSupportReview: kyc.byStatus.PENDING ?? 0,
+      awaitingAdminApproval: kyc.byStatus.SUPPORT_REVIEWED ?? 0,
+    },
+    shops,
+    products,
+    catalog: {
+      categories: categoriesCount,
+      blogPosts: blogPostsCount,
+    },
+    contactMessages,
+    generatedAt: new Date().toISOString(),
   };
 }
 
@@ -377,6 +487,65 @@ async function getAdminOverview() {
   };
 }
 
+async function getAccountantOverview() {
+  const [
+    invoices,
+    subscriptions,
+    revenue,
+    orders,
+    adminPayouts,
+    walletPayouts,
+  ] = await Promise.all([
+    getInvoiceStats(),
+    getSubscriptionStats(),
+    getSubscriptionRevenue(),
+    getOrderStats(),
+    prisma.adminPayout.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+    }),
+    prisma.walletTransaction.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+      where: { type: "PAYOUT_DEBIT" },
+    }),
+  ]);
+
+  const adminPayoutMap = adminPayouts.reduce((acc, row) => {
+    acc[row.status] = row._count._all;
+    return acc;
+  }, {});
+
+  const walletPayoutMap = walletPayouts.reduce((acc, row) => {
+    acc[row.status] = row._count._all;
+    return acc;
+  }, {});
+
+  return {
+    invoices,
+    subscriptions,
+    revenue,
+    orders: {
+      total: orders.total,
+      completed: orders.byStatus.COMPLETED ?? 0,
+      gmvByCurrency: orders.gmvByCurrency,
+    },
+    adminPayouts: {
+      total: Object.values(adminPayoutMap).reduce((sum, n) => sum + n, 0),
+      byStatus: {
+        PROCESSING: adminPayoutMap.PROCESSING ?? 0,
+        COMPLETED: adminPayoutMap.COMPLETED ?? 0,
+        FAILED: adminPayoutMap.FAILED ?? 0,
+      },
+    },
+    sellerPayouts: {
+      total: Object.values(walletPayoutMap).reduce((sum, n) => sum + n, 0),
+      byStatus: walletPayoutMap,
+    },
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 module.exports = {
   getUserStats,
   getSellerProfileStats,
@@ -386,5 +555,8 @@ module.exports = {
   getShopStats,
   getProductStats,
   getDashboardMetrics,
+  getSupportMetrics,
   getAdminOverview,
+  getSupportOverview,
+  getAccountantOverview,
 };

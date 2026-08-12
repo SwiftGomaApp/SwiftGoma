@@ -74,33 +74,7 @@ ProductRouter.put(
   putUpdateSubcategory,
 );
 
-// ----- Products (vendeur) -----
-ProductRouter.post(
-  "/",
-  authorize("SELLER"),
-  productImages,
-  postCreateProduct,
-);
-ProductRouter.get("/shop/:shopId", authorize("SELLER"), getMyShopProducts);
-ProductRouter.put("/:id", authorize("SELLER"), putUpdateProduct);
-ProductRouter.post("/:id/status", authorize("SELLER"), postSetProductStatus);
-
-// ----- Reviews (acheteur) -----
-ProductRouter.post("/:productId/reviews", postSubmitReview);
-
-// ----- Stock (vendeur) -----
-ProductRouter.post(
-  "/variants/:variantId/stock",
-  authorize("SELLER"),
-  postAdjustStock,
-);
-ProductRouter.get(
-  "/variants/:variantId/stock/history",
-  authorize("SELLER"),
-  getVariantStockHistory,
-);
-
-// ----- Exchange rates (ADMIN/SUPPORT) -----
+// ----- Exchange rates (ADMIN/SUPPORT) — before /:id seller routes -----
 ProductRouter.get(
   "/exchange-rates",
   authorize("ADMIN", "SUPPORT"),
@@ -135,6 +109,32 @@ ProductRouter.post(
   "/exchange-rates/preview",
   authorize("ADMIN", "SUPPORT"),
   postPreviewConversion,
+);
+
+// ----- Products (vendeur) -----
+ProductRouter.post(
+  "/",
+  authorize("SELLER"),
+  productImages,
+  postCreateProduct,
+);
+ProductRouter.get("/shop/:shopId", authorize("SELLER"), getMyShopProducts);
+ProductRouter.put("/:id", authorize("SELLER"), putUpdateProduct);
+ProductRouter.post("/:id/status", authorize("SELLER"), postSetProductStatus);
+
+// ----- Reviews (acheteur) -----
+ProductRouter.post("/:productId/reviews", postSubmitReview);
+
+// ----- Stock (vendeur) -----
+ProductRouter.post(
+  "/variants/:variantId/stock",
+  authorize("SELLER"),
+  postAdjustStock,
+);
+ProductRouter.get(
+  "/variants/:variantId/stock/history",
+  authorize("SELLER"),
+  getVariantStockHistory,
 );
 
 module.exports = ProductRouter;

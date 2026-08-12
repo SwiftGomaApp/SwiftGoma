@@ -2,7 +2,7 @@ const {
   checkout,
   acceptOrder,
   rejectOrder,
-  markReadyForPickup,
+  markOrderReady,
   completePickupHandoff,
   assignRider,
   markPickedUp,
@@ -122,7 +122,7 @@ async function postRejectOrder(req, res, next) {
 async function postMarkReady(req, res, next) {
   try {
     const sellerProfileId = await getSellerProfileIdForUser(req.user.id);
-    const order = await markReadyForPickup(req.params.id, sellerProfileId);
+    const order = await markOrderReady(req.params.id, sellerProfileId);
     res.status(200).json({ success: true, data: order });
   } catch (err) {
     next(err);
@@ -146,10 +146,11 @@ async function postCompletePickup(req, res, next) {
 async function postAssignRider(req, res, next) {
   try {
     const sellerProfileId = await getSellerProfileIdForUser(req.user.id);
+    const riderId = req.body.riderId ?? req.body.userId;
     const order = await assignRider(
       req.params.id,
       sellerProfileId,
-      req.body.riderId,
+      riderId,
     );
     res.status(200).json({ success: true, data: order });
   } catch (err) {

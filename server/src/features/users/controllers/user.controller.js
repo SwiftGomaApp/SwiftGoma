@@ -221,7 +221,7 @@ async function postForceLogout(req, res, next) {
 
 async function postVerifyEmail(req, res, next) {
   try {
-    const result = await verifyUserEmail(
+    const result = await userService.verifyUserEmail(
       req.user,
       req.params.id,
       req.body.emailId,
@@ -269,7 +269,7 @@ async function postRestoreUser(req, res, next) {
 
 async function postChangeRole(req, res, next) {
   try {
-    const result = await changeUserRole(
+    const result = await userService.changeUserRole(
       req.user,
       req.params.id,
       req.body.role,

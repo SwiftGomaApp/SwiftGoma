@@ -133,3 +133,11 @@
     @apply font-sans;
   }
 }
+
+.mapbox-tracking-map,
+.mapbox-tracking-map .mapboxgl-map,
+.mapbox-tracking-map .mapboxgl-canvas-container,
+.mapbox-tracking-map canvas.mapboxgl-canvas {
+  width: 100% !important;
+  height: 100% !important;
+}

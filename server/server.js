@@ -19,6 +19,12 @@ const {
   startInvoiceDocumentsWorker,
 } = require("./src/jobs/invoiceDocuments.job");
 const { startPayoutsWorker } = require("./src/jobs/payouts.job");
+const {
+  startAccountantReportJob,
+} = require("./src/jobs/accountantReport.job");
+const {
+  startAdminPayoutReconciliationJob,
+} = require("./src/jobs/adminPayoutReconciliation.job");
 
 const app = createApp();
 const httpServer = http.createServer(app);
@@ -34,6 +40,8 @@ startPayoutReconciliationJob();
 startOrderPaymentReconciliationJob();
 startPayoutsWorker();
 startInvoiceDocumentsWorker();
+startAccountantReportJob();
+startAdminPayoutReconciliationJob();
 
 function crash(label, err) {
   console.error(`[${label}]`, err);

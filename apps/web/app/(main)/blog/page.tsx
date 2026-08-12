@@ -1,10 +1,15 @@
 import Link from "next/link";
 import { Newspaper } from "lucide-react";
+import type { Metadata } from "next";
 import { blogApi } from "@/lib/api/routes/blog";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Blog",
-};
+  description:
+    "Actualités, conseils e-commerce et annonces SwiftGoma pour la marketplace en RDC et au Rwanda.",
+  path: "/blog",
+});
 
 function formatDate(dateStr: string) {
   return new Intl.DateTimeFormat("fr-FR", {

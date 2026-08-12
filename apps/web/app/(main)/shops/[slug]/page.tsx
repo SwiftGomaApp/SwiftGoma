@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Store, Truck, Mail, Phone, MessageCircle, MapPin } from "lucide-react";
 import { publicApi } from "@/lib/api/routes/public";
 import { ApiException } from "@/lib/api";
+import { buildPageMetadata } from "@/lib/seo";
 import { InfiniteProductGrid } from "@/components/products/infinite-product-grid";
 import { ShopProductFilters } from "@/components/products/shop-product-filters";
 import { ImageWithFallback } from "@/components/global/image-with-fallback";
@@ -31,15 +32,21 @@ export async function generateMetadata({
   const { slug } = await params;
   try {
     const shop = await publicApi.getShopBySlug(slug);
-    return {
+    const description = shop.description.slice(0, 160);
+
+    return buildPageMetadata({
       title: shop.name,
-      description: shop.description.slice(0, 160),
+      description,
+      path: `/shops/${slug}`,
       openGraph: {
-        title: shop.name,
-        description: shop.description.slice(0, 160),
-        images: shop.bannerUrl ? [{ url: shop.bannerUrl }] : undefined,
+        type: "website",
+        images: shop.bannerUrl
+          ? [{ url: shop.bannerUrl, alt: shop.name }]
+          : shop.logoUrl
+            ? [{ url: shop.logoUrl, alt: shop.name }]
+            : undefined,
       },
-    };
+    });
   } catch {
     return { title: "Boutique" };
   }

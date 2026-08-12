@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { Mail, Phone, MapPin } from "lucide-react";
 import Logo from "./logo";
+import { BRAND } from "@/lib/brand";
 
 const EXPLORE_LINKS = [
   { href: "/products", label: "Produits" },
@@ -13,7 +14,7 @@ const EXPLORE_LINKS = [
 ];
 
 const SELLER_LINKS = [
-  { href: "/sell", label: "Vendre sur SwiftGoma" },
+  { href: "/help", label: "Vendre sur SwiftGoma" },
   { href: "/legal/seller-terms", label: "Conditions Vendeurs" },
   { href: "/legal/delivery-terms", label: "Conditions Livreurs" },
 ];
@@ -50,14 +51,14 @@ function XIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 const SOCIAL_LINKS = [
-  { href: "https://facebook.com", label: "Facebook", icon: FacebookIcon },
-  { href: "https://instagram.com", label: "Instagram", icon: InstagramIcon },
-  { href: "https://twitter.com", label: "X (Twitter)", icon: XIcon },
+  { href: BRAND.social.facebook, label: "Facebook", icon: FacebookIcon },
+  { href: BRAND.social.instagram, label: "Instagram", icon: InstagramIcon },
+  { href: BRAND.social.tiktok, label: "TikTok", icon: XIcon },
 ];
 
 export function Footer() {
   return (
-    <footer className="border-t border-border">
+    <footer className="mt-auto w-full border-t border-border bg-background">
       <div className="mx-auto max-w-7xl px-6 py-12">
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
           {/* Brand */}

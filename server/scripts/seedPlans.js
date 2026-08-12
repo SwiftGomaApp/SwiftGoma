@@ -130,6 +130,13 @@ async function main() {
   }
 
   console.log("\nSeed terminé.");
+
+  const cache = require("../src/common/services/cache");
+  if (cache.isAvailable()) {
+    await cache.clearNamespace("plans");
+    console.log("Cache plans invalidé.");
+  }
+
   await prisma.$disconnect();
 }
 

@@ -51,7 +51,7 @@ SubscriptionRouter.post(
   authorize("SELLER"),
   postCheckPaymentStatus,
 );
-SubscriptionRouter.get("/stats", authorize("ADMIN"), getStats);
-SubscriptionRouter.get("/revenue", authorize("ADMIN"), getRevenue);
+SubscriptionRouter.get("/stats", authorize("ADMIN", "ACCOUNTANT"), getStats);
+SubscriptionRouter.get("/revenue", authorize("ADMIN", "ACCOUNTANT"), getRevenue);
 
 module.exports = SubscriptionRouter;

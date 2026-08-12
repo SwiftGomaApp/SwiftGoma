@@ -10,6 +10,13 @@ vi.mock("@/lib/api/routes/auth", () => ({
   logout: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: vi.fn(),
+    push: vi.fn(),
+  }),
+}));
+
 const fakeUser = {
   id: "1",
   name: "Gael",

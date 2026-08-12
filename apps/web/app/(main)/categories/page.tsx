@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { Grid3x3 } from "lucide-react";
+import type { Metadata } from "next";
 import { publicApi } from "@/lib/api/routes/public";
 import { CATEGORIES } from "@/lib/mock-categories";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Catégories",
-  description: "Parcourez toutes les catégories de produits sur Swiftgoma.",
-};
+  description:
+    "Parcourez toutes les catégories de produits disponibles sur SwiftGoma.",
+  path: "/categories",
+});
 
 export default async function CategoriesPage() {
   let categories: Awaited<ReturnType<typeof publicApi.listCategories>> =

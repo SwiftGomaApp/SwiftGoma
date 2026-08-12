@@ -44,7 +44,8 @@ async function deleteItem(req, res, next) {
 
 async function getCartForShop(req, res, next) {
   try {
-    const cart = await getCart(req.user.id, req.params.shopId);
+    const currency = req.query.currency ? String(req.query.currency).toUpperCase() : null;
+    const cart = await getCart(req.user.id, req.params.shopId, currency);
     res.status(200).json({ success: true, data: cart });
   } catch (err) {
     next(err);

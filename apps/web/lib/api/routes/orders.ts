@@ -42,6 +42,9 @@ export type Order = {
   deliveryFee: string;
   total: string;
   deliveryAddress: string | null;
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
+  riderId?: string | null;
   qrToken: string;
   failureReason?: string | null;
   items: OrderItem[];

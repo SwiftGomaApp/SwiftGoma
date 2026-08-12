@@ -5,6 +5,7 @@ const { getPrismaClient } = require("../src/config/prisma");
 const SALT_ROUNDS = 12;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\+?[0-9]{8,15}$/;
+const STAFF_ROLES_REQUIRING_APPROVAL = ["SUPPORT", "ACCOUNTANT"];
 
 function guardProduction() {
   const isProd = process.env.NODE_ENV === "production";
@@ -73,9 +74,18 @@ async function promptForAccount(rl) {
     throw new Error("Invalid phone format.");
   }
 
-  const roleChoice = await ask(rl, "Role — 1) ADMIN  2) SUPPORT: ");
+  const roleChoice = await ask(
+    rl,
+    "Role — 1) ADMIN  2) SUPPORT  3) ACCOUNTANT: ",
+  );
   const role =
-    roleChoice === "1" ? "ADMIN" : roleChoice === "2" ? "SUPPORT" : null;
+    roleChoice === "1"
+      ? "ADMIN"
+      : roleChoice === "2"
+        ? "SUPPORT"
+        : roleChoice === "3"
+          ? "ACCOUNTANT"
+          : null;
   if (!role) throw new Error("Invalid role selection.");
 
   let password;
@@ -99,7 +109,9 @@ async function promptForAccount(rl) {
 }
 
 async function verifyApprovingAdmin(rl, prisma) {
-  console.log("\nSUPPORT accounts require approval from an existing ADMIN.");
+  console.log(
+    "\nSUPPORT and ACCOUNTANT accounts require approval from an existing ADMIN.",
+  );
   const adminEmail = (await ask(rl, "Approving admin email: ")).toLowerCase();
   const adminPassword = await askHidden(rl, "Approving admin password: ");
 
@@ -149,7 +161,7 @@ async function main() {
     }
 
     let approvingAdmin = null;
-    if (role === "SUPPORT") {
+    if (STAFF_ROLES_REQUIRING_APPROVAL.includes(role)) {
       approvingAdmin = await verifyApprovingAdmin(rl, prisma);
     }
 

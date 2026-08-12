@@ -57,8 +57,8 @@ const {
 const PHONE_OTP_TTL_MINUTES = 10;
 const PHONE_OTP_RESEND_COOLDOWN_SECONDS = 30;
 const MAX_LIMIT = 100;
-const PRIVILEGED_ROLES = ["ADMIN", "SUPPORT"];
-const VALID_ROLES = ["BUYER", "SELLER", "RIDER", "ADMIN", "SUPPORT"];
+const PRIVILEGED_ROLES = ["ADMIN", "SUPPORT", "ACCOUNTANT"];
+const VALID_ROLES = ["BUYER", "SELLER", "RIDER", "ADMIN", "SUPPORT", "ACCOUNTANT"];
 const SECONDARY_EMAIL_OTP_TTL_MINUTES = 10;
 
 const SENSITIVE_FIELDS = [
@@ -109,7 +109,7 @@ function assertCanActOnTarget(actor, targetUser) {
   }
   if (actor.role === "SUPPORT" && PRIVILEGED_ROLES.includes(targetUser.role)) {
     throw new ForbiddenError(
-      "SUPPORT ne peut pas agir sur les comptes ADMIN ou SUPPORT.",
+      "SUPPORT ne peut pas agir sur les comptes ADMIN, SUPPORT ou COMPTABLE.",
     );
   }
 }
@@ -913,6 +913,12 @@ async function listUsers(query) {
             isVerified: true,
           },
         },
+        sellerProfile: {
+          select: {
+            status: true,
+            businessName: true,
+          },
+        },
       },
     }),
   ]);
@@ -932,6 +938,7 @@ async function listUsers(query) {
         isBlocked: u.isBlocked,
         deletedAt: u.deletedAt,
         createdAt: u.createdAt,
+        sellerProfile: u.sellerProfile,
       };
     }),
     pagination: {
