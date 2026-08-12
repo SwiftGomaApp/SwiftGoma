@@ -62,7 +62,10 @@ async function updateIncident(id, { status, description, severity }) {
     where: { id },
     data: {
       ...(status !== undefined && { status }),
-      ...(description !== undefined && { description: description.trim() }),
+      ...(description !== undefined && {
+        description:
+          typeof description === "string" ? description.trim() : description,
+      }),
       ...(severity !== undefined && { severity }),
       ...(resolvedAt !== undefined && { resolvedAt }),
     },

@@ -28,7 +28,11 @@ async function getExchangeRate(fromCurrency, toCurrency) {
 
 async function convertAmount(amount, fromCurrency, toCurrency) {
   const rate = await getExchangeRate(fromCurrency, toCurrency);
-  return Math.round(Number(amount) * rate * 100) / 100;
+  const converted = Number(amount) * rate;
+  if (toCurrency === "CDF") {
+    return Math.round(converted);
+  }
+  return Math.round(converted * 100) / 100;
 }
 
 function isValidRate(rate) {

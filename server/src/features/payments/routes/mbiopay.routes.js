@@ -1,7 +1,6 @@
 const express = require("express");
 const {
   postInitiatePayin,
-  postInitiatePayout,
   postRequestPayoutApproval,
   postConfirmPayout,
   getPayoutHistory,
@@ -20,7 +19,6 @@ const MbiyoPayRouter = express.Router();
 MbiyoPayRouter.use(authenticate);
 
 MbiyoPayRouter.post("/payin", authorize("ADMIN"), postInitiatePayin);
-MbiyoPayRouter.post("/payout", authorize("ADMIN"), postInitiatePayout);
 MbiyoPayRouter.post(
   "/payout/request-approval",
   authorize("ADMIN"),

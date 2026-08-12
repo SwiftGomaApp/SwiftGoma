@@ -1377,6 +1377,10 @@ async function changeUserRole(actor, targetUserId, newRole, reason) {
       where: { id: targetUserId },
       data: { role: newRole },
     }),
+    prisma.session.updateMany({
+      where: { userId: targetUserId, isRevoked: false },
+      data: { isRevoked: true },
+    }),
     prisma.accountActionLog.create({
       data: {
         actorId: actor.id,

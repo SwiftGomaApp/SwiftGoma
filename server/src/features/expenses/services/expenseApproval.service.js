@@ -10,6 +10,7 @@ const {
   ValidationError,
   UnauthorizedError,
   AppError,
+  ConflictError,
 } = require("../../../common/errors");
 const { initiatePayout } = require("../../payments/services/pawapay.service");
 const { buildMetadata } = require("../../payments/utils/pawapay.utils");
@@ -26,7 +27,8 @@ const {
 const {
   getExpenseRecordForApproval,
   buildPayoutInputFromExpense,
-  markExpenseProcessing,
+  claimExpenseForPayout,
+  attachExpensePayout,
   markExpenseFailed,
   getExpenseById,
   resetFailedExpenseForApproval,
@@ -251,7 +253,10 @@ async function confirmExpenseApproval(adminId, expenseId, { pendingId, code }) {
   }
 
   await clearPending(adminId);
-  await getExpenseRecordForApproval(expenseId);
+
+  const expense = await claimExpenseForPayout(adminId, expenseId);
+  const payoutInput = buildPayoutInputFromExpense(expense);
+  assertValidPawaPayPayoutInput(payoutInput);
 
   let payoutRecord = await recordAdminPayout({
     adminId,
@@ -317,7 +322,7 @@ async function confirmExpenseApproval(adminId, expenseId, { pendingId, code }) {
     );
   }
 
-  await markExpenseProcessing(adminId, expenseId, payoutRecord.id);
+  await attachExpensePayout(expenseId, payoutRecord.id);
 
   try {
     const { email, name } = await getAdminPrimaryEmail(adminId);

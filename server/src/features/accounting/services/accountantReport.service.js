@@ -92,7 +92,7 @@ async function fetchExpenseReportSlice(from, to, detailLimit = DETAIL_LIMIT) {
         by: ["currency"],
         where: {
           incurredAt: { gte: from, lte: to },
-          status: { in: ["PROCESSING", "COMPLETED"] },
+          status: { in: ["COMPLETED"] },
         },
         _sum: { amount: true },
         _count: { _all: true },

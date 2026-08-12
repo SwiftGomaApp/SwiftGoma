@@ -6,7 +6,7 @@ const {
 const {
   CLOUDINARY_FOLDERS,
 } = require("../../../common/constants/cloudinaryFolders");
-const { NotFoundError } = require("../../../common/errors");
+const { NotFoundError, ValidationError } = require("../../../common/errors");
 const {
   generateDocumentNumber,
   formatPeriodLabel,
@@ -20,6 +20,8 @@ const {
 } = require("../utils/invoicePdf");
 
 const prisma = getPrismaClient();
+
+const INVOICE_DOCUMENT_TYPES = ["INVOICE", "RECEIPT", "PAYOUT_RECEIPT"];
 
 async function getFullPaymentOrThrow(subscriptionPaymentId) {
   const payment = await prisma.subscriptionPayment.findUnique({
@@ -325,7 +327,13 @@ async function listInvoicesForAdmin(query = {}) {
   const skip = (page - 1) * limit;
 
   const where = {};
-  if (query.type) where.type = query.type;
+  if (query.type) {
+    const type = String(query.type).toUpperCase();
+    if (!INVOICE_DOCUMENT_TYPES.includes(type)) {
+      throw new ValidationError("Type de document invalide.");
+    }
+    where.type = type;
+  }
 
   const search = typeof query.search === "string" ? query.search.trim() : "";
   if (search) {

@@ -121,7 +121,7 @@ async function adminUpdateProductStatus(productId, actor, { status, reason }) {
     data: { status },
     include: {
       shop: { select: { id: true, name: true, slug: true, status: true } },
-      images: { orderBy: { sortOrder: "asc" }, take: 1 },
+      images: { orderBy: { position: "asc" }, take: 1 },
       variants: { select: { price: true } },
     },
   });

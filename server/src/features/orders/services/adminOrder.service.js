@@ -198,7 +198,9 @@ async function adminCancelOrder(orderId, actor, reason) {
   });
 
   emitOrderUpdate(updated);
-  await refundOrderPayment(order, "admin_cancellation");
+  if (actor.role === "ADMIN") {
+    await refundOrderPayment(order, "admin_cancellation");
+  }
 
   try {
     await createNotification({

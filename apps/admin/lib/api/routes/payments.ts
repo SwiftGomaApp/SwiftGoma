@@ -23,19 +23,6 @@ export async function getPawaPayDepositStatus(depositId: string): Promise<unknow
   return unwrap(res);
 }
 
-export async function initiatePawaPayPayout(input: {
-  amount: number;
-  currency: string;
-  country: string;
-  provider: string;
-  recipientPhoneNumber: string;
-  customerMessage: string;
-  clientReferenceId?: string;
-}): Promise<unknown> {
-  const res = await apiClient.post("/pawapay/payouts", input);
-  return unwrap(res);
-}
-
 export interface PawaPayPayoutApprovalSummary {
   amount: number;
   currency: string;
@@ -159,19 +146,6 @@ export async function initiateMbiyoPayPayin(input: {
   orderId?: string;
 }): Promise<unknown> {
   const res = await apiClient.post("/mbiyopay/payin", input);
-  return unwrap(res);
-}
-
-export async function initiateMbiyoPayPayout(input: {
-  amount: number;
-  currency: string;
-  network: string;
-  phoneNumber: string;
-  countryCode: string;
-  beneficiary: string;
-  orderId?: string;
-}): Promise<unknown> {
-  const res = await apiClient.post("/mbiyopay/payout", input);
   return unwrap(res);
 }
 

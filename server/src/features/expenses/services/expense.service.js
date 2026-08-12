@@ -1,5 +1,5 @@
 const { getPrismaClient } = require("../../../config/prisma");
-const { NotFoundError, ValidationError } = require("../../../common/errors");
+const { NotFoundError, ValidationError, ConflictError } = require("../../../common/errors");
 const {
   uploadPdf,
   uploadImage,
@@ -14,6 +14,14 @@ const { createNotification } = require("../../notification/services/notification
 const { NOTIFICATION_TYPES } = require("../../notification/config/notificationTypes");
 
 const prisma = getPrismaClient();
+
+const EXPENSE_STATUSES = [
+  "PENDING",
+  "REJECTED",
+  "PROCESSING",
+  "COMPLETED",
+  "FAILED",
+];
 
 const EXPENSE_CATEGORIES = [
   "OPERATIONS",
@@ -220,10 +228,18 @@ async function listExpenses(query = {}) {
   const where = {};
 
   if (query.status) {
-    where.status = String(query.status).toUpperCase();
+    const status = String(query.status).toUpperCase();
+    if (!EXPENSE_STATUSES.includes(status)) {
+      throw new ValidationError("Statut de dépense invalide.");
+    }
+    where.status = status;
   }
   if (query.category) {
-    where.category = String(query.category).toUpperCase();
+    const category = String(query.category).toUpperCase();
+    if (!EXPENSE_CATEGORIES.includes(category)) {
+      throw new ValidationError("Catégorie de dépense invalide.");
+    }
+    where.category = category;
   }
 
   const [items, total] = await Promise.all([
@@ -292,25 +308,29 @@ async function resetFailedExpenseForApproval(id) {
 }
 
 async function rejectExpense(adminId, id, reason) {
-  const record = await prisma.expense.findUnique({ where: { id } });
-  if (!record) {
-    throw new NotFoundError("Dépense introuvable.");
-  }
-  if (record.status !== "PENDING") {
-    throw new ValidationError("Seules les dépenses en attente peuvent être rejetées.");
-  }
   if (!reason?.trim()) {
     throw new ValidationError("Le motif de rejet est requis.");
   }
 
-  const updated = await prisma.expense.update({
-    where: { id },
+  const claimed = await prisma.expense.updateMany({
+    where: { id, status: "PENDING" },
     data: {
       status: "REJECTED",
       rejectedById: adminId,
       rejectedAt: new Date(),
       rejectionReason: reason.trim(),
     },
+  });
+  if (claimed.count !== 1) {
+    const record = await prisma.expense.findUnique({ where: { id } });
+    if (!record) {
+      throw new NotFoundError("Dépense introuvable.");
+    }
+    throw new ValidationError("Seules les dépenses en attente peuvent être rejetées.");
+  }
+
+  const updated = await prisma.expense.findUnique({
+    where: { id },
     include: expenseInclude,
   });
 
@@ -332,6 +352,39 @@ async function rejectExpense(adminId, id, reason) {
   }
 
   return mapExpense(updated);
+}
+
+async function claimExpenseForPayout(adminId, expenseId) {
+  const claimed = await prisma.expense.updateMany({
+    where: { id: expenseId, status: { in: ["PENDING", "FAILED"] } },
+    data: {
+      status: "PROCESSING",
+      approvedById: adminId,
+      approvedAt: new Date(),
+    },
+  });
+  if (claimed.count !== 1) {
+    throw new ConflictError(
+      "Cette dépense a déjà été traitée ou rejetée.",
+    );
+  }
+
+  return prisma.expense.findUnique({ where: { id: expenseId } });
+}
+
+async function attachExpensePayout(expenseId, adminPayoutId) {
+  const updated = await prisma.expense.updateMany({
+    where: { id: expenseId, status: "PROCESSING" },
+    data: { adminPayoutId },
+  });
+  if (updated.count !== 1) {
+    throw new ConflictError("Impossible d'associer le payout à la dépense.");
+  }
+
+  return prisma.expense.findUnique({
+    where: { id: expenseId },
+    include: expenseInclude,
+  });
 }
 
 async function markExpenseProcessing(adminId, expenseId, adminPayoutId) {
@@ -366,6 +419,8 @@ module.exports = {
   getExpenseRecordForApproval,
   rejectExpense,
   resetFailedExpenseForApproval,
+  claimExpenseForPayout,
+  attachExpensePayout,
   markExpenseProcessing,
   markExpenseFailed,
   buildPayoutInputFromExpense,

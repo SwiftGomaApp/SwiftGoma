@@ -655,44 +655,72 @@ async function confirmOrderPayment(transactionId, orderId) {
     return { payment, order: payment.order };
   }
 
-  // Atomic claim — guards against a duplicate/concurrent webhook delivery
-  // (MbiyoPay can redeliver the same callback) both passing the in-memory
-  // check above and both applying the order transition, enqueuing a
-  // duplicate invoice/receipt job, and double-notifying the seller.
-  const claimed = await prisma.orderPayment.updateMany({
-    where: { id: payment.id, status: { not: "SUCCEEDED" } },
-    data: { status: "SUCCEEDED", heldAt: new Date() },
+  const txResult = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.orderPayment.updateMany({
+      where: { id: payment.id, status: "PENDING" },
+      data: { status: "SUCCEEDED", heldAt: new Date() },
+    });
+    if (claimed.count !== 1) {
+      return { type: "lost_race" };
+    }
+
+    const currentOrder = await tx.order.findUnique({
+      where: { id: payment.orderId },
+    });
+
+    if (TERMINAL_ORDER_STATUSES.includes(currentOrder.status)) {
+      return { type: "terminal", order: currentOrder };
+    }
+
+    if (currentOrder.status !== "AWAITING_PAYMENT") {
+      return { type: "skip_transition", order: currentOrder };
+    }
+
+    const orderClaimed = await tx.order.updateMany({
+      where: { id: payment.orderId, status: "AWAITING_PAYMENT" },
+      data: { status: "PENDING_SELLER_REVIEW" },
+    });
+    if (orderClaimed.count !== 1) {
+      return { type: "skip_transition", order: currentOrder };
+    }
+
+    const updatedOrder = await tx.order.findUnique({
+      where: { id: payment.orderId },
+    });
+    return { type: "success", order: updatedOrder };
   });
-  if (claimed.count !== 1) {
-    return { payment, order: payment.order }; // lost the race
+
+  if (txResult.type === "lost_race") {
+    const current = await prisma.orderPayment.findUnique({
+      where: { id: payment.id },
+      include: { order: true },
+    });
+    return { payment: current, order: current?.order ?? payment.order };
   }
 
   const updatedPayment = await prisma.orderPayment.findUnique({
     where: { id: payment.id },
   });
 
-  if (TERMINAL_ORDER_STATUSES.includes(payment.order.status)) {
+  if (txResult.type === "terminal") {
     console.error(
-      `[order] Payment confirmed for order ${payment.orderId} but order already in terminal state "${payment.order.status}" — refunding.`,
+      `[order] Payment confirmed for order ${payment.orderId} but order already in terminal state "${txResult.order.status}" — refunding.`,
     );
     await refundOrderPayment(
-      { ...payment.order, payment: updatedPayment },
+      { ...txResult.order, payment: updatedPayment },
       "late_payment_confirmation",
     );
-    return { payment: updatedPayment, order: payment.order };
+    return { payment: updatedPayment, order: txResult.order };
   }
 
-  if (payment.order.status !== "AWAITING_PAYMENT") {
+  if (txResult.type === "skip_transition") {
     console.error(
-      `[order] Payment confirmed for order ${payment.orderId} but order status is "${payment.order.status}" (expected AWAITING_PAYMENT) — skipping transition.`,
+      `[order] Payment confirmed for order ${payment.orderId} but order status is "${txResult.order.status}" (expected AWAITING_PAYMENT) — skipping transition.`,
     );
-    return { payment: updatedPayment, order: payment.order };
+    return { payment: updatedPayment, order: txResult.order };
   }
 
-  const updatedOrder = await prisma.order.update({
-    where: { id: payment.orderId },
-    data: { status: "PENDING_SELLER_REVIEW" },
-  });
+  const updatedOrder = txResult.order;
   emitOrderUpdate(updatedOrder);
 
   await clearCart(payment.order.buyerId, payment.order.shopId);
@@ -734,33 +762,60 @@ async function failOrderPayment(transactionId, failureReason, orderId) {
     return { payment, order: payment.order };
   }
 
-  // Same atomic-claim reasoning as confirmOrderPayment above.
-  const claimed = await prisma.orderPayment.updateMany({
-    where: { id: payment.id, status: { not: "FAILED" } },
-    data: { status: "FAILED", failureReason },
+  const txResult = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.orderPayment.updateMany({
+      where: { id: payment.id, status: "PENDING" },
+      data: { status: "FAILED", failureReason },
+    });
+    if (claimed.count !== 1) {
+      return { type: "lost_race" };
+    }
+
+    const currentOrder = await tx.order.findUnique({
+      where: { id: payment.orderId },
+    });
+
+    if (
+      TERMINAL_ORDER_STATUSES.includes(currentOrder.status) ||
+      currentOrder.status !== "AWAITING_PAYMENT"
+    ) {
+      return { type: "skip_transition", order: currentOrder };
+    }
+
+    const orderClaimed = await tx.order.updateMany({
+      where: { id: payment.orderId, status: "AWAITING_PAYMENT" },
+      data: { status: "FAILED", failureReason },
+    });
+    if (orderClaimed.count !== 1) {
+      return { type: "skip_transition", order: currentOrder };
+    }
+
+    const updatedOrder = await tx.order.findUnique({
+      where: { id: payment.orderId },
+    });
+    return { type: "success", order: updatedOrder };
   });
-  if (claimed.count !== 1) {
-    return { payment, order: payment.order }; // lost the race
+
+  if (txResult.type === "lost_race") {
+    const current = await prisma.orderPayment.findUnique({
+      where: { id: payment.id },
+      include: { order: true },
+    });
+    return { payment: current, order: current?.order ?? payment.order };
   }
 
   const updatedPayment = await prisma.orderPayment.findUnique({
     where: { id: payment.id },
   });
 
-  if (
-    TERMINAL_ORDER_STATUSES.includes(payment.order.status) ||
-    payment.order.status !== "AWAITING_PAYMENT"
-  ) {
+  if (txResult.type === "skip_transition") {
     console.error(
-      `[order] Payment failed for order ${payment.orderId} but order status is already "${payment.order.status}" — skipping transition.`,
+      `[order] Payment failed for order ${payment.orderId} but order status is already "${txResult.order.status}" — skipping transition.`,
     );
-    return { payment: updatedPayment, order: payment.order };
+    return { payment: updatedPayment, order: txResult.order };
   }
 
-  const updatedOrder = await prisma.order.update({
-    where: { id: payment.orderId },
-    data: { status: "FAILED", failureReason },
-  });
+  const updatedOrder = txResult.order;
   emitOrderUpdate(updatedOrder);
 
   const fullOrder = await getFullOrder(updatedOrder.id);

@@ -51,8 +51,9 @@ async function verifyPawaPayCallback(req) {
   if (isProduction) {
     console.error(
       "[pawapay-callback] CRITICAL: running in production with signing disabled. " +
-        "This callback is currently unauthenticated.",
+        "Rejecting unauthenticated callback.",
     );
+    return false;
   }
   return true;
 }
