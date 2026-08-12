@@ -13,6 +13,11 @@ const HOP_BY_HOP = new Set([
   "host",
 ]);
 
+const STRIP_RESPONSE_HEADERS = new Set([
+  "content-encoding",
+  "content-length",
+]);
+
 function sanitizeSetCookie(value: string): string {
   return value
     .split(";")
@@ -46,9 +51,11 @@ export async function handleApiProxy(
   req.headers.forEach((value, key) => {
     const lower = key.toLowerCase();
     if (HOP_BY_HOP.has(lower)) return;
+    if (lower === "accept-encoding") return;
     headers.set(key, value);
   });
   headers.set("ngrok-skip-browser-warning", "1");
+  headers.set("accept-encoding", "identity");
 
   const hasBody = !["GET", "HEAD"].includes(req.method);
   const upstream = await fetch(url, {
@@ -64,6 +71,7 @@ export async function handleApiProxy(
     const lower = key.toLowerCase();
     if (lower === "set-cookie") return;
     if (HOP_BY_HOP.has(lower)) return;
+    if (STRIP_RESPONSE_HEADERS.has(lower)) return;
     responseHeaders.set(key, value);
   });
 
