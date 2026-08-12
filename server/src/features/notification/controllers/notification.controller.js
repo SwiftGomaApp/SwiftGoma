@@ -7,6 +7,7 @@ const {
   getPreferences,
   updatePreference,
 } = require("../services/notification.service");
+const { ValidationError } = require("../../../common/errors");
 
 async function getNotifications(req, res, next) {
   try {
@@ -71,12 +72,17 @@ async function putNotificationPreference(req, res, next) {
 
 async function postCreateNotification(req, res, next) {
   try {
+    const { userId, type, title, body, data } = req.body;
+    if (!userId || !title?.trim() || !body?.trim()) {
+      throw new ValidationError("userId, title et body sont requis.");
+    }
+
     const result = await createNotification({
-      userId: req.body.userId,
-      type: req.body.type,
-      title: req.body.title,
-      body: req.body.body,
-      data: req.body.data,
+      userId,
+      type,
+      title: title.trim(),
+      body: body.trim(),
+      data,
     });
     res.status(201).json({ success: true, data: result });
   } catch (err) {

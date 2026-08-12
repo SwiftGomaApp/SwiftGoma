@@ -17,6 +17,7 @@ export function RecentlyViewed({ currentProduct }: RecentlyViewedProps) {
 
   useEffect(() => {
     recordRecentlyViewed(currentProduct);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional read-after-write on mount
     setItems(getRecentlyViewed(currentProduct.slug));
     // Only run once per product page visit.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -137,17 +137,28 @@ async function getPreferredCurrency(buyerId) {
   return user?.preferredCurrency ?? null;
 }
 
-async function attachDisplayPrices(cart, preferredCurrency) {
-  if (!cart || cart.items.length === 0) {
-    return { ...cart, cartCurrency: null, items: [] };
+function resolveDisplayCurrency(requestedCurrency, preferredCurrency, fallbackCurrency) {
+  if (
+    requestedCurrency &&
+    PRODUCT_CONFIG.SUPPORTED_CURRENCIES.includes(requestedCurrency)
+  ) {
+    return requestedCurrency;
   }
-
-  const firstItemCurrency = cart.items[0].variant.product.currency;
-  const cartCurrency =
+  if (
     preferredCurrency &&
     PRODUCT_CONFIG.SUPPORTED_CURRENCIES.includes(preferredCurrency)
-      ? preferredCurrency
-      : firstItemCurrency;
+  ) {
+    return preferredCurrency;
+  }
+  return fallbackCurrency;
+}
+
+async function attachDisplayPrices(cart, displayCurrency) {
+  if (!cart || cart.items.length === 0) {
+    return { ...cart, cartCurrency: null, displayDeliveryFee: null, items: [] };
+  }
+
+  const cartCurrency = displayCurrency;
 
   const itemsWithConversion = await Promise.all(
     cart.items.map(async (item) => {
@@ -191,10 +202,31 @@ async function attachDisplayPrices(cart, preferredCurrency) {
     }),
   );
 
-  return { ...cart, cartCurrency, items: itemsWithConversion };
+  let displayDeliveryFee = null;
+  if (cart.shop?.deliveryFee != null) {
+    const rawFee = Number(cart.shop.deliveryFee);
+    if (cart.shop.deliveryFeeCurrency === cartCurrency) {
+      displayDeliveryFee = rawFee;
+    } else {
+      try {
+        displayDeliveryFee = await convertAmount(
+          rawFee,
+          cart.shop.deliveryFeeCurrency,
+          cartCurrency,
+        );
+      } catch (err) {
+        console.error(
+          `[cart] Conversion livraison échouée (${cart.shop.deliveryFeeCurrency} -> ${cartCurrency}):`,
+          err.message,
+        );
+      }
+    }
+  }
+
+  return { ...cart, cartCurrency, displayDeliveryFee, items: itemsWithConversion };
 }
 
-async function getCart(buyerId, shopId) {
+async function getCart(buyerId, shopId, requestedCurrency = null) {
   const cart = await prisma.cart.findUnique({
     where: { buyerId_shopId: { buyerId, shopId } },
     include: {
@@ -230,11 +262,24 @@ async function getCart(buyerId, shopId) {
   });
 
   if (!cart) {
-    return { id: null, shopId, items: [], shop: null, cartCurrency: null };
+    return {
+      id: null,
+      shopId,
+      items: [],
+      shop: null,
+      cartCurrency: null,
+      displayDeliveryFee: null,
+    };
   }
 
   const preferredCurrency = await getPreferredCurrency(buyerId);
-  return attachDisplayPrices(cart, preferredCurrency);
+  const firstItemCurrency = cart.items[0]?.variant.product.currency;
+  const displayCurrency = resolveDisplayCurrency(
+    requestedCurrency,
+    preferredCurrency,
+    firstItemCurrency,
+  );
+  return attachDisplayPrices(cart, displayCurrency);
 }
 
 async function listMyCarts(buyerId) {
@@ -277,7 +322,15 @@ async function listMyCarts(buyerId) {
 
   const preferredCurrency = await getPreferredCurrency(buyerId);
   return Promise.all(
-    carts.map((cart) => attachDisplayPrices(cart, preferredCurrency)),
+    carts.map((cart) => {
+      const firstItemCurrency = cart.items[0]?.variant.product.currency;
+      const displayCurrency = resolveDisplayCurrency(
+        null,
+        preferredCurrency,
+        firstItemCurrency,
+      );
+      return attachDisplayPrices(cart, displayCurrency);
+    }),
   );
 }
 

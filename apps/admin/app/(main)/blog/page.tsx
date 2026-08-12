@@ -20,20 +20,14 @@ import {
   type BlogPost,
 } from "@/lib/api/routes/blog";
 import { ApiError } from "@/lib/api/client";
+import { formatDate } from "@/lib/i18n/format";
+import { blogStatusLabels, labelOf } from "@/lib/i18n/labels";
+import { ui } from "@/lib/i18n/common";
 
 function getErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) return err.message;
   if (err instanceof Error) return err.message;
   return fallback;
-}
-
-function formatDate(dateStr: string | null) {
-  if (!dateStr) return "—";
-  return new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(dateStr));
 }
 
 export default function BlogListPage() {
@@ -49,7 +43,7 @@ export default function BlogListPage() {
       const result = await listAdminPosts();
       setPosts(result.posts);
     } catch (err) {
-      setError(getErrorMessage(err, "Couldn't load blog posts."));
+      setError(getErrorMessage(err, "Impossible de charger les articles du blog."));
     } finally {
       setIsLoading(false);
     }
@@ -61,13 +55,13 @@ export default function BlogListPage() {
   }, []);
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this post? This cannot be undone.")) return;
+    if (!confirm("Supprimer cet article ? Cette action est irréversible.")) return;
     setDeletingId(id);
     try {
       await deletePost(id);
       setPosts((prev) => prev.filter((p) => p.id !== id));
     } catch (err) {
-      alert(getErrorMessage(err, "Couldn't delete this post."));
+      alert(getErrorMessage(err, "Impossible de supprimer cet article."));
     } finally {
       setDeletingId(null);
     }
@@ -77,9 +71,9 @@ export default function BlogListPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Blog</h1>
-        <Button render={<Link href="/blog/new" />}>
+        <Button nativeButton={false} render={<Link href="/blog/new" />}>
           <Plus className="h-4 w-4" />
-          New Post
+          Nouvel article
         </Button>
       </div>
 
@@ -92,15 +86,15 @@ export default function BlogListPage() {
           ))}
         </div>
       ) : posts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No posts yet.</p>
+        <p className="text-sm text-muted-foreground">Aucun article pour l&apos;instant.</p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Title</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Published</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Titre</TableHead>
+              <TableHead>{ui.status}</TableHead>
+              <TableHead>Publié le</TableHead>
+              <TableHead className="text-right">{ui.actions}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -109,14 +103,17 @@ export default function BlogListPage() {
                 <TableCell className="font-medium">{post.title}</TableCell>
                 <TableCell>
                   <Badge variant={post.status === "PUBLISHED" ? "default" : "secondary"}>
-                    {post.status}
+                    {labelOf(blogStatusLabels, post.status)}
                   </Badge>
                 </TableCell>
-                <TableCell>{formatDate(post.publishedAt)}</TableCell>
+                <TableCell>
+                  {post.publishedAt ? formatDate(post.publishedAt) : "—"}
+                </TableCell>
                 <TableCell className="flex justify-end gap-1">
                   <Button
                     variant="ghost"
                     size="icon-sm"
+                    nativeButton={false}
                     render={<Link href={`/blog/${post.id}/edit`} />}
                   >
                     <Pencil className="h-3.5 w-3.5" />

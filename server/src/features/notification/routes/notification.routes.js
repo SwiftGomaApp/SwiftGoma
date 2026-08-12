@@ -19,17 +19,15 @@ const NotificationRouter = express.Router();
 NotificationRouter.use(authenticate);
 
 NotificationRouter.get("/", getNotifications);
-NotificationRouter.post("/:id/read", postMarkAsRead);
 NotificationRouter.post("/read-all", postMarkAllAsRead);
-NotificationRouter.delete("/:id", deleteNotificationById);
-
 NotificationRouter.get("/preferences", getNotificationPreferences);
 NotificationRouter.put("/preferences", putNotificationPreference);
-
 NotificationRouter.post(
   "/",
   authorize("ADMIN", "SUPPORT"),
   postCreateNotification,
 );
+NotificationRouter.post("/:id/read", postMarkAsRead);
+NotificationRouter.delete("/:id", deleteNotificationById);
 
 module.exports = NotificationRouter;

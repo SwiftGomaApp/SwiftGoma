@@ -1,30 +1,43 @@
 import Image from "next/image";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
-interface LogoProps {
-  className?: string;
+type LogoProps = {
   href?: string;
-}
+  variant?: "full" | "icon";
+  size?: number;
+  className?: string;
+};
 
-export function Logo({ className, href = "/" }: LogoProps) {
+export function Logo({
+  href = "/",
+  variant = "full",
+  size = 18,
+  className,
+}: LogoProps) {
   return (
-    <Link href={href} className={className}>
+    <Link
+      href={href}
+      className={cn("flex items-center gap-1.5", className)}
+    >
       <Image
-        src="https://res.cloudinary.com/dx3wclabo/image/upload/v1784021180/logo_ouhcuv.png"
-        alt="SwiftGoma"
-        width={603}
-        height={73}
+        src="/icon.png"
+        alt=""
+        width={size}
+        height={size}
         priority
-        className="h-6 w-auto dark:hidden"
+        style={{ width: size, height: size }}
+        className="shrink-0"
       />
-      <Image
-        src="https://res.cloudinary.com/dx3wclabo/image/upload/v1785335077/swiftgoma/seller-kyc/proof-of-address/wqqxgxriwvbtgtxobild.png"
-        alt="SwiftGoma"
-        width={603}
-        height={73}
-        priority
-        className="hidden h-5 w-auto dark:block"
-      />
+
+      {variant === "full" && (
+        <span className="flex items-baseline text-base font-extrabold tracking-tight text-foreground group-data-[collapsible=icon]:hidden">
+          SwiftGoma
+          <span className="text-primary">.</span>
+        </span>
+      )}
+
+      <span className="sr-only">SwiftGoma</span>
     </Link>
   );
 }

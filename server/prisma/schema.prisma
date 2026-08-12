@@ -18,6 +18,7 @@ enum Role {
   RIDER
   ADMIN
   SUPPORT
+  ACCOUNTANT
 }
 
 enum SellerProfileStatus {
@@ -150,16 +151,22 @@ enum WalletTransactionStatus {
   FAILED
 }
 
+enum ContactMessageStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
 // ====================================== MODELS ===============================
 
 model User {
-  id           String  @id @default(uuid())
-  name         String
-  phone        String?
-  pendingPhone String?
-  password     String?
-  role         Role    @default(BUYER)
-  avatarUrl    String?
+  id                String  @id @default(uuid())
+  name              String
+  phone             String?
+  pendingPhone      String?
+  password          String?
+  role              Role    @default(BUYER)
+  avatarUrl         String?
   preferredCurrency String?
 
   isPhoneVerified Boolean @default(false)
@@ -195,13 +202,20 @@ model User {
   actionsReceived  AccountActionLog[] @relation("TargetUser")
   actionsPerformed AccountActionLog[] @relation("ActorUser")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  carts     Cart[]
-  favorites Favorite[]
-  productReviews ProductReview[]
-  incidents Incident[]
-  blogPosts BlogPost[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  carts             Cart[]
+  favorites         Favorite[]
+  productReviews    ProductReview[]
+  incidents         Incident[]
+  blogPosts         BlogPost[]
+  adminPayouts      AdminPayout[]
+  accountantReports AccountantReport[]
+  expensesCreated   Expense[]          @relation("ExpenseCreatedBy")
+  expensesApproved  Expense[]          @relation("ExpenseApprovedBy")
+  expensesRejected  Expense[]          @relation("ExpenseRejectedBy")
+
+  assignedContactMessages ContactMessage[] @relation("ContactMessageAssignee")
 
   @@map("users")
 }
@@ -673,8 +687,8 @@ model Product {
   images   ProductImage[]
   variants ProductVariant[]
 
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
   orderItems OrderItem[]
   favorites  Favorite[]
   reviews    ProductReview[]
@@ -686,11 +700,11 @@ model Product {
 }
 
 model Favorite {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
@@ -1058,7 +1072,7 @@ enum IncidentStatus {
 }
 
 model Incident {
-  id          String @id @default(uuid())
+  id          String           @id @default(uuid())
   title       String
   description String
   severity    IncidentSeverity @default(MINOR)
@@ -1068,8 +1082,8 @@ model Incident {
   creator   User?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
 
   resolvedAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([status])
   @@index([createdAt])
@@ -1082,9 +1096,9 @@ enum BlogPostStatus {
 }
 
 model BlogPost {
-  id            String @id @default(uuid())
+  id            String  @id @default(uuid())
   title         String
-  slug          String @unique
+  slug          String  @unique
   excerpt       String
   content       String
   coverImageUrl String?
@@ -1093,7 +1107,7 @@ model BlogPost {
   publishedAt DateTime?
 
   authorId String?
-  author   User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  author   User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1110,8 +1124,143 @@ model ContactMessage {
   subject String
   message String
 
+  status       ContactMessageStatus @default(OPEN)
+  isRead       Boolean              @default(false)
+  readAt       DateTime?
+  assignedToId String?
+  assignedTo   User?                @relation("ContactMessageAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedAt   DateTime?
+  closedAt     DateTime?
+  internalNote String?
+
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+  @@index([status])
+  @@index([isRead])
+  @@index([assignedToId])
   @@map("contact_messages")
+}
+
+enum AdminPayoutProvider {
+  PAWAPAY
+  MBIYOPAY
+}
+
+enum AdminPayoutStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model AdminPayout {
+  id               String              @id @default(uuid())
+  adminId          String
+  admin            User                @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  provider         AdminPayoutProvider
+  status           AdminPayoutStatus   @default(PROCESSING)
+  amount           Decimal             @db.Decimal(18, 2)
+  currency         String
+  beneficiary      String?
+  phoneNumber      String?
+  network          String?
+  countryCode      String?
+  providerName     String?
+  customerMessage  String?
+  externalId       String?
+  externalStatus   String?
+  providerResponse Json?
+  failureReason    String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  expense          Expense?
+
+  @@index([adminId])
+  @@index([provider])
+  @@index([createdAt(sort: Desc)])
+  @@map("admin_payouts")
+}
+
+enum AccountantReportSource {
+  DOWNLOAD
+  EMAIL
+  SCHEDULED
+}
+
+model AccountantReport {
+  id               String                 @id @default(uuid())
+  reference        String
+  periodFrom       DateTime
+  periodTo         DateTime
+  generatedById    String?
+  generatedBy      User?                  @relation(fields: [generatedById], references: [id], onDelete: SetNull)
+  generatedByLabel String
+  source           AccountantReportSource
+  pdfUrl           String
+  pdfPublicId      String
+  recipients       String[]               @default([])
+  summary          Json?
+  truncated        Boolean                @default(false)
+  createdAt        DateTime               @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([periodFrom, periodTo])
+  @@map("accountant_reports")
+}
+
+enum ExpenseCategory {
+  OPERATIONS
+  MARKETING
+  PAYROLL
+  LEGAL
+  TRAVEL
+  UTILITIES
+  EQUIPMENT
+  OTHER
+}
+
+enum ExpenseStatus {
+  PENDING
+  REJECTED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Expense {
+  id              String          @id @default(uuid())
+  reference       String          @unique
+  title           String
+  description     String?
+  category        ExpenseCategory
+  status          ExpenseStatus   @default(PENDING)
+  amount          Decimal         @db.Decimal(18, 2)
+  currency        String
+  incurredAt      DateTime
+  vendorName      String
+  vendorPhone     String
+  countryCode     String          @default("COD")
+  providerName    String
+  customerMessage String
+  receiptUrl      String?
+  receiptPublicId String?
+  adminPayoutId   String?         @unique
+  adminPayout     AdminPayout?    @relation(fields: [adminPayoutId], references: [id], onDelete: SetNull)
+  createdById     String
+  createdBy       User            @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  approvedById    String?
+  approvedBy      User?           @relation("ExpenseApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt      DateTime?
+  rejectedById    String?
+  rejectedBy      User?           @relation("ExpenseRejectedBy", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([status])
+  @@index([category])
+  @@index([incurredAt(sort: Desc)])
+  @@index([createdById])
+  @@map("expenses")
 }

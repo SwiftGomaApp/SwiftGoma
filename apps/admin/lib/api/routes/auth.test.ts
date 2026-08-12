@@ -77,7 +77,7 @@ describe("auth route functions", () => {
     });
   });
 
-  it("verifyLoginTotp posts userId + code (no email) to /auth/login/verify-totp", async () => {
+  it("verifyLoginTotp posts pendingToken + code to /auth/login/totp", async () => {
     vi.mocked(apiClient.post).mockResolvedValue(
       successEnvelope({
         user: {},
@@ -87,10 +87,10 @@ describe("auth route functions", () => {
       }),
     );
 
-    await verifyLoginTotp({ userId: "u1", code: "654321" });
+    await verifyLoginTotp({ pendingToken: "t1", code: "654321" });
 
-    expect(apiClient.post).toHaveBeenCalledWith("/auth/login/verify-totp", {
-      userId: "u1",
+    expect(apiClient.post).toHaveBeenCalledWith("/auth/login/totp", {
+      pendingToken: "t1",
       code: "654321",
     });
   });
@@ -149,8 +149,10 @@ describe("auth route functions", () => {
 });
 
 describe("isRequiresTotp", () => {
-  it("returns true for a { requiresTotp: true, userId } response", () => {
-    expect(isRequiresTotp({ requiresTotp: true, userId: "u1" })).toBe(true);
+  it("returns true for a { requiresTotp: true, pendingToken } response", () => {
+    expect(
+      isRequiresTotp({ requiresTotp: true, pendingToken: "t1" }),
+    ).toBe(true);
   });
 
   it("returns false for a normal AuthSession response", () => {

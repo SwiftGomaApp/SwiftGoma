@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import { blogApi } from "@/lib/api/routes/blog";
 import { ApiException } from "@/lib/api";
 import { ServerErrorBanner } from "@/components/global/server-error-banner";
+import { buildPageMetadata } from "@/lib/seo";
 
 type BlogPostPageProps = {
   params: Promise<{ slug: string }>;
@@ -17,13 +18,28 @@ function formatDate(dateStr: string) {
   }).format(new Date(dateStr));
 }
 
+function isHtmlContent(content: string) {
+  return /<[a-z][\s\S]*>/i.test(content.trim());
+}
+
 export async function generateMetadata({
   params,
 }: BlogPostPageProps): Promise<Metadata> {
   const { slug } = await params;
   try {
     const post = await blogApi.getBySlug(slug);
-    return { title: post.title, description: post.excerpt };
+    return buildPageMetadata({
+      title: post.title,
+      description: post.excerpt,
+      path: `/blog/${slug}`,
+      openGraph: {
+        type: "article",
+        publishedTime: post.publishedAt ?? post.createdAt,
+        images: post.coverImageUrl
+          ? [{ url: post.coverImageUrl, alt: post.title }]
+          : undefined,
+      },
+    });
   } catch {
     return { title: "Article" };
   }
@@ -72,7 +88,11 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
       )}
 
       <div className="prose prose-neutral dark:prose-invert mt-8 max-w-none">
-        <ReactMarkdown>{post.content}</ReactMarkdown>
+        {isHtmlContent(post.content) ? (
+          <div dangerouslySetInnerHTML={{ __html: post.content }} />
+        ) : (
+          <ReactMarkdown>{post.content}</ReactMarkdown>
+        )}
       </div>
     </main>
   );

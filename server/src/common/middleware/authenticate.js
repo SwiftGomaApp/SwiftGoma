@@ -28,7 +28,7 @@ async function authenticate(req, res, next) {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: claims.sub },
-    select: { isBlocked: true },
+    select: { isBlocked: true, role: true },
   });
   if (!user) {
     throw new UnauthorizedError(
@@ -39,7 +39,23 @@ async function authenticate(req, res, next) {
     throw new ForbiddenError("Ce compte a été bloqué. Contactez le support.");
   }
 
-  req.user = { id: claims.sub, role: claims.role, sessionId: claims.sessionId };
+  if (claims.sessionId) {
+    const session = await prisma.session.findUnique({
+      where: { id: claims.sessionId },
+      select: { isRevoked: true, expiresAt: true },
+    });
+    if (!session || session.isRevoked || session.expiresAt < new Date()) {
+      throw new UnauthorizedError(
+        "Session invalide ou expirée. Veuillez vous reconnecter.",
+      );
+    }
+  }
+
+  req.user = {
+    id: claims.sub,
+    role: user.role,
+    sessionId: claims.sessionId,
+  };
   next();
 }
 

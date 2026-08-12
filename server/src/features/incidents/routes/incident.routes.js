@@ -23,5 +23,11 @@ IncidentRouter.patch(
   authorize("ADMIN", "SUPPORT"),
   patchUpdateIncident,
 );
+IncidentRouter.patch(
+  "/:id/status",
+  authenticate,
+  authorize("ADMIN", "SUPPORT"),
+  patchUpdateIncident,
+);
 
 module.exports = IncidentRouter;

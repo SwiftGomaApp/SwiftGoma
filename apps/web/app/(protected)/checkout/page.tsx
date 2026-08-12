@@ -25,6 +25,7 @@ import {
 import { useCart } from "@/providers/cart-provider";
 import { useAuth } from "@/providers/auth-provider";
 import { useSocket } from "@/providers/socket-provider";
+import { cartApi, type Cart } from "@/lib/api/routes/cart";
 import {
   ordersApi,
   type Order,
@@ -38,6 +39,11 @@ const NETWORKS = [
   { value: "airtel", label: "Airtel Money" },
   { value: "orange", label: "Orange Money" },
   { value: "africell", label: "Africell Money" },
+];
+
+const CHECKOUT_CURRENCIES = [
+  { value: "USD" as const, label: "Dollar (USD)" },
+  { value: "CDF" as const, label: "Franc congolais (CDF)" },
 ];
 
 const FAILURE_STATUSES: OrderStatus[] = [
@@ -186,7 +192,19 @@ function CheckoutForm() {
   const { getCart, clearCartLocal } = useCart();
   const { user } = useAuth();
   const { socket } = useSocket();
-  const cart = getCart(shopId);
+  const contextCart = getCart(shopId);
+
+  const [checkoutCurrency, setCheckoutCurrency] = useState<"USD" | "CDF">(
+    () =>
+      (user?.preferredCurrency ??
+        contextCart?.cartCurrency ??
+        "USD") as "USD" | "CDF",
+  );
+  const [hasAppliedPreferredCurrency, setHasAppliedPreferredCurrency] =
+    useState(Boolean(user?.preferredCurrency));
+  const [cart, setCart] = useState<Cart | null>(contextCart ?? null);
+  const [isLoadingCart, setIsLoadingCart] = useState(false);
+  const [conversionError, setConversionError] = useState<string | null>(null);
 
   const [fulfillmentMethod, setFulfillmentMethod] = useState<
     "DELIVERY" | "PICKUP"
@@ -207,6 +225,48 @@ function CheckoutForm() {
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
   const [canCancel, setCanCancel] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  useEffect(() => {
+    if (user?.preferredCurrency && !hasAppliedPreferredCurrency) {
+      setCheckoutCurrency(user.preferredCurrency as "USD" | "CDF");
+      setHasAppliedPreferredCurrency(true);
+    }
+  }, [user?.preferredCurrency, hasAppliedPreferredCurrency]);
+
+  useEffect(() => {
+    if (!shopId) return;
+    let cancelled = false;
+    setIsLoadingCart(true);
+    setConversionError(null);
+
+    cartApi
+      .getCartForShop(shopId, checkoutCurrency)
+      .then((fresh) => {
+        if (cancelled) return;
+        setCart(fresh);
+        const unavailable = fresh.items.filter((item) => item.conversionUnavailable);
+        if (unavailable.length > 0) {
+          setConversionError(
+            `Taux de change indisponible pour convertir certains articles en ${checkoutCurrency}.`,
+          );
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setConversionError(
+          err instanceof ApiException
+            ? err.message
+            : "Impossible de convertir les prix dans cette devise.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingCart(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shopId, checkoutCurrency]);
 
   // The cart is only cleared once we know the order didn't land — or
   // didn't stay — in AWAITING_PAYMENT, so a failed/abandoned online
@@ -325,16 +385,20 @@ function CheckoutForm() {
     );
   }
 
-  const currency = cart.cartCurrency ?? "USD";
+  const currency = cart.cartCurrency ?? checkoutCurrency;
   const itemsTotal = cart.items.reduce(
     (sum, i) => sum + (i.displayPrice ?? Number(i.variant.price)) * i.quantity,
     0,
   );
   const deliveryFee =
-    fulfillmentMethod === "DELIVERY" && cart.shop
-      ? Number(cart.shop.deliveryFee)
+    fulfillmentMethod === "DELIVERY"
+      ? (cart.displayDeliveryFee ??
+        (cart.shop ? Number(cart.shop.deliveryFee) : 0))
       : 0;
   const grandTotal = itemsTotal + deliveryFee;
+  const hasConversionIssues =
+    !!conversionError ||
+    cart.items.some((item) => item.conversionUnavailable);
 
   function handleUseLocation() {
     if (!navigator.geolocation) {
@@ -367,13 +431,42 @@ function CheckoutForm() {
     );
   }
 
+  const deliveryAddressLength = deliveryAddress.trim().length;
   const isDeliveryValid =
     fulfillmentMethod === "PICKUP" ||
-    (deliveryAddress.trim().length >= 10 && coords !== null);
+    (deliveryAddressLength >= 10 && coords !== null);
   const isPaymentValid =
     paymentMethod === "CASH_ON_DELIVERY" ||
     (payerPhoneNumber.trim().length >= 9 && !!network);
-  const canSubmit = isDeliveryValid && isPaymentValid && !isSubmitting;
+  const canSubmit =
+    isDeliveryValid && isPaymentValid && !isSubmitting && !hasConversionIssues && !isLoadingCart;
+
+  const submitBlockers: string[] = [];
+  if (fulfillmentMethod === "DELIVERY") {
+    if (deliveryAddressLength < 10) {
+      submitBlockers.push("Adresse de livraison (minimum 10 caractères)");
+    }
+    if (!coords) {
+      submitBlockers.push(
+        'Position GPS — cliquez sur « Utiliser ma position »',
+      );
+    }
+  }
+  if (hasConversionIssues && conversionError) {
+    submitBlockers.push(conversionError);
+  } else if (hasConversionIssues) {
+    submitBlockers.push(
+      `Conversion en ${currency} indisponible pour certains articles`,
+    );
+  }
+  if (paymentMethod === "ONLINE_PAYMENT") {
+    if (payerPhoneNumber.trim().length < 9) {
+      submitBlockers.push("Numéro Mobile Money");
+    }
+    if (!network) {
+      submitBlockers.push("Opérateur Mobile Money");
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -384,6 +477,7 @@ function CheckoutForm() {
         shopId,
         paymentMethod,
         fulfillmentMethod,
+        currency: checkoutCurrency,
         ...(fulfillmentMethod === "DELIVERY" && {
           deliveryAddress: deliveryAddress.trim(),
           deliveryLatitude: coords!.lat,
@@ -450,6 +544,18 @@ function CheckoutForm() {
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Qté {item.quantity}
+                      {item.originalPrice != null &&
+                        item.originalCurrency &&
+                        item.originalCurrency !== currency && (
+                          <>
+                            {" "}
+                            ·{" "}
+                            {formatPrice(
+                              item.originalPrice * item.quantity,
+                              item.originalCurrency,
+                            )}
+                          </>
+                        )}
                     </p>
                   </div>
                   <span className="text-sm font-semibold text-foreground">
@@ -493,10 +599,19 @@ function CheckoutForm() {
                   placeholder="Adresse de livraison complète (quartier, avenue, référence...)"
                   rows={3}
                   required
+                  aria-invalid={
+                    deliveryAddressLength > 0 && deliveryAddressLength < 10
+                  }
                 />
+                {deliveryAddressLength > 0 && deliveryAddressLength < 10 && (
+                  <p className="text-xs text-destructive">
+                    L&apos;adresse doit contenir au moins 10 caractères (
+                    {deliveryAddressLength}/10).
+                  </p>
+                )}
                 <Button
                   type="button"
-                  variant="outline"
+                  variant={coords ? "outline" : "default"}
                   onClick={handleUseLocation}
                   disabled={isLocating}
                   className="w-fit gap-2"
@@ -507,15 +622,16 @@ function CheckoutForm() {
                     <MapPin className="h-3.5 w-3.5" />
                   )}
                   {coords
-                    ? "Position enregistrée"
+                    ? "Position enregistrée — modifier"
                     : isLocating
                       ? "Localisation..."
                       : "Utiliser ma position"}
                 </Button>
                 {!coords && !isLocating && (
-                  <p className="text-xs text-muted-foreground">
-                    Votre position est requise pour la livraison — cliquez sur «
-                    Utiliser ma position » ci-dessus pour continuer.
+                  <p className="text-xs text-amber-600 dark:text-amber-500">
+                    Étape obligatoire : autorisez la géolocalisation pour que
+                    le livreur puisse vous trouver. Sans position GPS, le
+                    bouton « Commander » reste désactivé.
                   </p>
                 )}
               </div>
@@ -525,6 +641,35 @@ function CheckoutForm() {
 
         {/* Right column — payment + totals */}
         <div className="flex flex-col gap-8 lg:sticky lg:top-24">
+          <div className="flex flex-col gap-3 rounded-xl border border-border p-5">
+            <h2 className="text-sm font-semibold text-foreground">Devise</h2>
+            <RadioGroup
+              value={checkoutCurrency}
+              onValueChange={(v) => setCheckoutCurrency(v as "USD" | "CDF")}
+              className="grid-cols-2"
+              disabled={isLoadingCart}
+            >
+              {CHECKOUT_CURRENCIES.map((c) => (
+                <label
+                  key={c.value}
+                  className="flex cursor-pointer items-center gap-2 rounded-lg border border-border p-3 text-sm text-foreground"
+                >
+                  <RadioGroupItem value={c.value} />
+                  {c.label}
+                </label>
+              ))}
+            </RadioGroup>
+            {isLoadingCart && (
+              <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Mise à jour des prix…
+              </p>
+            )}
+            {conversionError && (
+              <p className="text-xs text-destructive">{conversionError}</p>
+            )}
+          </div>
+
           <div className="flex flex-col gap-3 rounded-xl border border-border p-5">
             <h2 className="text-sm font-semibold text-foreground">Paiement</h2>
             <RadioGroup
@@ -552,7 +697,10 @@ function CheckoutForm() {
                   placeholder="Numéro Mobile Money"
                   required
                 />
-                <Select value={network} onValueChange={setNetwork}>
+                <Select
+                  value={network ?? undefined}
+                  onValueChange={setNetwork}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Opérateur" />
                   </SelectTrigger>
@@ -597,10 +745,23 @@ function CheckoutForm() {
             </div>
           </div>
 
+          {!canSubmit && submitBlockers.length > 0 && !isSubmitting && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+              <p className="font-medium">Pour commander, complétez :</p>
+              <ul className="mt-1 list-inside list-disc text-xs">
+                {submitBlockers.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <Button type="submit" disabled={!canSubmit} size="lg">
             {isSubmitting
               ? "Envoi de la commande..."
-              : `Commander — ${formatPrice(grandTotal, currency)}`}
+              : isLoadingCart
+                ? "Calcul des prix..."
+                : `Commander — ${formatPrice(grandTotal, currency)}`}
           </Button>
         </div>
       </form>

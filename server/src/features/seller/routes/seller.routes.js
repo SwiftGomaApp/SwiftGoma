@@ -31,6 +31,7 @@ const {
   postAdminDeleteShop,
   postRestoreShop,
   getShopsHandler,
+  getShopsAdminHandler,
 } = require("../controllers/shop.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
@@ -152,6 +153,11 @@ SellerRouter.post(
 SellerRouter.delete("/shop/:id", authorize("SELLER"), deleteMyShop);
 
 // ----- Shop (admin) -----
+SellerRouter.get(
+  "/shops/admin",
+  authorize("ADMIN", "SUPPORT"),
+  getShopsAdminHandler,
+);
 SellerRouter.post(
   "/shop/:id/admin/suspend",
   authorize("ADMIN", "SUPPORT"),

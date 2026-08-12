@@ -1,8 +1,12 @@
 import { LegalDocument } from "../legal-document/legal-document";
+import type { Metadata } from "next";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Politique de cookies",
-};
+  description: "Politique de cookies et traceurs utilisés sur SwiftGoma.",
+  path: "/legal/cookies",
+});
 
 export default function CookiesPage() {
   return (

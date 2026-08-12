@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { authApi, type User } from "@/lib/api/routes/auth";
@@ -35,6 +36,7 @@ export function AuthProvider({
   const [user, setUser] = useState<User | null>(initialUser);
   const [isLoading, setIsLoading] = useState(initialUser === null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const hadOneSignalSessionRef = useRef(Boolean(initialUser));
 
   const refresh = useCallback(async () => {
     try {
@@ -50,6 +52,7 @@ export function AuthProvider({
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional fetch on mount when no server-provided user
     if (initialUser === null) refresh();
   }, []);
 
@@ -59,9 +62,14 @@ export function AuthProvider({
 
   useEffect(() => {
     if (user) {
-      oneSignalLogin(user.id);
-    } else {
-      oneSignalLogout();
+      hadOneSignalSessionRef.current = true;
+      void oneSignalLogin(user.id);
+      return;
+    }
+
+    if (hadOneSignalSessionRef.current) {
+      hadOneSignalSessionRef.current = false;
+      void oneSignalLogout();
     }
   }, [user]);
 

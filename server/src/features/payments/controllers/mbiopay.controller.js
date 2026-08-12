@@ -7,6 +7,11 @@ const {
   getAllCountries,
   getCountries,
 } = require("../services/mbioyopay.service");
+const {
+  requestMbiyoPayPayoutApproval,
+  confirmMbiyoPayPayout,
+} = require("../services/adminPayoutApproval.service");
+const { listAdminPayouts } = require("../services/adminPayout.service");
 
 async function postInitiatePayin(req, res, next) {
   try {
@@ -71,6 +76,35 @@ async function getNetworkBalancesHandler(req, res, next) {
   }
 }
 
+async function postRequestPayoutApproval(req, res, next) {
+  try {
+    const result = await requestMbiyoPayPayoutApproval(req.user.id, {
+      amount: req.body.amount,
+      currency: req.body.currency,
+      network: req.body.network,
+      phoneNumber: req.body.phoneNumber,
+      countryCode: req.body.countryCode,
+      beneficiary: req.body.beneficiary,
+      orderId: req.body.orderId,
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postConfirmPayout(req, res, next) {
+  try {
+    const result = await confirmMbiyoPayPayout(req.user.id, {
+      pendingId: req.body.pendingId,
+      code: req.body.code,
+    });
+    res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function getCountriesHandler(req, res, next) {
   try {
     const result =
@@ -83,9 +117,21 @@ async function getCountriesHandler(req, res, next) {
   }
 }
 
+async function getPayoutHistory(req, res, next) {
+  try {
+    const result = await listAdminPayouts("mbiyopay", req.query);
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   postInitiatePayin,
   postInitiatePayout,
+  postRequestPayoutApproval,
+  postConfirmPayout,
+  getPayoutHistory,
   getTransactionStatus,
   getBalances,
   getNetworkBalancesHandler,

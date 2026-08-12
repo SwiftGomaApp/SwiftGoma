@@ -616,7 +616,7 @@ async function confirmSubscriptionPayment(depositId) {
   // the in-memory check above and both applying the plan change / sending
   // a duplicate receipt.
   const claimed = await prisma.subscriptionPayment.updateMany({
-    where: { id: payment.id, status: { not: "SUCCEEDED" } },
+    where: { id: payment.id, status: "PENDING" },
     data: { status: "SUCCEEDED", paidAt: new Date() },
   });
   if (claimed.count !== 1) {
@@ -675,7 +675,7 @@ async function failSubscriptionPayment(depositId, failureReason) {
   }
 
   const claimed = await prisma.subscriptionPayment.updateMany({
-    where: { id: payment.id, status: { not: "FAILED" } },
+    where: { id: payment.id, status: "PENDING" },
     data: { status: "FAILED", failureReason },
   });
   if (claimed.count !== 1) {

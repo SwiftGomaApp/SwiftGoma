@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { ChevronRight } from "lucide-react";
 import { publicApi } from "@/lib/api/routes/public";
 import { ApiException } from "@/lib/api";
+import { buildPageMetadata } from "@/lib/seo";
 import { ProductDetail } from "@/components/products/product-detail";
 import { SimilarProductsCarousel } from "@/components/products/similar-products-carousel";
 import { SellerCard } from "@/components/products/seller-card";
@@ -23,16 +24,17 @@ export async function generateMetadata({
   try {
     const product = await publicApi.getProductBySlug(slug);
     const image = product.images[0]?.url;
+    const description = product.description.slice(0, 160);
 
-    return {
+    return buildPageMetadata({
       title: product.name,
-      description: product.description.slice(0, 160),
+      description,
+      path: `/products/${slug}`,
       openGraph: {
-        title: product.name,
-        description: product.description.slice(0, 160),
-        images: image ? [{ url: image }] : undefined,
+        type: "website",
+        images: image ? [{ url: image, alt: product.name }] : undefined,
       },
-    };
+    });
   } catch {
     return { title: "Produit" };
   }

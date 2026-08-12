@@ -25,8 +25,28 @@ export interface BlogPostInput {
   title: string;
   excerpt: string;
   content: string;
-  coverImageUrl?: string;
   status: BlogPostStatus;
+  coverImage?: File | null;
+  removeCoverImage?: boolean;
+}
+
+function buildBlogFormData(input: Partial<BlogPostInput>): FormData {
+  const formData = new FormData();
+
+  if (input.title !== undefined) formData.append("title", input.title);
+  if (input.excerpt !== undefined) formData.append("excerpt", input.excerpt);
+  if (input.content !== undefined) formData.append("content", input.content);
+  if (input.status !== undefined) formData.append("status", input.status);
+
+  if (input.coverImage) {
+    formData.append("coverImage", input.coverImage);
+  }
+
+  if (input.removeCoverImage) {
+    formData.append("removeCoverImage", "true");
+  }
+
+  return formData;
 }
 
 export async function listAdminPosts(params: {
@@ -45,7 +65,9 @@ export async function getPost(id: string): Promise<BlogPost> {
 }
 
 export async function createPost(input: BlogPostInput): Promise<BlogPost> {
-  const res = await apiClient.post("/blog", input);
+  const res = await apiClient.post("/blog", buildBlogFormData(input), {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
   return unwrap(res);
 }
 
@@ -53,7 +75,9 @@ export async function updatePost(
   id: string,
   input: Partial<BlogPostInput>,
 ): Promise<BlogPost> {
-  const res = await apiClient.put(`/blog/${id}`, input);
+  const res = await apiClient.put(`/blog/${id}`, buildBlogFormData(input), {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
   return unwrap(res);
 }
 

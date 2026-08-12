@@ -9,6 +9,8 @@ import { CartProvider } from "@/providers/cart-provider";
 import { FavoritesProvider } from "@/providers/favorites-provider";
 import { Toaster } from "@/components/ui/toast";
 import { SocketProvider } from "@/providers/socket-provider";
+import { BRAND, SITE_URL } from "@/lib/brand";
+import { DEFAULT_OG_IMAGE, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,63 +22,35 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const SITE_URL = "https://swiftgoma.com";
+const defaultTitle = `${BRAND.name} — ${BRAND.tagline}`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Swiftgoma — Achats en ligne et livraison rapide et fiable",
-    template: "%s | Swiftgoma",
+    default: defaultTitle,
+    template: `%s | ${BRAND.name}`,
   },
-  description:
-    "Swiftgoma est la plateforme qui connecte acheteurs, vendeurs et livreurs pour des achats en ligne rapides et sécurisés en RDC et au Rwanda. Achetez, vendez et livrez — tout dans une seule application.",
-  keywords: [
-    "Swiftgoma",
-    "achats en ligne RDC",
-    "e-commerce Congo",
-    "e-commerce Rwanda",
-    "application de livraison Goma",
-    "marketplace Congo",
-    "acheter et vendre en ligne Congo",
-    "livraison Goma",
-    "boutique en ligne RDC",
-  ],
-  authors: [{ name: "Swiftgoma" }],
-  creator: "Swiftgoma",
-  publisher: "Swiftgoma",
-  applicationName: "Swiftgoma",
+  description: BRAND.description,
+  keywords: [...BRAND.keywords],
+  authors: [{ name: BRAND.name }],
+  creator: BRAND.name,
+  publisher: BRAND.name,
+  applicationName: BRAND.name,
   category: "shopping",
-  alternates: {
-    canonical: "/",
-    languages: {
-      fr: "/fr",
-      en: "/en",
-    },
-  },
   openGraph: {
     type: "website",
     url: SITE_URL,
-    siteName: "Swiftgoma",
-    title: "Swiftgoma — Achats en ligne et livraison rapide et fiable",
-    description:
-      "Achetez, vendez et livrez avec Swiftgoma — la plateforme conçue pour la RDC et le Rwanda.",
-    locale: "fr_FR",
-    alternateLocale: ["en_US"],
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Swiftgoma — Achetez, Vendez, Livrez",
-      },
-    ],
+    siteName: BRAND.name,
+    title: defaultTitle,
+    description: BRAND.shortDescription,
+    locale: BRAND.ogLocale,
+    images: [DEFAULT_OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Swiftgoma — Achats en ligne et livraison rapide et fiable",
-    description:
-      "Achetez, vendez et livrez avec Swiftgoma — la plateforme conçue pour la RDC et le Rwanda.",
-    images: ["/og-image.png"],
+    title: defaultTitle,
+    description: BRAND.shortDescription,
+    images: [DEFAULT_OG_IMAGE.url],
   },
   icons: {
     icon: "/favicon.ico",
@@ -95,9 +69,6 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
-  verification: {
-    // google: "votre-code-de-verification-google",
-  },
 };
 
 export default function RootLayout({
@@ -105,13 +76,21 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const structuredData = [organizationJsonLd(), websiteJsonLd()];
+
   return (
     <html
       lang="fr"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full min-h-dvh antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="flex min-h-dvh flex-col">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(structuredData),
+          }}
+        />
         <Toaster>
           <AuthProvider>
             <SocketProvider>
@@ -124,7 +103,9 @@ export default function RootLayout({
                     disableTransitionOnChange
                   >
                     <TooltipProvider>
-                      {children}
+                      <div className="flex min-h-dvh flex-1 flex-col">
+                        {children}
+                      </div>
                       <ConsentBanner />
                     </TooltipProvider>
                   </ThemeProvider>

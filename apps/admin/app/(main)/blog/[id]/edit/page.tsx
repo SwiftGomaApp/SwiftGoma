@@ -22,13 +22,13 @@ export default function EditBlogPostPage() {
   useEffect(() => {
     getPost(params.id)
       .then(setPost)
-      .catch((err) => setError(getErrorMessage(err, "Couldn't load this post.")))
+      .catch((err) => setError(getErrorMessage(err, "Impossible de charger cet article.")))
       .finally(() => setIsLoading(false));
   }, [params.id]);
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-bold">Edit Post</h1>
+      <h1 className="text-xl font-bold">Modifier l&apos;article</h1>
       {isLoading ? (
         <Skeleton className="h-96 max-w-2xl" />
       ) : error ? (

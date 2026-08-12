@@ -107,6 +107,7 @@ export function NotificationsPreferences() {
   const [isRequestingPermission, setIsRequestingPermission] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reading current browser permission on mount
     setPushPermission(getPushPermission());
   }, []);
 
@@ -227,11 +228,6 @@ export function NotificationsPreferences() {
       setIsSaving(false);
     }
   }
-
-  useEffect(() => {
-    // loadOneSignal();
-    setPushPermission(getPushPermission());
-  }, []);
 
   if (isLoading) {
     return <PreferencesSkeleton />;

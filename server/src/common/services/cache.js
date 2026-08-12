@@ -65,6 +65,21 @@ async function getVersion(namespace) {
   return v ? parseInt(v, 10) : 0;
 }
 
+async function clearNamespace(namespace) {
+  const client = getRedisClient();
+  if (!client) return 0;
+
+  const pattern = namespace ? `${PREFIX}${namespace}:*` : `${PREFIX}*`;
+  const keys = await client.keys(pattern);
+  if (keys.length > 0) {
+    await client.del(...keys);
+  }
+  if (namespace) {
+    await client.incr(PREFIX + `version:${namespace}`);
+  }
+  return keys.length;
+}
+
 module.exports = {
   get,
   set,
@@ -73,4 +88,5 @@ module.exports = {
   isAvailable,
   bumpVersion,
   getVersion,
+  clearNamespace,
 };

@@ -29,6 +29,10 @@ const {
 const { emitToUser, emitToOrder } = require("../../../config/socket");
 const { convertAmount } = require("../../product/utils/exchangeRate.utils");
 const {
+  findRiderForSellerAssignment,
+  activateRider,
+} = require("../../seller/services/rider.service");
+const {
   generateOrderInvoiceAndReceipt,
 } = require("../../invoicing/services/invoice.service");
 const { createQueue } = require("../../../config/queue");
@@ -352,9 +356,17 @@ async function checkout({
     deliveryLongitude,
   );
 
-  const cart = await getCart(buyerId, shopId);
+  const cart = await getCart(buyerId, shopId, requestedCurrency);
   if (!cart.id || cart.items.length === 0) {
     throw new ConflictError("Le panier est vide.");
+  }
+
+  for (const item of cart.items) {
+    if (item.conversionUnavailable) {
+      throw new ConflictError(
+        `Conversion de devise indisponible pour « ${item.variant.product.name} ». Choisissez une autre devise ou contactez le support.`,
+      );
+    }
   }
 
   // Guards against duplicate order creation from a double-tap/client retry
@@ -389,7 +401,8 @@ async function checkout({
     }
   }
 
-  const currency = requestedCurrency || shop.deliveryFeeCurrency;
+  const currency =
+    requestedCurrency || cart.cartCurrency || shop.deliveryFeeCurrency;
   assertValidCheckoutCurrency(currency);
 
   const resolvedItems = await Promise.all(
@@ -554,6 +567,87 @@ async function findPaymentForCallback({ transactionId, orderId }) {
   return payment;
 }
 
+async function findRefundPaymentForCallback({ transactionId, orderId }) {
+  let payment = await prisma.orderPayment.findFirst({
+    where: { payoutTransactionId: transactionId },
+    include: { order: { include: { buyer: true } } },
+  });
+
+  if (!payment && orderId) {
+    payment = await prisma.orderPayment.findFirst({
+      where: { payoutOrderId: orderId },
+      include: { order: { include: { buyer: true } } },
+    });
+
+    if (payment && !payment.payoutTransactionId) {
+      payment = await prisma.orderPayment.update({
+        where: { id: payment.id },
+        data: { payoutTransactionId: transactionId },
+        include: { order: { include: { buyer: true } } },
+      });
+    }
+  }
+
+  return payment;
+}
+
+async function confirmOrderRefund(transactionId, orderId) {
+  const payment = await findRefundPaymentForCallback({
+    transactionId,
+    orderId,
+  });
+  if (!payment) {
+    throw new NotFoundError("Remboursement de commande introuvable.");
+  }
+
+  if (payment.status === "REFUNDED" && payment.payoutTransactionId) {
+    return { payment };
+  }
+
+  await prisma.orderPayment.update({
+    where: { id: payment.id },
+    data: {
+      status: "REFUNDED",
+      payoutTransactionId: transactionId,
+      refundedAt: payment.refundedAt ?? new Date(),
+      failureReason: null,
+    },
+  });
+
+  return { payment };
+}
+
+async function failOrderRefund(transactionId, failureReason, orderId) {
+  const payment = await findRefundPaymentForCallback({
+    transactionId,
+    orderId,
+  });
+  if (!payment) {
+    throw new NotFoundError("Remboursement de commande introuvable.");
+  }
+
+  // Payout failed after we optimistically marked REFUNDED — revert so a
+  // retry (reject/cancel/expire flow) can claim SUCCEEDED again.
+  const claimed = await prisma.orderPayment.updateMany({
+    where: { id: payment.id, status: "REFUNDED" },
+    data: {
+      status: "SUCCEEDED",
+      refundedAt: null,
+      payoutOrderId: null,
+      payoutTransactionId: null,
+      failureReason: failureReason || "Refund payout failed",
+    },
+  });
+
+  if (claimed.count === 1) {
+    console.error(
+      `[order] Refund payout failed for order ${payment.orderId}: ${failureReason}`,
+    );
+  }
+
+  return { payment };
+}
+
 async function confirmOrderPayment(transactionId, orderId) {
   const payment = await findPaymentForCallback({ transactionId, orderId });
   if (!payment) throw new NotFoundError("Paiement de commande introuvable.");
@@ -561,44 +655,72 @@ async function confirmOrderPayment(transactionId, orderId) {
     return { payment, order: payment.order };
   }
 
-  // Atomic claim — guards against a duplicate/concurrent webhook delivery
-  // (MbiyoPay can redeliver the same callback) both passing the in-memory
-  // check above and both applying the order transition, enqueuing a
-  // duplicate invoice/receipt job, and double-notifying the seller.
-  const claimed = await prisma.orderPayment.updateMany({
-    where: { id: payment.id, status: { not: "SUCCEEDED" } },
-    data: { status: "SUCCEEDED", heldAt: new Date() },
+  const txResult = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.orderPayment.updateMany({
+      where: { id: payment.id, status: "PENDING" },
+      data: { status: "SUCCEEDED", heldAt: new Date() },
+    });
+    if (claimed.count !== 1) {
+      return { type: "lost_race" };
+    }
+
+    const currentOrder = await tx.order.findUnique({
+      where: { id: payment.orderId },
+    });
+
+    if (TERMINAL_ORDER_STATUSES.includes(currentOrder.status)) {
+      return { type: "terminal", order: currentOrder };
+    }
+
+    if (currentOrder.status !== "AWAITING_PAYMENT") {
+      return { type: "skip_transition", order: currentOrder };
+    }
+
+    const orderClaimed = await tx.order.updateMany({
+      where: { id: payment.orderId, status: "AWAITING_PAYMENT" },
+      data: { status: "PENDING_SELLER_REVIEW" },
+    });
+    if (orderClaimed.count !== 1) {
+      return { type: "skip_transition", order: currentOrder };
+    }
+
+    const updatedOrder = await tx.order.findUnique({
+      where: { id: payment.orderId },
+    });
+    return { type: "success", order: updatedOrder };
   });
-  if (claimed.count !== 1) {
-    return { payment, order: payment.order }; // lost the race
+
+  if (txResult.type === "lost_race") {
+    const current = await prisma.orderPayment.findUnique({
+      where: { id: payment.id },
+      include: { order: true },
+    });
+    return { payment: current, order: current?.order ?? payment.order };
   }
 
   const updatedPayment = await prisma.orderPayment.findUnique({
     where: { id: payment.id },
   });
 
-  if (TERMINAL_ORDER_STATUSES.includes(payment.order.status)) {
+  if (txResult.type === "terminal") {
     console.error(
-      `[order] Payment confirmed for order ${payment.orderId} but order already in terminal state "${payment.order.status}" — refunding.`,
+      `[order] Payment confirmed for order ${payment.orderId} but order already in terminal state "${txResult.order.status}" — refunding.`,
     );
     await refundOrderPayment(
-      { ...payment.order, payment: updatedPayment },
+      { ...txResult.order, payment: updatedPayment },
       "late_payment_confirmation",
     );
-    return { payment: updatedPayment, order: payment.order };
+    return { payment: updatedPayment, order: txResult.order };
   }
 
-  if (payment.order.status !== "AWAITING_PAYMENT") {
+  if (txResult.type === "skip_transition") {
     console.error(
-      `[order] Payment confirmed for order ${payment.orderId} but order status is "${payment.order.status}" (expected AWAITING_PAYMENT) — skipping transition.`,
+      `[order] Payment confirmed for order ${payment.orderId} but order status is "${txResult.order.status}" (expected AWAITING_PAYMENT) — skipping transition.`,
     );
-    return { payment: updatedPayment, order: payment.order };
+    return { payment: updatedPayment, order: txResult.order };
   }
 
-  const updatedOrder = await prisma.order.update({
-    where: { id: payment.orderId },
-    data: { status: "PENDING_SELLER_REVIEW" },
-  });
+  const updatedOrder = txResult.order;
   emitOrderUpdate(updatedOrder);
 
   await clearCart(payment.order.buyerId, payment.order.shopId);
@@ -640,33 +762,60 @@ async function failOrderPayment(transactionId, failureReason, orderId) {
     return { payment, order: payment.order };
   }
 
-  // Same atomic-claim reasoning as confirmOrderPayment above.
-  const claimed = await prisma.orderPayment.updateMany({
-    where: { id: payment.id, status: { not: "FAILED" } },
-    data: { status: "FAILED", failureReason },
+  const txResult = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.orderPayment.updateMany({
+      where: { id: payment.id, status: "PENDING" },
+      data: { status: "FAILED", failureReason },
+    });
+    if (claimed.count !== 1) {
+      return { type: "lost_race" };
+    }
+
+    const currentOrder = await tx.order.findUnique({
+      where: { id: payment.orderId },
+    });
+
+    if (
+      TERMINAL_ORDER_STATUSES.includes(currentOrder.status) ||
+      currentOrder.status !== "AWAITING_PAYMENT"
+    ) {
+      return { type: "skip_transition", order: currentOrder };
+    }
+
+    const orderClaimed = await tx.order.updateMany({
+      where: { id: payment.orderId, status: "AWAITING_PAYMENT" },
+      data: { status: "FAILED", failureReason },
+    });
+    if (orderClaimed.count !== 1) {
+      return { type: "skip_transition", order: currentOrder };
+    }
+
+    const updatedOrder = await tx.order.findUnique({
+      where: { id: payment.orderId },
+    });
+    return { type: "success", order: updatedOrder };
   });
-  if (claimed.count !== 1) {
-    return { payment, order: payment.order }; // lost the race
+
+  if (txResult.type === "lost_race") {
+    const current = await prisma.orderPayment.findUnique({
+      where: { id: payment.id },
+      include: { order: true },
+    });
+    return { payment: current, order: current?.order ?? payment.order };
   }
 
   const updatedPayment = await prisma.orderPayment.findUnique({
     where: { id: payment.id },
   });
 
-  if (
-    TERMINAL_ORDER_STATUSES.includes(payment.order.status) ||
-    payment.order.status !== "AWAITING_PAYMENT"
-  ) {
+  if (txResult.type === "skip_transition") {
     console.error(
-      `[order] Payment failed for order ${payment.orderId} but order status is already "${payment.order.status}" — skipping transition.`,
+      `[order] Payment failed for order ${payment.orderId} but order status is already "${txResult.order.status}" — skipping transition.`,
     );
-    return { payment: updatedPayment, order: payment.order };
+    return { payment: updatedPayment, order: txResult.order };
   }
 
-  const updatedOrder = await prisma.order.update({
-    where: { id: payment.orderId },
-    data: { status: "FAILED", failureReason },
-  });
+  const updatedOrder = txResult.order;
   emitOrderUpdate(updatedOrder);
 
   const fullOrder = await getFullOrder(updatedOrder.id);
@@ -836,7 +985,11 @@ async function refundOrderPayment(order, reasonLabel) {
     await prisma.orderPayment
       .update({
         where: { id: order.payment.id },
-        data: { status: "SUCCEEDED", refundedAt: null },
+        data: {
+          status: "SUCCEEDED",
+          refundedAt: null,
+          failureReason: `Refund initiation failed (${reasonLabel}): ${err.message}`,
+        },
       })
       .catch(() => {});
     console.error(
@@ -903,6 +1056,45 @@ async function markReadyForPickup(orderId, sellerProfileId) {
   return updated;
 }
 
+async function markReadyForDelivery(orderId, sellerProfileId) {
+  const order = await assertOrderOwnedByShop(orderId, sellerProfileId);
+
+  if (order.status === "PREPARING") {
+    return order;
+  }
+
+  assertValidStatusTransition(
+    order.status,
+    "PREPARING",
+    order.fulfillmentMethod,
+  );
+
+  await claimOrderStatus(prisma, orderId, order.status, {
+    status: "PREPARING",
+  });
+  const updated = await prisma.order.findUnique({ where: { id: orderId } });
+  emitOrderUpdate(updated);
+
+  await notifyBuyer(order.buyerId, {
+    title: "Commande en préparation",
+    body: "Le vendeur prépare votre commande pour la livraison.",
+    action: "orderPreparing",
+    orderId,
+  });
+
+  return updated;
+}
+
+async function markOrderReady(orderId, sellerProfileId) {
+  const order = await assertOrderOwnedByShop(orderId, sellerProfileId);
+
+  if (order.fulfillmentMethod === "PICKUP") {
+    return markReadyForPickup(orderId, sellerProfileId);
+  }
+
+  return markReadyForDelivery(orderId, sellerProfileId);
+}
+
 async function completePickupHandoff(orderId, sellerProfileId, scannedQrToken) {
   const order = await assertOrderOwnedByShop(orderId, sellerProfileId);
   assertValidStatusTransition(
@@ -946,7 +1138,7 @@ async function completePickupHandoff(orderId, sellerProfileId, scannedQrToken) {
   return updated;
 }
 
-async function assignRider(orderId, sellerProfileId, riderId) {
+async function assignRider(orderId, sellerProfileId, riderIdOrUserId) {
   const order = await assertOrderOwnedByShop(orderId, sellerProfileId);
   assertValidStatusTransition(
     order.status,
@@ -954,20 +1146,24 @@ async function assignRider(orderId, sellerProfileId, riderId) {
     order.fulfillmentMethod,
   );
 
-  const rider = await prisma.rider.findUnique({
-    where: { id: riderId },
-    include: { user: true },
-  });
-  if (!rider || rider.sellerProfileId !== sellerProfileId || rider.deletedAt) {
-    throw new NotFoundError("Livreur introuvable.");
+  let rider = await findRiderForSellerAssignment(
+    sellerProfileId,
+    riderIdOrUserId,
+  );
+
+  if (rider.status === "SUSPENDED") {
+    throw new ConflictError(
+      "Ce livreur est suspendu et ne peut pas recevoir de livraison.",
+    );
   }
-  if (rider.status !== "ACTIVE" || !rider.isAvailable) {
-    throw new ConflictError("Ce livreur n'est pas disponible actuellement.");
+
+  if (rider.status === "PENDING" || !rider.isAvailable) {
+    rider = await activateRider(rider.id, sellerProfileId);
   }
 
   await claimOrderStatus(prisma, orderId, order.status, {
     status: "RIDER_ASSIGNED",
-    riderId,
+    riderId: rider.id,
   });
   const updated = await prisma.order.findUnique({ where: { id: orderId } });
   emitOrderUpdate(updated);
@@ -1230,7 +1426,7 @@ async function cancelOrder(orderId, buyerId, reason) {
     );
   }
 
-  return updated;
+  return getFullOrder(orderId);
 }
 
 async function expireUnansweredOrders() {
@@ -1418,9 +1614,13 @@ module.exports = {
   checkout,
   confirmOrderPayment,
   failOrderPayment,
+  confirmOrderRefund,
+  failOrderRefund,
   acceptOrder,
   rejectOrder,
   markReadyForPickup,
+  markReadyForDelivery,
+  markOrderReady,
   completePickupHandoff,
   assignRider,
   markPickedUp,

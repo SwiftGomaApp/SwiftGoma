@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { publicApi } from "@/lib/api/routes/public";
 import { classifyApiError, type ApiStatus } from "@/lib/api/classify-error";
+import { buildPageMetadata } from "@/lib/seo";
+import type { Metadata } from "next";
 // import { ApiStatusBanner } from "@/components/global/api-status-banner";
 import { ProductSearchBar } from "@/components/products/product-search-bar";
 import { ProductsEmptyState } from "@/components/products/empty-state";
@@ -25,6 +27,13 @@ type ProductsPageProps = {
     page?: string;
   }>;
 };
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Produits",
+  description:
+    "Parcourez les produits disponibles sur SwiftGoma — marketplace en ligne avec livraison rapide en RDC et au Rwanda.",
+  path: "/products",
+});
 
 export default async function ProductsPage({
   searchParams,

@@ -32,6 +32,7 @@ export type Cart = {
   shopId: string;
   items: CartItem[];
   cartCurrency: string | null;
+  displayDeliveryFee: number | null;
   shop: {
     id: string;
     name: string;
@@ -60,8 +61,12 @@ export const cartApi = {
     );
   },
 
-  getCartForShop(shopId: string) {
-    return unwrap<Cart>(api.get(`/cart/shop/${shopId}`));
+  getCartForShop(shopId: string, currency?: "USD" | "CDF") {
+    return unwrap<Cart>(
+      api.get(`/cart/shop/${shopId}`, {
+        params: currency ? { currency } : undefined,
+      }),
+    );
   },
 
   getMyCarts() {

@@ -67,6 +67,7 @@ type Category = {
 
 type HeaderProps = {
   categories: Category[];
+  compact?: boolean;
 };
 
 function categoryDescription(subcategories: Subcategory[]) {
@@ -102,7 +103,7 @@ function UserAvatar({
   return <UserIcon className="h-5 w-5" />;
 }
 
-export function Header({ categories }: HeaderProps) {
+export function Header({ categories, compact = false }: HeaderProps) {
   const router = useRouter();
   const { user, isLoading, isLoggingOut, logout } = useAuth();
   const { totalItemCount, openCart } = useCart();
@@ -210,6 +211,8 @@ export function Header({ categories }: HeaderProps) {
         </NavigationMenu>
 
         <div className="flex items-center justify-end gap-1 sm:gap-2">
+          {!compact && (
+            <>
           {/* Filters — icon only on mobile, full "Filtrer ⌘K" on sm+ */}
           <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
             <SheetTrigger
@@ -238,6 +241,8 @@ export function Header({ categories }: HeaderProps) {
           >
             <SlidersHorizontal className="h-5 w-5" />
           </Button>
+            </>
+          )}
 
           {/* Desktop auth */}
           <div className="hidden md:block">

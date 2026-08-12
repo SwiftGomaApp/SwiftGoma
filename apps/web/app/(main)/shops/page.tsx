@@ -1,10 +1,19 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Store } from "lucide-react";
+import type { Metadata } from "next";
 import { publicApi } from "@/lib/api/routes/public";
 import { ApiException } from "@/lib/api";
 import { ServerErrorBanner } from "@/components/global/server-error-banner";
 import { ImageWithFallback } from "@/components/global/image-with-fallback";
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Boutiques",
+  description:
+    "Découvrez les boutiques vendeuses sur SwiftGoma et achetez auprès de commerçants locaux en RDC et au Rwanda.",
+  path: "/shops",
+});
 
 export default async function ShopsPage() {
   let shops: Awaited<ReturnType<typeof publicApi.listShops>>["shops"] = [];

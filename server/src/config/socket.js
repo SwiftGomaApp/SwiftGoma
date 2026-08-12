@@ -1,11 +1,11 @@
 const { Server } = require("socket.io");
 const { createAdapter } = require("@socket.io/redis-adapter");
-const jwt = require("jsonwebtoken");
 const cookie = require("cookie");
 const { env } = require("./env");
 const { getPrismaClient } = require("./prisma");
 const { getRedisClient } = require("./redis");
 const { getAccessTokenFromRequest } = require("../features/auth/utils/cookies");
+const { verifyAccessToken } = require("./jwt");
 
 let io = null;
 
@@ -56,16 +56,10 @@ function initSocket(httpServer) {
     );
   }
 
-  io.use((socket, next) => {
-    // Web clients: httpOnly access-token cookie sent automatically with the
-    // handshake request. Parse the raw Cookie header into the shape
-    // getAccessTokenFromRequest expects (req.cookies, as cookie-parser
-    // would produce it).
+  io.use(async (socket, next) => {
     const rawCookieHeader = socket.handshake.headers.cookie || "";
     const parsedCookies = cookie.parse(rawCookieHeader);
 
-    // Mobile clients: token sent explicitly via handshake.auth.token,
-    // since they don't have a browser cookie jar.
     const token =
       getAccessTokenFromRequest({ cookies: parsedCookies }) ||
       socket.handshake.auth?.token;
@@ -73,8 +67,27 @@ function initSocket(httpServer) {
     if (!token) return next(new Error("UNAUTHORIZED"));
 
     try {
-      const payload = jwt.verify(token, env.jwt.accessSecret);
-      socket.userId = payload.sub || payload.userId;
+      const claims = verifyAccessToken(token);
+      const prisma = getPrismaClient();
+      const user = await prisma.user.findUnique({
+        where: { id: claims.sub },
+        select: { isBlocked: true },
+      });
+      if (!user || user.isBlocked) {
+        return next(new Error("UNAUTHORIZED"));
+      }
+
+      if (claims.sessionId) {
+        const session = await prisma.session.findUnique({
+          where: { id: claims.sessionId },
+          select: { isRevoked: true, expiresAt: true },
+        });
+        if (!session || session.isRevoked || session.expiresAt < new Date()) {
+          return next(new Error("UNAUTHORIZED"));
+        }
+      }
+
+      socket.userId = claims.sub;
       next();
     } catch (err) {
       next(new Error("UNAUTHORIZED"));

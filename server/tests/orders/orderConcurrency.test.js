@@ -21,10 +21,12 @@ jest.mock("../../src/config/socket", () => ({
 }));
 jest.mock("../../src/features/payments/services/mbioyopay.service", () => ({
   initiatePayin: jest.fn(),
-  initiatePayout: jest.fn().mockResolvedValue({
-    orderId: "MOCK-PAYOUT-ORDER",
-    transaction_id: "MOCK-PAYOUT-TXN",
-  }),
+  initiatePayout: jest.fn().mockImplementation((input) =>
+    Promise.resolve({
+      orderId: input.orderId,
+      transaction_id: `MOCK-PAYOUT-TXN-${input.orderId}`,
+    }),
+  ),
 }));
 
 const crypto = require("crypto");
@@ -34,6 +36,8 @@ const {
   rejectOrder,
   completePickupHandoff,
   confirmOrderPayment,
+  confirmOrderRefund,
+  cancelOrder,
 } = require("../../src/features/orders/services/order.service");
 const {
   initiatePayout,
@@ -200,6 +204,9 @@ async function createOrder({
         amount: total,
         currency: "USD",
         status: paymentStatus || "SUCCEEDED",
+        network: "AIRTEL",
+        phoneNumber: "+243900000000",
+        countryCode: "CD",
       },
     });
   }
@@ -395,6 +402,15 @@ describe("order concurrency: wallet double-credit on duplicate QR scan", () => {
 });
 
 describe("order concurrency: refund idempotency", () => {
+  beforeEach(() => {
+    initiatePayout.mockImplementation((input) =>
+      Promise.resolve({
+        orderId: input.orderId,
+        transaction_id: `MOCK-PAYOUT-TXN-${input.orderId}`,
+      }),
+    );
+  });
+
   test("concurrent reject attempts on the same order only trigger one payout", async () => {
     const { profile: sellerProfile, shop } = await createTestSeller("refund");
     const buyer = await createTestBuyer("refund");
@@ -426,6 +442,72 @@ describe("order concurrency: refund idempotency", () => {
       where: { orderId: order.id },
     });
     expect(payment.status).toBe("REFUNDED");
+  }, 30000);
+
+  test("confirmOrderRefund resolves SWG-REFUND payout callbacks against order_payments", async () => {
+    const { shop } = await createTestSeller("refund-cb");
+    const buyer = await createTestBuyer("refund-cb");
+    const variant = await createVariant(shop.id, 10, 15);
+
+    const order = await createOrder({
+      buyerId: buyer.id,
+      shopId: shop.id,
+      variantId: variant.id,
+      quantity: 1,
+      unitPrice: 15,
+      paymentMethod: "ONLINE_PAYMENT",
+      paymentStatus: "SUCCEEDED",
+    });
+
+    const refundOrderId = `SWG-REFUND-${order.id}`;
+    await prisma.orderPayment.update({
+      where: { orderId: order.id },
+      data: {
+        status: "REFUNDED",
+        refundedAt: new Date(),
+        payoutOrderId: refundOrderId,
+      },
+    });
+
+    await confirmOrderRefund("CO-REFUND-TXN-1", refundOrderId);
+
+    const payment = await prisma.orderPayment.findUnique({
+      where: { orderId: order.id },
+    });
+    expect(payment.status).toBe("REFUNDED");
+    expect(payment.payoutTransactionId).toBe("CO-REFUND-TXN-1");
+  }, 30000);
+
+  test("cancelOrder initiates refund payout for online payments", async () => {
+    const { shop } = await createTestSeller("cancel-refund");
+    const buyer = await createTestBuyer("cancel-refund");
+    const variant = await createVariant(shop.id, 10, 15);
+
+    const order = await createOrder({
+      buyerId: buyer.id,
+      shopId: shop.id,
+      variantId: variant.id,
+      quantity: 1,
+      unitPrice: 15,
+      paymentMethod: "ONLINE_PAYMENT",
+      paymentStatus: "SUCCEEDED",
+    });
+
+    initiatePayout.mockClear();
+
+    const cancelled = await cancelOrder(order.id, buyer.id, "Changed my mind");
+    expect(cancelled.status).toBe("CANCELLED");
+    expect(initiatePayout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: `SWG-REFUND-${order.id}`,
+      }),
+    );
+
+    const payment = await prisma.orderPayment.findUnique({
+      where: { orderId: order.id },
+    });
+    expect(payment.status).toBe("REFUNDED");
+    expect(payment.payoutOrderId).toBe(`SWG-REFUND-${order.id}`);
   }, 30000);
 });
 

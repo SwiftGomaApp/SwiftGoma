@@ -18,6 +18,10 @@ const { subscriptionStatusEmail } = require("./templates/subscriptionStatus");
 const { shopStatusEmail } = require("./templates/shopStatus");
 const { orderStatusEmail } = require("./templates/orderStatus");
 const { contactSupportEmail } = require("./templates/contactSupport");
+const { adminPayoutOtpEmail } = require("./templates/adminPayoutOtp");
+const { adminPayoutInitiatedEmail } = require("./templates/adminPayoutInitiated");
+const { adminAccountantReportEmail } = require("./templates/adminAccountantReport");
+const { adminExpenseOtpEmail } = require("./templates/adminExpenseOtp");
 
 async function sendLoginDetectedEmail(to, data) {
   const { subject, html } = loginDetectedEmail(data);
@@ -89,6 +93,38 @@ async function sendContactSupportEmail(to, data) {
   return sendMail({ to, subject, html });
 }
 
+async function sendAdminPayoutOtpEmail(to, data) {
+  const { subject, html } = adminPayoutOtpEmail(data);
+  return sendMail({ to, subject, html });
+}
+
+async function sendAdminAccountantReportEmail(to, data) {
+  const recipients = Array.isArray(to) ? to.join(", ") : to;
+  const { subject, html } = adminAccountantReportEmail(data);
+  return sendMail({
+    to: recipients,
+    subject,
+    html,
+    attachments: [
+      {
+        filename: data.filename,
+        content: data.pdfBuffer,
+        contentType: "application/pdf",
+      },
+    ],
+  });
+}
+
+async function sendAdminPayoutInitiatedEmail(to, data) {
+  const { subject, html } = adminPayoutInitiatedEmail(data);
+  return sendMail({ to, subject, html });
+}
+
+async function sendAdminExpenseOtpEmail(to, data) {
+  const { subject, html } = adminExpenseOtpEmail(data);
+  return sendMail({ to, subject, html });
+}
+
 module.exports = {
   sendLoginDetectedEmail,
   sendOtpLoginEmail,
@@ -115,6 +151,10 @@ module.exports = {
   sendAccountStatusEmail,
   sendSessionsRevokedEmail,
   sendContactSupportEmail,
+  sendAdminPayoutOtpEmail,
+  sendAdminPayoutInitiatedEmail,
+  sendAdminAccountantReportEmail,
+  sendAdminExpenseOtpEmail,
   sellerProfileStatusEmail,
   sellerKycStatusEmail,
   subscriptionStatusEmail,

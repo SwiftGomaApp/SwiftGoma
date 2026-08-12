@@ -1,8 +1,13 @@
 import { LegalDocument } from "../legal-document/legal-document";
+import type { Metadata } from "next";
+import { buildPageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata: Metadata = buildPageMetadata({
   title: "Politique de confidentialité",
-};
+  description:
+    "Politique de confidentialité et protection des données personnelles sur SwiftGoma.",
+  path: "/legal/privacy",
+});
 
 export default function PrivacyPage() {
   return (

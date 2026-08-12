@@ -2,8 +2,13 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/toast";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { AuthProvider } from "@/providers/auth-provider";
+import { SocketProvider } from "@/providers/socket-provider";
+import { NotificationsProvider } from "@/providers/notifications-provider";
+import { ConfirmDialogProvider } from "@/components/admin/confirm-dialog";
+import { ADMIN_BRAND, ADMIN_SITE_URL } from "@/lib/brand";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,27 +20,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const siteUrl = "https://admin.swiftgoma.com";
-
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(ADMIN_SITE_URL),
   title: {
-    default: "SwiftGoma Admin",
-    template: "%s | SwiftGoma Admin",
+    default: ADMIN_BRAND.appName,
+    template: `%s | ${ADMIN_BRAND.appName}`,
   },
-  description:
-    "Tableau de bord d'administration SwiftGoma — gestion des vendeurs, commandes, abonnements et livraisons pour la marketplace de Goma, RDC.",
-  applicationName: "SwiftGoma Admin",
-  keywords: [
-    "SwiftGoma",
-    "admin",
-    "Goma",
-    "RDC",
-    "marketplace",
-    "e-commerce",
-    "dashboard",
-  ],
-  authors: [{ name: "SwiftGoma" }],
+  description: ADMIN_BRAND.description,
+  applicationName: ADMIN_BRAND.appName,
+  authors: [{ name: ADMIN_BRAND.name }],
   robots: {
     index: false,
     follow: false,
@@ -48,21 +41,20 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
+    apple: "/icon.png",
   },
   openGraph: {
     type: "website",
-    locale: "fr_CD",
-    siteName: "SwiftGoma Admin",
-    title: "SwiftGoma Admin",
-    description:
-      "Tableau de bord d'administration SwiftGoma — gestion des vendeurs, commandes, abonnements et livraisons.",
-    url: siteUrl,
+    locale: ADMIN_BRAND.locale,
+    siteName: ADMIN_BRAND.appName,
+    title: ADMIN_BRAND.appName,
+    description: ADMIN_BRAND.shortDescription,
+    url: ADMIN_SITE_URL,
   },
   twitter: {
     card: "summary",
-    title: "SwiftGoma Admin",
-    description: "Tableau de bord d'administration SwiftGoma.",
+    title: ADMIN_BRAND.appName,
+    description: ADMIN_BRAND.shortDescription,
   },
 };
 
@@ -84,9 +76,17 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <TooltipProvider>
-            <AuthProvider>{children}</AuthProvider>
-          </TooltipProvider>
+          <Toaster>
+            <ConfirmDialogProvider>
+              <TooltipProvider>
+                <AuthProvider>
+                  <SocketProvider>
+                    <NotificationsProvider>{children}</NotificationsProvider>
+                  </SocketProvider>
+                </AuthProvider>
+              </TooltipProvider>
+            </ConfirmDialogProvider>
+          </Toaster>
         </ThemeProvider>
       </body>
     </html>

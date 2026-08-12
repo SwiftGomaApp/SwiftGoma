@@ -4,6 +4,7 @@ import { useState } from "react";
 import { WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/auth-provider";
+import { ui } from "@/lib/i18n/common";
 
 export function ConnectionErrorBanner() {
   const { connectionError, refetchUser } = useAuth();
@@ -23,7 +24,7 @@ export function ConnectionErrorBanner() {
   return (
     <div className="bg-destructive/10 text-destructive flex items-center justify-center gap-2 px-4 py-2 text-sm">
       <WifiOff className="size-4 shrink-0" />
-      <span>Can&apos;t reach the server right now.</span>
+      <span>Impossible de joindre le serveur pour le moment.</span>
       <Button
         type="button"
         variant="link"
@@ -32,7 +33,7 @@ export function ConnectionErrorBanner() {
         onClick={handleRetry}
         disabled={isRetrying}
       >
-        {isRetrying ? "Retrying..." : "Retry"}
+        {isRetrying ? "Nouvelle tentative…" : ui.retry}
       </Button>
     </div>
   );

@@ -2,6 +2,9 @@ const {
   confirmSubscriptionPayment,
   failSubscriptionPayment,
 } = require("../../subscriptions/services/subscription.service");
+const {
+  handlePawaPayPayoutCallback,
+} = require("../services/adminPayoutStatus.service");
 const { verifyInboundSignature } = require("../utils/pawapay.signature");
 const { env, isProduction } = require("../../../config/env");
 
@@ -23,35 +26,44 @@ function extractMetadataType(body) {
   return null;
 }
 
+async function verifyPawaPayCallback(req) {
+  if (env.pawapay.signingEnabled) {
+    const fullUrl = `${env.pawapay.callbackBaseUrl.replace(/\/+$/, "")}${req.originalUrl}`;
+    const verified = await verifyInboundSignature({
+      method: req.method,
+      url: fullUrl,
+      headers: req.headers,
+      bodyBuffer: req.rawBody || Buffer.from(JSON.stringify(req.body || {})),
+    });
+
+    if (!verified) {
+      console.error(
+        `[pawapay-callback] Signature verification failed for request to ${req.originalUrl} — rejecting.`,
+      );
+      return false;
+    }
+    return true;
+  }
+
+  console.warn(
+    `[pawapay-callback] PAWAPAY_SIGNING_ENABLED is false — accepting ${req.originalUrl} WITHOUT signature verification.`,
+  );
+  if (isProduction) {
+    console.error(
+      "[pawapay-callback] CRITICAL: running in production with signing disabled. " +
+        "Rejecting unauthenticated callback.",
+    );
+    return false;
+  }
+  return true;
+}
+
 async function postDepositCallback(req, res, next) {
   try {
-    if (env.pawapay.signingEnabled) {
-      const fullUrl = `${env.pawapay.callbackBaseUrl.replace(/\/+$/, "")}${req.originalUrl}`;
-      const verified = await verifyInboundSignature({
-        method: req.method,
-        url: fullUrl,
-        headers: req.headers,
-        bodyBuffer: req.rawBody || Buffer.from(JSON.stringify(req.body || {})),
-      });
-
-      if (!verified) {
-        console.error(
-          `[pawapay-callback] Signature verification failed for request to ${req.originalUrl} — rejecting.`,
-        );
-        return res
-          .status(401)
-          .json({ received: false, error: "invalid_signature" });
-      }
-    } else {
-      console.warn(
-        `[pawapay-callback] PAWAPAY_SIGNING_ENABLED is false — accepting ${req.originalUrl} WITHOUT signature verification.`,
-      );
-      if (isProduction) {
-        console.error(
-          "[pawapay-callback] CRITICAL: running in production with signing disabled. " +
-            "This callback is currently unauthenticated.",
-        );
-      }
+    if (!(await verifyPawaPayCallback(req))) {
+      return res
+        .status(401)
+        .json({ received: false, error: "invalid_signature" });
     }
 
     const body = req.body;
@@ -106,4 +118,35 @@ async function postDepositCallback(req, res, next) {
   }
 }
 
-module.exports = { postDepositCallback };
+async function postPayoutCallback(req, res) {
+  try {
+    if (!(await verifyPawaPayCallback(req))) {
+      return res
+        .status(401)
+        .json({ received: false, error: "invalid_signature" });
+    }
+
+    const body = req.body;
+    const payoutId = body.payoutId;
+    const status = body.status;
+    const type = extractMetadataType(body);
+
+    console.log(
+      `[pawapay-callback] payout ${payoutId} status=${status} type=${type}`,
+    );
+
+    await handlePawaPayPayoutCallback(body);
+
+    res.status(200).json({ received: true });
+  } catch (err) {
+    console.error(
+      "[pawapay-callback] Error handling payout callback:",
+      err.message,
+    );
+    res
+      .status(200)
+      .json({ received: true, error: "internal_processing_error" });
+  }
+}
+
+module.exports = { postDepositCallback, postPayoutCallback };

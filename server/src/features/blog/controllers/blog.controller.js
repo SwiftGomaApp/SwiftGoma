@@ -7,6 +7,19 @@ const {
   listPublishedPosts,
   listAllPosts,
 } = require("../services/blog.service");
+const { uploadImage } = require("../../../common/services/cloudinaryUpload");
+const {
+  CLOUDINARY_FOLDERS,
+} = require("../../../common/constants/cloudinaryFolders");
+
+function wantsCoverRemoved(value) {
+  return value === true || value === "true";
+}
+
+async function uploadCoverImage(file) {
+  const result = await uploadImage(file.buffer, CLOUDINARY_FOLDERS.BLOG_COVERS);
+  return result.url;
+}
 
 async function getPosts(req, res, next) {
   try {
@@ -46,12 +59,14 @@ async function getAdminPostById(req, res, next) {
 
 async function postCreatePost(req, res, next) {
   try {
+    const coverImageUrl = req.file ? await uploadCoverImage(req.file) : null;
+
     const post = await createPost({
       authorId: req.user.id,
       title: req.body.title,
       excerpt: req.body.excerpt,
       content: req.body.content,
-      coverImageUrl: req.body.coverImageUrl,
+      coverImageUrl,
       status: req.body.status,
     });
     res.status(201).json({ success: true, data: post });
@@ -62,13 +77,20 @@ async function postCreatePost(req, res, next) {
 
 async function putUpdatePost(req, res, next) {
   try {
-    const post = await updatePost(req.params.id, {
+    const payload = {
       title: req.body.title,
       excerpt: req.body.excerpt,
       content: req.body.content,
-      coverImageUrl: req.body.coverImageUrl,
       status: req.body.status,
-    });
+    };
+
+    if (req.file) {
+      payload.coverImageUrl = await uploadCoverImage(req.file);
+    } else if (wantsCoverRemoved(req.body.removeCoverImage)) {
+      payload.coverImageUrl = null;
+    }
+
+    const post = await updatePost(req.params.id, payload);
     res.status(200).json({ success: true, data: post });
   } catch (err) {
     next(err);

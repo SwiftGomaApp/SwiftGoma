@@ -84,6 +84,7 @@ export function NotificationsModal({
   }, [unreadCount, open]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional fetch on open
     if (open) loadNotifications();
   }, [open]);
 

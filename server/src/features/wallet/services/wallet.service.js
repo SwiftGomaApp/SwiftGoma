@@ -192,15 +192,25 @@ async function applyPayoutFailed(walletTransaction, failureReason) {
     return walletTransaction;
   }
 
-  await refundFailedPayout(
-    walletTransaction.walletBalanceId,
-    walletTransaction.id,
-    Number(walletTransaction.amount),
-    failureReason,
-  );
+  return prisma.$transaction(async (tx) => {
+    const claimed = await tx.walletTransaction.updateMany({
+      where: { id: walletTransaction.id, status: "PENDING" },
+      data: { status: "FAILED", reason: failureReason },
+    });
+    if (claimed.count !== 1) {
+      return tx.walletTransaction.findUnique({
+        where: { id: walletTransaction.id },
+      });
+    }
 
-  return prisma.walletTransaction.findUnique({
-    where: { id: walletTransaction.id },
+    await tx.walletBalance.update({
+      where: { id: walletTransaction.walletBalanceId },
+      data: { balance: { increment: Number(walletTransaction.amount) } },
+    });
+
+    return tx.walletTransaction.findUnique({
+      where: { id: walletTransaction.id },
+    });
   });
 }
 

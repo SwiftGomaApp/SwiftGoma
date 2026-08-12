@@ -135,12 +135,20 @@ describe("registerWithGoogle role assignment", () => {
 });
 
 describe("createAccount (password signup) role assignment — regression guard", () => {
-  test("still rejects ADMIN/SUPPORT (pre-existing protection, must not regress)", async () => {
+  test("still rejects ADMIN/SUPPORT/ACCOUNTANT (pre-existing protection, must not regress)", async () => {
     await expect(
       authService.createAccount({
         name: "Password Signup Test",
         email: `${RUN_ID}-password-admin@example.com`,
         role: "ADMIN",
+      }),
+    ).rejects.toMatchObject({ code: "ROLE_NOT_SELF_ASSIGNABLE" });
+
+    await expect(
+      authService.createAccount({
+        name: "Password Signup Test",
+        email: `${RUN_ID}-password-accountant@example.com`,
+        role: "ACCOUNTANT",
       }),
     ).rejects.toMatchObject({ code: "ROLE_NOT_SELF_ASSIGNABLE" });
   });

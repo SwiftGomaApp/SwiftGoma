@@ -26,11 +26,11 @@ export default async function MainLayout({
   }
 
   return (
-    <>
+    <div className="flex min-h-dvh flex-1 flex-col">
       {status && <ApiStatusBanner status={status} />}
       <Header categories={categories} />
-      <main>{children}</main>
+      <main className="flex-1">{children}</main>
       <Footer />
-    </>
+    </div>
   );
 }

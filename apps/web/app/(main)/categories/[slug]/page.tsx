@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { publicApi } from "@/lib/api/routes/public";
 import { ApiException } from "@/lib/api";
+import { buildPageMetadata } from "@/lib/seo";
 import { InfiniteProductGrid } from "@/components/products/infinite-product-grid";
 import { CategoryProductFilters } from "@/components/products/category-product-filters";
 import { ProductsEmptyState } from "@/components/products/empty-state";
@@ -42,10 +43,11 @@ export async function generateMetadata({
   const category = await resolveCategory(slug);
   if (!category) return { title: "Catégorie" };
 
-  return {
+  return buildPageMetadata({
     title: category.name,
-    description: `Découvrez tous les produits de la catégorie ${category.name} sur Swiftgoma.`,
-  };
+    description: `Découvrez tous les produits de la catégorie ${category.name} sur SwiftGoma.`,
+    path: `/categories/${slug}`,
+  });
 }
 
 export default async function CategoryPage({

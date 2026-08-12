@@ -9,6 +9,8 @@
     "postinstall": "prisma generate",
     "seed:admin": "node scripts/createAdminOrSupport.js",
     "seed:plans": "node scripts/seedPlans.js",
+    "cache:clear": "node scripts/clearCache.js",
+    "cache:clear:plans": "node scripts/clearCache.js plans",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
