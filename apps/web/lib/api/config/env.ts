@@ -59,28 +59,3 @@ export const env = {
 } as const;
 
 export const isProduction = env.nodeEnv === "production";
-
-function assertRequiredEnv() {
-  // Server-only vars (API_BASE_URL) are not in the browser bundle.
-  if (typeof window !== "undefined") return;
-  if (!isProduction) return;
-
-  const missing: string[] = [];
-
-  if (!env.api.baseUrl) missing.push("NEXT_PUBLIC_API_URL");
-  if (!env.server.apiBaseUrl) {
-    missing.push("API_BASE_URL or NEXT_PUBLIC_SITE_URL");
-  }
-
-  if (usesApiProxy && !process.env.API_BASE_URL && !process.env.API_PROXY_TARGET) {
-    missing.push("API_BASE_URL (upstream target for /api/v1 proxy route)");
-  }
-
-  if (missing.length > 0) {
-    throw new Error(
-      `[env] Missing required environment variable(s) in production: ${missing.join(", ")}. Refusing to start.`,
-    );
-  }
-}
-
-assertRequiredEnv();
