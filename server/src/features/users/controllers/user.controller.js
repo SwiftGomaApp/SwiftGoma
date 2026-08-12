@@ -1,4 +1,5 @@
 const userService = require("../services/user.service");
+const { getClientIp } = require("../../../common/utils/clientIp");
 const { ValidationError } = require("../../../common/errors");
 const {
   setAccessTokenCookie,
@@ -39,7 +40,7 @@ async function requestAccountRecovery(req, res) {
 async function verifyAccountRecovery(req, res) {
   const { email, code, deviceName, locale } = req.body;
   const userAgent = req.headers["user-agent"] || null;
-  const ipAddress = req.ip || null;
+  const ipAddress = getClientIp(req);
   const isMobile = req.headers["x-client-type"] === "mobile";
 
   const result = await userService.verifyAccountRecovery({

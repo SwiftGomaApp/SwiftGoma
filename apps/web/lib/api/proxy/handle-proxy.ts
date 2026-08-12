@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getApiUpstreamOrigin } from "@/lib/api/proxy/upstream";
+import { resolveClientIp } from "@/lib/api/proxy/client-ip";
 
 const HOP_BY_HOP = new Set([
   "connection",
@@ -56,6 +57,12 @@ export async function handleApiProxy(
   });
   headers.set("ngrok-skip-browser-warning", "1");
   headers.set("accept-encoding", "identity");
+
+  const clientIp = resolveClientIp(req);
+  if (clientIp) {
+    headers.set("x-forwarded-for", clientIp);
+    headers.set("x-real-ip", clientIp);
+  }
 
   const hasBody = !["GET", "HEAD"].includes(req.method);
   const upstream = await fetch(url, {

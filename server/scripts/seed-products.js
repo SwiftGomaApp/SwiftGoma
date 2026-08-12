@@ -1,155 +1,161 @@
 const { getPrismaClient } = require("../src/config/prisma");
+const {
+  seedDefaultCategories,
+} = require("../src/features/product/services/category.service");
 
 const prisma = getPrismaClient();
 
-const SHOP_ID = "376b3f98-a182-4160-9377-ad4df11e00dc";
+const SHOP_ID =
+  process.env.SEED_SHOP_ID ||
+  process.argv[2] ||
+  "2734940f-845e-4e6f-9177-2a2ea69e9148";
 
 const SUBCATEGORIES = [
   // Alimentation & Boissons
   {
-    id: "153fab05-cdec-4603-b77c-d5d85e494da3",
+    key: "153fab05-cdec-4603-b77c-d5d85e494da3",
     name: "Boissons",
     isFood: true,
   },
   {
-    id: "491c0b93-1811-44f7-a26a-9e1f6d5aa9d7",
+    key: "491c0b93-1811-44f7-a26a-9e1f6d5aa9d7",
     name: "Produits secs",
     isFood: true,
   },
   {
-    id: "33fc4062-18d0-4ee0-b426-3bc475464950",
+    key: "33fc4062-18d0-4ee0-b426-3bc475464950",
     name: "Fruits & légumes",
     isFood: true,
   },
   {
-    id: "9e4bc7a1-2c4c-4572-bac5-88763e5748a9",
+    key: "9e4bc7a1-2c4c-4572-bac5-88763e5748a9",
     name: "Viande, poisson & volaille",
     isFood: true,
   },
   {
-    id: "6504265d-2210-4dda-b5cf-3b134c52e380",
+    key: "6504265d-2210-4dda-b5cf-3b134c52e380",
     name: "Snacks & confiseries",
     isFood: true,
   },
 
   // Épicerie / Produits ménagers
   {
-    id: "a6cb0eb6-b129-4881-8152-3e34d9ef229d",
+    key: "a6cb0eb6-b129-4881-8152-3e34d9ef229d",
     name: "Produits d'entretien & nettoyage",
     isFood: false,
   },
   {
-    id: "255e495d-18f5-43ce-9304-53e54b066f15",
+    key: "255e495d-18f5-43ce-9304-53e54b066f15",
     name: "Hygiène de la maison",
     isFood: false,
   },
   {
-    id: "ed33e11c-e4a4-45c4-9cb2-835ee4513200",
+    key: "ed33e11c-e4a4-45c4-9cb2-835ee4513200",
     name: "Ustensiles & articles de cuisine",
     isFood: false,
   },
   {
-    id: "2d0c1535-6cd1-47ca-9a49-5ab1d4ea77aa",
+    key: "2d0c1535-6cd1-47ca-9a49-5ab1d4ea77aa",
     name: "Petits équipements ménagers",
     isFood: false,
   },
 
   // Beauté & Soins personnels
   {
-    id: "c2f16357-c589-4277-82a2-2261283ee0fa",
+    key: "c2f16357-c589-4277-82a2-2261283ee0fa",
     name: "Soins du visage & du corps",
     isFood: false,
   },
   {
-    id: "164cc924-7b48-4798-b5a2-b4916d17e6fe",
+    key: "164cc924-7b48-4798-b5a2-b4916d17e6fe",
     name: "Soins capillaires",
     isFood: false,
   },
   {
-    id: "ba2157f5-2135-4653-9331-9e892d2db98f",
+    key: "ba2157f5-2135-4653-9331-9e892d2db98f",
     name: "Maquillage",
     isFood: false,
   },
   {
-    id: "ba6217e5-ae36-4f12-8690-09e817f8328f",
+    key: "ba6217e5-ae36-4f12-8690-09e817f8328f",
     name: "Parfums",
     isFood: false,
   },
   {
-    id: "8c8d2188-eaf4-4add-b576-ffab2b8f1b5f",
+    key: "8c8d2188-eaf4-4add-b576-ffab2b8f1b5f",
     name: "Hygiène personnelle",
     isFood: false,
   },
 
   // Mode & Vêtements
   {
-    id: "2516b292-47e8-43e7-a95c-5f8432552444",
+    key: "2516b292-47e8-43e7-a95c-5f8432552444",
     name: "Vêtements homme",
     isFood: false,
   },
   {
-    id: "82640928-022d-4d5c-9f40-fbaadb9e644f",
+    key: "82640928-022d-4d5c-9f40-fbaadb9e644f",
     name: "Vêtements femme",
     isFood: false,
   },
   {
-    id: "7e8977c7-135b-403f-9418-f4dd9e5e4202",
+    key: "7e8977c7-135b-403f-9418-f4dd9e5e4202",
     name: "Vêtements enfant",
     isFood: false,
   },
   {
-    id: "0f52a5c3-ce68-4d02-bc7f-7d33fdc6433d",
+    key: "0f52a5c3-ce68-4d02-bc7f-7d33fdc6433d",
     name: "Chaussures",
     isFood: false,
   },
   {
-    id: "39fc79cb-689f-4995-83bb-be42d6feb6a4",
+    key: "39fc79cb-689f-4995-83bb-be42d6feb6a4",
     name: "Accessoires",
     isFood: false,
   },
 
   // Fournitures (meuble)
-  { id: "c62b7d61-02e0-4d52-b9d3-a952f8c204fa", name: "Salon", isFood: false },
+  { key: "c62b7d61-02e0-4d52-b9d3-a952f8c204fa", name: "Salon", isFood: false },
   {
-    id: "bd0e0249-4834-4c1f-bd49-6eeef6e41ddb",
+    key: "bd0e0249-4834-4c1f-bd49-6eeef6e41ddb",
     name: "Chambre à coucher",
     isFood: false,
   },
   {
-    id: "0254b614-e92d-4c23-be2c-42314947b9a5",
+    key: "0254b614-e92d-4c23-be2c-42314947b9a5",
     name: "Cuisine & salle à manger",
     isFood: false,
   },
-  { id: "3f8a2675-b3a2-419b-a41b-c897e318b9d4", name: "Bureau", isFood: false },
+  { key: "3f8a2675-b3a2-419b-a41b-c897e318b9d4", name: "Bureau", isFood: false },
   {
-    id: "81c21020-8f12-46df-9dfd-6014b90e25cd",
+    key: "81c21020-8f12-46df-9dfd-6014b90e25cd",
     name: "Décoration",
     isFood: false,
   },
 
   // Électroniques
   {
-    id: "e6ffbdf0-0dea-44ed-9c87-ff73ac036a35",
+    key: "e6ffbdf0-0dea-44ed-9c87-ff73ac036a35",
     name: "Téléphones & accessoires",
     isFood: false,
   },
   {
-    id: "39ef981a-2d67-4123-b884-5e6bb9143395",
+    key: "39ef981a-2d67-4123-b884-5e6bb9143395",
     name: "Ordinateurs & accessoires",
     isFood: false,
   },
   {
-    id: "f953b1c9-d12b-47ee-a8a9-8961e72f2501",
+    key: "f953b1c9-d12b-47ee-a8a9-8961e72f2501",
     name: "Audio & TV",
     isFood: false,
   },
   {
-    id: "fcbe0f45-13ee-40c3-a9ce-feac9e83cf7f",
+    key: "fcbe0f45-13ee-40c3-a9ce-feac9e83cf7f",
     name: "Électroménager",
     isFood: false,
   },
   {
-    id: "acba8d1e-5ac9-49a2-b865-fba3ffd9870f",
+    key: "acba8d1e-5ac9-49a2-b865-fba3ffd9870f",
     name: "Gadgets & accessoires divers",
     isFood: false,
   },
@@ -3342,25 +3348,69 @@ const PRODUCTS_DATA = {
   ],
 };
 
+async function loadSubcategoryIdsByName() {
+  const rows = await prisma.subcategory.findMany({
+    select: { id: true, name: true },
+  });
+  return new Map(rows.map((row) => [row.name, row.id]));
+}
+
+async function ensureSubcategoriesExist(subcategoryByName) {
+  const missing = SUBCATEGORIES.filter((sub) => !subcategoryByName.has(sub.name));
+  if (missing.length === 0) return subcategoryByName;
+
+  console.log(
+    `⚠️  ${missing.length} subcategory(ies) missing — seeding default categories first...`,
+  );
+  await seedDefaultCategories();
+  return loadSubcategoryIdsByName();
+}
+
 async function seed() {
   console.log("🌱 Starting Product Seed for Goma Market...");
 
-  // Verify the provided shop exists
   const shop = await prisma.shop.findUnique({
     where: { id: SHOP_ID },
+    select: { id: true, name: true },
   });
 
   if (!shop) {
-    console.error(
-      `❌ Shop ID "${SHOP_ID}" not found. Please provide a valid Shop ID from your database.`,
-    );
+    const shops = await prisma.shop.findMany({
+      select: { id: true, name: true, slug: true },
+      take: 10,
+    });
+    console.error(`❌ Shop ID "${SHOP_ID}" not found.`);
+    if (shops.length > 0) {
+      console.error("\nAvailable shops:");
+      for (const candidate of shops) {
+        console.error(`  - ${candidate.name} (${candidate.slug}): ${candidate.id}`);
+      }
+      console.error(
+        "\nRe-run with: SEED_SHOP_ID=<shop-id> npm run seed:products",
+      );
+    } else {
+      console.error("No shops found in the database.");
+    }
     process.exit(1);
   }
+
+  console.log(`🏪 Using shop: ${shop.name} (${shop.id})`);
+
+  let subcategoryByName = await loadSubcategoryIdsByName();
+  subcategoryByName = await ensureSubcategoriesExist(subcategoryByName);
 
   let totalProductsCreated = 0;
 
   for (const subcategory of SUBCATEGORIES) {
-    const products = PRODUCTS_DATA[subcategory.id];
+    const subcategoryId = subcategoryByName.get(subcategory.name);
+    if (!subcategoryId) {
+      console.warn(
+        `⚠️ Subcategory "${subcategory.name}" still missing after category seed — skipping.`,
+      );
+      continue;
+    }
+
+    const products = PRODUCTS_DATA[subcategory.key];
 
     if (!products || products.length === 0) {
       console.warn(
@@ -3378,18 +3428,16 @@ async function seed() {
         `${prodData.name}-${Date.now().toString().slice(-4)}`,
       );
 
-      // Calculate expiry date if food item (mandatory check in service)
       const expiresAt = subcategory.isFood
-        ? new Date(Date.now() + 180 * 24 * 60 * 60 * 1000) // Default 6 months ahead
+        ? new Date(Date.now() + 180 * 24 * 60 * 60 * 1000)
         : null;
 
       try {
         await prisma.$transaction(async (tx) => {
-          // 1. Create Product
           const product = await tx.product.create({
             data: {
               shopId: SHOP_ID,
-              subcategoryId: subcategory.id,
+              subcategoryId,
               name: prodData.name,
               slug: slug,
               description: prodData.description,

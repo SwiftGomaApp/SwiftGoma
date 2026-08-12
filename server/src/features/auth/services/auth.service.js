@@ -431,7 +431,7 @@ async function issueSessionAndNotify(
       const emailContent = loginDetectedEmail({
         name: user.name,
         email: primaryEmail.email,
-        location: getLocationLabel(ipAddress),
+        location: await getLocationLabel(ipAddress),
         time: formatLoginTime(locale),
         browser,
         device,

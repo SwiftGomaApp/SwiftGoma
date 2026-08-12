@@ -1,4 +1,5 @@
 const authService = require("../services/auth.service");
+const { getClientIp } = require("../../../common/utils/clientIp");
 const {
   setRefreshTokenCookie,
   getRefreshTokenFromRequest,
@@ -34,7 +35,7 @@ async function requestLoginOtp(req, res) {
 async function verifyLoginOtp(req, res) {
   const { email, code, deviceName } = req.body;
   const userAgent = req.headers["user-agent"] || null;
-  const ipAddress = req.ip || null;
+  const ipAddress = getClientIp(req);
   const isMobile = req.headers["x-client-type"] === "mobile";
 
   const { user, accessToken, refreshToken } = await authService.verifyLoginOtp({
@@ -59,7 +60,7 @@ async function verifyLoginOtp(req, res) {
 async function loginWithPassword(req, res) {
   const { email, password, deviceName, locale } = req.body;
   const userAgent = req.headers["user-agent"] || null;
-  const ipAddress = req.ip || null;
+  const ipAddress = getClientIp(req);
   const isMobile = req.headers["x-client-type"] === "mobile";
 
   const result = await authService.loginWithPassword({
@@ -214,7 +215,7 @@ async function disableTotp(req, res) {
 async function loginWithTotp(req, res) {
   const { pendingToken, code, deviceName, locale } = req.body;
   const userAgent = req.headers["user-agent"] || null;
-  const ipAddress = req.ip || null;
+  const ipAddress = getClientIp(req);
   const isMobile = req.headers["x-client-type"] === "mobile";
 
   const { user, accessToken, refreshToken } = await authService.loginWithTotp({
@@ -250,7 +251,7 @@ async function regenerateBackupCodes(req, res) {
 async function registerWithGoogle(req, res) {
   const { idToken, role, deviceName, locale } = req.body;
   const userAgent = req.headers["user-agent"] || null;
-  const ipAddress = req.ip || null;
+  const ipAddress = getClientIp(req);
   const isMobile = req.headers["x-client-type"] === "mobile";
 
   const { user, accessToken, refreshToken } =
@@ -277,7 +278,7 @@ async function registerWithGoogle(req, res) {
 async function loginWithGoogle(req, res) {
   const { idToken, deviceName, locale } = req.body;
   const userAgent = req.headers["user-agent"] || null;
-  const ipAddress = req.ip || null;
+  const ipAddress = getClientIp(req);
   const isMobile = req.headers["x-client-type"] === "mobile";
 
   const result = await authService.loginWithGoogle({
@@ -334,7 +335,7 @@ async function generatePasskeyLoginOptions(req, res) {
 async function verifyPasskeyLogin(req, res) {
   const { email, challengeId, response, deviceName, locale } = req.body;
   const userAgent = req.headers["user-agent"] || null;
-  const ipAddress = req.ip || null;
+  const ipAddress = getClientIp(req);
   const isMobile = req.headers["x-client-type"] === "mobile";
 
   const result = await authService.verifyPasskeyLogin({
