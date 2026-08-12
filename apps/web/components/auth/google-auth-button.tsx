@@ -39,6 +39,7 @@ export function GoogleAuthButton({
 }) {
   const hiddenButtonRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
@@ -53,12 +54,15 @@ export function GoogleAuthButton({
     loadGoogleIdentity()
       .then(() => {
         if (cancelled || !hiddenButtonRef.current || !window.google) return;
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: (response) => {
-            void onCredential(response.credential);
-          },
-        });
+        if (!initializedRef.current) {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: (response) => {
+              void onCredential(response.credential);
+            },
+          });
+          initializedRef.current = true;
+        }
         window.google.accounts.id.renderButton(hiddenButtonRef.current, {
           type: "standard",
           theme: "outline",

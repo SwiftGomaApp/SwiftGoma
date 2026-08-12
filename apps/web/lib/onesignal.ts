@@ -27,7 +27,16 @@ export function isOneSignalConfigured(): boolean {
 
 function isWebPushConfigError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
-  return message.toLowerCase().includes("not configured for web push");
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("not configured for web push") ||
+    lower.includes("can only be used on")
+  );
+}
+
+function isOneSignalAlreadyInitialized(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.toLowerCase().includes("sdk already initialized");
 }
 
 function loadOneSignalScript(): Promise<void> {
@@ -96,6 +105,10 @@ async function ensureInitialized(): Promise<boolean> {
 
         return true;
       } catch (err) {
+        if (isOneSignalAlreadyInitialized(err)) {
+          return true;
+        }
+
         initPromise = null;
         if (isWebPushConfigError(err)) {
           pushUnavailable = true;
