@@ -247,21 +247,6 @@ async function notifyRider(riderUserId, { title, body, action, orderId }) {
   }
 }
 
-// Extracted from confirmOrderPayment() unchanged, aside from taking
-// orderPaymentId/orderId as parameters instead of closing over them.
-// This is what the BullMQ worker (jobs/invoiceDocuments.job.js) calls —
-// generates the invoice+receipt PDFs, uploads them, and emails the buyer
-// with both attached. Runs off the request thread now, so a slow PDFKit
-// render or a slow Cloudinary upload no longer holds up the payment
-// webhook's response to PawaPay/MbiyoPay.
-//
-// Both catches re-throw (rather than just logging) so BullMQ actually
-// sees the job as failed — that's what triggers its built-in retry
-// (3 attempts, exponential backoff, config/queue.js) and, if all
-// retries are exhausted, the Sentry capture already wired up in
-// config/worker.js. Swallowing the error here would mean a transient
-// failure (Cloudinary hiccup, DB blip) never gets retried and never
-// gets reported — the gap found via scripts/testInvoiceJobError.js.
 async function sendOrderPaymentDocuments(orderPaymentId, orderId) {
   const payment = await prisma.orderPayment.findUnique({
     where: { id: orderPaymentId },
@@ -379,11 +364,6 @@ async function checkout({
     }
   }
 
-  // Guards against duplicate order creation from a double-tap/client retry
-  // on checkout — previously this only checked AWAITING_PAYMENT, which
-  // Cash-on-Delivery orders never pass through (they go straight to
-  // PENDING_SELLER_REVIEW), so two concurrent COD checkouts for the same
-  // cart could both succeed before either cleared it.
   const pendingOrder = await prisma.order.findFirst({
     where: {
       buyerId,
@@ -636,8 +616,6 @@ async function failOrderRefund(transactionId, failureReason, orderId) {
     throw new NotFoundError("Remboursement de commande introuvable.");
   }
 
-  // Payout failed after we optimistically marked REFUNDED — revert so a
-  // retry (reject/cancel/expire flow) can claim SUCCEEDED again.
   const claimed = await prisma.orderPayment.updateMany({
     where: { id: payment.id, status: "REFUNDED" },
     data: {
@@ -735,11 +713,6 @@ async function confirmOrderPayment(transactionId, orderId) {
 
   await clearCart(payment.order.buyerId, payment.order.shopId);
 
-  // Was: inline `await generateOrderInvoiceAndReceipt(...)` + attachment
-  // building + `await createNotification(...)` right here, all blocking
-  // this webhook handler's response. Now: enqueue and return immediately
-  // — sendOrderPaymentDocuments() (defined above) does the same work,
-  // unchanged, inside the BullMQ worker instead.
   try {
     await createQueue(QUEUE_NAMES.INVOICES).add("order-payment-documents", {
       orderPaymentId: updatedPayment.id,
@@ -838,14 +811,6 @@ async function failOrderPayment(transactionId, failureReason, orderId) {
   return { payment: updatedPayment, order: updatedOrder };
 }
 
-// ---------------------------------------------------------------------------
-// Reconciliation — for orders left in AWAITING_PAYMENT because MbiyoPay's
-// cashin callback was never delivered (network failure, dropped webhook,
-// etc.). Mirrors wallet.service.js's reconcilePendingPayouts for the
-// payout leg — same "poll the provider's own status endpoint after a
-// grace period" approach.
-// ---------------------------------------------------------------------------
-
 async function reconcileOnePendingOrderPayment(payment) {
   const reference = payment.payinTransactionId || payment.payinOrderId;
   if (!reference) {
@@ -868,7 +833,10 @@ async function reconcileOnePendingOrderPayment(payment) {
   }
 
   if (status === "successful") {
-    return confirmOrderPayment(payment.payinTransactionId, payment.payinOrderId);
+    return confirmOrderPayment(
+      payment.payinTransactionId,
+      payment.payinOrderId,
+    );
   }
   if (status === "failed") {
     return failOrderPayment(
@@ -998,7 +966,7 @@ async function refundOrderPayment(order, reasonLabel) {
         data: {
           status: "SUCCEEDED",
           refundedAt: null,
-          failureReason: `Refund initiation failed (${reasonLabel}): ${err.message}`,
+          failureReason: `Échec du remboursement (${reasonLabel}): ${err.message}`,
         },
       })
       .catch(() => {});
@@ -1297,6 +1265,8 @@ async function markFailedDelivery(orderId, riderUserId, reason) {
   const updated = await prisma.order.findUnique({ where: { id: orderId } });
   emitOrderUpdate(updated);
 
+  await refundOrderPayment(order, "delivery_failed");
+
   await notifyBuyer(order.buyerId, {
     title: "Échec de la livraison",
     body: reason
@@ -1379,9 +1349,6 @@ async function creditSellerWallet(tx, order) {
     });
   }
 
-  // Atomic increment (compiles to `SET balance = balance + $1`) rather than
-  // read-then-write — this is what prevents a lost update when two credits
-  // for the same seller/currency land at the same time.
   const updatedBalance = await tx.walletBalance.update({
     where: { id: walletBalance.id },
     data: { balance: { increment: amount } },
@@ -1505,6 +1472,56 @@ async function expireOneOrder(order) {
   return true;
 }
 
+async function completeStaleDeliveredOrders() {
+  const threshold = new Date();
+  threshold.setHours(
+    threshold.getHours() - ORDER_CONFIG.DELIVERED_AUTO_COMPLETE_HOURS,
+  );
+
+  const staleOrders = await prisma.order.findMany({
+    where: {
+      status: "DELIVERED",
+      fulfillmentMethod: "DELIVERY",
+      deliveredAt: { lte: threshold },
+    },
+  });
+
+  const results = await Promise.allSettled(
+    staleOrders.map((order) => completeOneDeliveredOrder(order)),
+  );
+
+  return results.filter((r) => r.status === "fulfilled" && r.value).length;
+}
+
+async function completeOneDeliveredOrder(order) {
+  assertValidStatusTransition(
+    order.status,
+    "COMPLETED",
+    order.fulfillmentMethod,
+  );
+
+  let updated;
+
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+      await claimOrderStatus(tx, order.id, order.status, {
+        status: "COMPLETED",
+        completedAt: new Date(),
+      });
+      return tx.order.findUnique({ where: { id: order.id } });
+    });
+  } catch (err) {
+    console.warn(
+      `[order] Skipped auto-complete for order ${order.id} — status changed concurrently:`,
+      err.message,
+    );
+    return false;
+  }
+
+  emitOrderUpdate(updated);
+  return true;
+}
+
 async function getOrderById(orderId, requesterId) {
   return assertCanViewOrder(orderId, requesterId);
 }
@@ -1620,6 +1637,317 @@ async function listOrdersForRider(
   };
 }
 
+async function expireStuckOnTheWayOrders() {
+  const threshold = new Date();
+  threshold.setMinutes(
+    threshold.getMinutes() - ORDER_CONFIG.ON_THE_WAY_TIMEOUT_MINUTES,
+  );
+
+  const staleOrders = await prisma.order.findMany({
+    where: {
+      status: "ON_THE_WAY",
+      fulfillmentMethod: "DELIVERY",
+      updatedAt: { lte: threshold },
+    },
+    include: {
+      payment: true,
+      buyer: true,
+      shop: { include: { sellerProfile: { include: { user: true } } } },
+    },
+  });
+
+  const results = await Promise.allSettled(
+    staleOrders.map((order) => failOneStuckOnTheWayOrder(order)),
+  );
+
+  return results.filter((r) => r.status === "fulfilled" && r.value).length;
+}
+
+async function failOneStuckOnTheWayOrder(order) {
+  assertValidStatusTransition(order.status, "FAILED", order.fulfillmentMethod);
+
+  const failureReason =
+    "Livraison non finalisée dans le délai imparti (délai dépassé en route).";
+
+  let updated;
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+      await claimOrderStatus(tx, order.id, order.status, {
+        status: "FAILED",
+        failureReason,
+      });
+      return tx.order.findUnique({ where: { id: order.id } });
+    });
+  } catch (err) {
+    console.warn(
+      `[order] Skipped auto-fail for order ${order.id} — status changed concurrently:`,
+      err.message,
+    );
+    return false;
+  }
+
+  emitOrderUpdate(updated);
+  await refundOrderPayment(order, "delivery_timeout");
+
+  await notifyBuyer(order.buyerId, {
+    title: "Échec de la livraison",
+    body: "La livraison n'a pas pu être finalisée à temps. Votre paiement sera remboursé.",
+    action: "deliveryFailed",
+    orderId: order.id,
+  });
+
+  return true;
+}
+
+async function unassignStaleRiderOrders() {
+  const threshold = new Date();
+  threshold.setMinutes(
+    threshold.getMinutes() - ORDER_CONFIG.RIDER_ASSIGNED_TIMEOUT_MINUTES,
+  );
+
+  const staleOrders = await prisma.order.findMany({
+    where: {
+      status: "RIDER_ASSIGNED",
+      fulfillmentMethod: "DELIVERY",
+      updatedAt: { lte: threshold },
+    },
+    include: {
+      buyer: true,
+      shop: { include: { sellerProfile: { include: { user: true } } } },
+      rider: { include: { user: true } },
+    },
+  });
+
+  const results = await Promise.allSettled(
+    staleOrders.map((order) => unassignOneStaleRiderOrder(order)),
+  );
+
+  return results.filter((r) => r.status === "fulfilled" && r.value).length;
+}
+
+async function unassignOneStaleRiderOrder(order) {
+  assertValidStatusTransition(
+    order.status,
+    "ACCEPTED",
+    order.fulfillmentMethod,
+  );
+  let updated;
+  try {
+    updated = await prisma.$transaction(async (tx) => {
+      await claimOrderStatus(tx, order.id, order.status, {
+        status: "ACCEPTED",
+        riderId: null,
+      });
+      return tx.order.findUnique({ where: { id: order.id } });
+    });
+  } catch (err) {
+    console.warn(
+      `[order] Skipped rider unassign for order ${order.id} — status changed concurrently:`,
+      err.message,
+    );
+    return false;
+  }
+  emitOrderUpdate(updated);
+  try {
+    const sellerUserId = order.shop?.sellerProfile?.userId;
+    if (sellerUserId) {
+      await createNotification({
+        userId: sellerUserId,
+        type: NOTIFICATION_TYPES.ORDER_STATUS,
+        title: "Livreur non disponible",
+        body: "Le livreur n'a pas récupéré la commande à temps. Veuillez en assigner un autre.",
+        data: { action: "riderUnassigned", orderId: order.id },
+      });
+    }
+    await createNotification({
+      userId: order.buyerId,
+      type: NOTIFICATION_TYPES.ORDER_STATUS,
+      title: "Changement de livreur",
+      body: "Votre commande est réassignée — un nouveau livreur sera bientôt désigné.",
+      data: { action: "riderUnassigned", orderId: order.id },
+    });
+  } catch (err) {
+    console.error(
+      `[order] Failed to notify after rider unassign for order ${order.id}:`,
+      err.message,
+    );
+  }
+  return true;
+}
+
+async function wasDeliveryReminderSent(userId, orderId, action) {
+  const existing = await prisma.notification.findFirst({
+    where: {
+      userId,
+      type: NOTIFICATION_TYPES.ORDER_STATUS,
+      AND: [
+        { data: { path: ["action"], equals: action } },
+        { data: { path: ["orderId"], equals: orderId } },
+      ],
+    },
+    select: { id: true },
+  });
+  return Boolean(existing);
+}
+
+async function sendDeliveryReminder(userId, orderId, action, title, body) {
+  if (await wasDeliveryReminderSent(userId, orderId, action)) {
+    return false;
+  }
+
+  await createNotification({
+    userId,
+    type: NOTIFICATION_TYPES.ORDER_STATUS,
+    title,
+    body,
+    data: { action, orderId },
+  });
+
+  return true;
+}
+
+async function remindStaleDeliveryOrders() {
+  let sent = 0;
+
+  const riderAssignedThreshold = new Date();
+  riderAssignedThreshold.setMinutes(
+    riderAssignedThreshold.getMinutes() -
+      ORDER_CONFIG.RIDER_ASSIGNED_REMINDER_MINUTES,
+  );
+  const riderAssignedTimeoutThreshold = new Date();
+  riderAssignedTimeoutThreshold.setMinutes(
+    riderAssignedTimeoutThreshold.getMinutes() -
+      ORDER_CONFIG.RIDER_ASSIGNED_TIMEOUT_MINUTES,
+  );
+
+  const riderAssignedOrders = await prisma.order.findMany({
+    where: {
+      status: "RIDER_ASSIGNED",
+      fulfillmentMethod: "DELIVERY",
+      updatedAt: {
+        lte: riderAssignedThreshold,
+        gt: riderAssignedTimeoutThreshold,
+      },
+    },
+    include: {
+      buyer: true,
+      rider: { include: { user: true } },
+      shop: { include: { sellerProfile: { include: { user: true } } } },
+    },
+  });
+
+  for (const order of riderAssignedOrders) {
+    if (order.rider?.userId) {
+      if (
+        await sendDeliveryReminder(
+          order.rider.userId,
+          order.id,
+          "deliveryReminderRiderAssignedRider",
+          "Récupération en attente",
+          "Une commande vous est assignée — merci de la récupérer chez le vendeur.",
+        )
+      ) {
+        sent += 1;
+      }
+    }
+    if (
+      order.shop?.sellerProfile?.userId &&
+      (await sendDeliveryReminder(
+        order.shop.sellerProfile.userId,
+        order.id,
+        "deliveryReminderRiderAssignedSeller",
+        "Livreur en retard",
+        "Le livreur n'a pas encore récupéré la commande.",
+      ))
+    ) {
+      sent += 1;
+    }
+  }
+
+  const pickedUpThreshold = new Date();
+  pickedUpThreshold.setMinutes(
+    pickedUpThreshold.getMinutes() - ORDER_CONFIG.PICKED_UP_REMINDER_MINUTES,
+  );
+
+  const pickedUpOrders = await prisma.order.findMany({
+    where: {
+      status: "PICKED_UP",
+      fulfillmentMethod: "DELIVERY",
+      updatedAt: { lte: pickedUpThreshold },
+    },
+    include: { rider: { include: { user: true } } },
+  });
+
+  for (const order of pickedUpOrders) {
+    if (!order.rider?.userId) continue;
+    if (
+      await sendDeliveryReminder(
+        order.rider.userId,
+        order.id,
+        "deliveryReminderPickedUp",
+        "Marquez la commande en route",
+        "Le colis est récupéré — passez le statut à « en route ».",
+      )
+    ) {
+      sent += 1;
+    }
+  }
+
+  const onTheWayThreshold = new Date();
+  onTheWayThreshold.setMinutes(
+    onTheWayThreshold.getMinutes() - ORDER_CONFIG.ON_THE_WAY_REMINDER_MINUTES,
+  );
+  const onTheWayTimeoutThreshold = new Date();
+  onTheWayTimeoutThreshold.setMinutes(
+    onTheWayTimeoutThreshold.getMinutes() -
+      ORDER_CONFIG.ON_THE_WAY_TIMEOUT_MINUTES,
+  );
+
+  const onTheWayOrders = await prisma.order.findMany({
+    where: {
+      status: "ON_THE_WAY",
+      fulfillmentMethod: "DELIVERY",
+      updatedAt: {
+        lte: onTheWayThreshold,
+        gt: onTheWayTimeoutThreshold,
+      },
+    },
+    include: {
+      buyer: true,
+      rider: { include: { user: true } },
+    },
+  });
+
+  for (const order of onTheWayOrders) {
+    if (order.rider?.userId) {
+      if (
+        await sendDeliveryReminder(
+          order.rider.userId,
+          order.id,
+          "deliveryReminderOnTheWayRider",
+          "Livraison en cours",
+          "Finalisez la livraison ou signalez un problème si l'acheteur est injoignable.",
+        )
+      ) {
+        sent += 1;
+      }
+    }
+    if (
+      await sendDeliveryReminder(
+        order.buyerId,
+        order.id,
+        "deliveryReminderOnTheWayBuyer",
+        "Livraison en route",
+        "Votre commande est en route — préparez votre code QR pour la remise.",
+      )
+    ) {
+      sent += 1;
+    }
+  }
+
+  return sent;
+}
+
 module.exports = {
   checkout,
   confirmOrderPayment,
@@ -1631,8 +1959,10 @@ module.exports = {
   markReadyForPickup,
   markReadyForDelivery,
   markOrderReady,
+  remindStaleDeliveryOrders,
   completePickupHandoff,
   assignRider,
+  expireStuckOnTheWayOrders,
   markPickedUp,
   markOnTheWay,
   completeDeliveryHandoff,
@@ -1648,4 +1978,6 @@ module.exports = {
   listOrdersForRider,
   emitOrderUpdate,
   sendOrderPaymentDocuments,
+  completeStaleDeliveredOrders,
+  unassignStaleRiderOrders,
 };

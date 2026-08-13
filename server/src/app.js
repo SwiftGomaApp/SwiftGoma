@@ -68,7 +68,7 @@ const createApp = () => {
 
   if (isProduction && env.clientOrigins.length === 0) {
     throw new Error(
-      "[app] CLIENT_ORIGINS must be set in production — refusing to start with an open CORS policy.",
+      "[app] CLIENT_ORIGINS doit être défini en production — refus de démarrer avec une politique CORS ouverte.",
     );
   }
 
@@ -92,10 +92,6 @@ const createApp = () => {
   app.use(morgan(isProduction ? "combined" : "dev"));
 
   app.use(botDetection({ mode: "flag" }));
-
-  // if (isProduction) {
-  //   app.set("trust proxy", 1);
-  // }
 
   app.set("trust proxy", 1);
 
@@ -145,18 +141,8 @@ const createApp = () => {
     });
   });
 
-  app.use(
-    "/api/v1/auth",
-    // botDetection({ mode: "block" }),
-    // authLimiter,
-    authRoutes,
-  );
-  app.use(
-    "/api/v1/users",
-    // botDetection({ mode: "block" }),
-    // authLimiter,
-    UserRouter,
-  );
+  app.use("/api/v1/auth", authLimiter, authRoutes);
+  app.use("/api/v1/users", authLimiter, UserRouter);
 
   app.use("/api/v1/notifications", NotificationRouter);
   app.use("/api/v1/seller", SellerRouter);

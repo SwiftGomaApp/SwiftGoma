@@ -15,6 +15,11 @@ const {
   documentUpload,
   verifyDocumentContents,
 } = require("../../../common/middleware/upload");
+const {
+  payoutOtpLimiter,
+  payoutOtpResendLimiter,
+  payoutConfirmLimiter,
+} = require("../../../common/middleware/rateLimiters");
 
 const ExpenseRouter = express.Router();
 
@@ -50,16 +55,19 @@ ExpenseRouter.post(
 ExpenseRouter.post(
   "/:id/approve/request",
   authorize("ADMIN"),
+  payoutOtpLimiter,
   requestExpenseApprovalHandler,
 );
 ExpenseRouter.post(
   "/:id/approve/resend",
   authorize("ADMIN"),
+  payoutOtpResendLimiter,
   resendExpenseApprovalHandler,
 );
 ExpenseRouter.post(
   "/:id/approve/confirm",
   authorize("ADMIN"),
+  payoutConfirmLimiter,
   confirmExpenseApprovalHandler,
 );
 

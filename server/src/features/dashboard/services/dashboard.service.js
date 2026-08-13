@@ -101,7 +101,7 @@ async function getKycStats() {
       APPROVED: statusMap.APPROVED ?? 0,
       REJECTED: statusMap.REJECTED ?? 0,
     },
-    // Dossiers en attente d'action, utile pour un compteur de "tâches à traiter"
+
     pendingAction: (statusMap.PENDING ?? 0) + (statusMap.SUPPORT_REVIEWED ?? 0),
   };
 }
@@ -126,9 +126,6 @@ async function getPlanStats() {
   }));
 }
 
-// Was entirely missing — this is the core marketplace activity (orders
-// placed, their current state, and GMV), arguably the single most
-// important number on an admin overview and it wasn't here at all.
 async function getOrderStats() {
   const [byStatus, totalCount, gmvByCurrency] = await Promise.all([
     prisma.order.groupBy({
@@ -136,11 +133,7 @@ async function getOrderStats() {
       _count: { _all: true },
     }),
     prisma.order.count(),
-    // GMV only counts orders that actually completed — an AWAITING_PAYMENT
-    // or CANCELLED order was never real revenue. Grouped by currency
-    // since orders can be placed in either USD or CDF (see
-    // assertValidCheckoutCurrency in order.utils.js) — summing across
-    // currencies directly would produce a meaningless number.
+
     prisma.order.groupBy({
       by: ["currency"],
       where: { status: "COMPLETED" },
@@ -171,8 +164,7 @@ async function getOrderStats() {
       EXPIRED: statusMap.EXPIRED ?? 0,
       FAILED: statusMap.FAILED ?? 0,
     },
-    // "In flight" — a genuinely useful task-queue-style number for an
-    // admin glancing at the dashboard, same idea as kyc.pendingAction.
+
     awaitingAction:
       (statusMap.PENDING_SELLER_REVIEW ?? 0) + (statusMap.RIDER_ASSIGNED ?? 0),
     gmvByCurrency: gmvByCurrency.map((row) => ({
@@ -183,9 +175,6 @@ async function getOrderStats() {
   };
 }
 
-// Also missing — distinct from sellerProfile stats above, since a shop
-// is its own entity with its own status (a seller account can exist
-// without a published shop yet, or have several).
 async function getShopStats() {
   const [byStatus, totalCount] = await Promise.all([
     prisma.shop.groupBy({
@@ -211,8 +200,6 @@ async function getShopStats() {
   };
 }
 
-// Also missing — basic catalog size, useful to sanity-check the
-// marketplace actually has something to sell.
 async function getProductStats() {
   const [byStatus, totalCount] = await Promise.all([
     prisma.product.groupBy({
@@ -239,18 +226,6 @@ async function getProductStats() {
 const ALLOWED_METRIC_DAYS = [7, 30, 90];
 const ALLOWED_METRIC_CURRENCIES = ["USD", "CDF"];
 
-// Powers the admin dashboard's metrics chart (frontend: MetricsChart).
-// Prisma's groupBy() can't truncate a date column to "per day" natively,
-// so this is raw SQL — a CTE generates one row per calendar day in the
-// range (so days with zero activity show as 0, not a gap in the chart),
-// left-joined against a per-day aggregate from each relevant table.
-//
-// Table names must match @@map values in schema.prisma (snake_case), not
-// Prisma model names — e.g. Order → "orders", User → "users".
-//
-// GMV is currency-scoped (defaults to USD) rather than summed across
-// currencies — same reasoning as gmvByCurrency in getOrderStats():
-// summing USD + CDF directly would be meaningless.
 async function getDashboardMetrics({ days = 30, currency = "USD" } = {}) {
   const safeDays = ALLOWED_METRIC_DAYS.includes(Number(days))
     ? Number(days)
@@ -446,7 +421,6 @@ async function getSupportOverview() {
   };
 }
 
-// Point d'entrée unique — agrège tout pour le dashboard admin
 async function getAdminOverview() {
   const [
     users,

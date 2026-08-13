@@ -4,6 +4,7 @@ import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toast";
 import { ThemeProvider } from "@/providers/theme-provider";
+import { getMeServer } from "@/lib/api/routes/auth.server";
 import { AuthProvider } from "@/providers/auth-provider";
 import { SocketProvider } from "@/providers/socket-provider";
 import { NotificationsProvider } from "@/providers/notifications-provider";
@@ -58,11 +59,18 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  let initialUser = null;
+  try {
+    initialUser = await getMeServer();
+  } catch {
+    // not signed in
+  }
+
   return (
     <html
       lang="fr"
@@ -79,7 +87,7 @@ export default function RootLayout({
           <Toaster>
             <ConfirmDialogProvider>
               <TooltipProvider>
-                <AuthProvider>
+                <AuthProvider initialUser={initialUser}>
                   <SocketProvider>
                     <NotificationsProvider>{children}</NotificationsProvider>
                   </SocketProvider>

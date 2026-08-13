@@ -86,6 +86,32 @@ export async function cancelAdminOrder(
   return unwrap(res);
 }
 
+export async function requestAdminOrderRefundApproval(id: string): Promise<{
+  pendingId: string;
+  message: string;
+  expiresInMinutes: number;
+  summary: {
+    orderId: string;
+    amount: number;
+    currency: string;
+    beneficiary: string;
+    phoneNumber: string;
+    network: string;
+  };
+}> {
+  const res = await apiClient.post(`/orders/admin/${id}/refund/request-approval`);
+  return unwrap(res);
+}
+
+export async function confirmAdminOrderRefund(
+  id: string,
+  input: { pendingId: string; code: string },
+): Promise<AdminOrderDetail> {
+  const res = await apiClient.post(`/orders/admin/${id}/refund/confirm`, input);
+  return unwrap(res);
+}
+
+/** @deprecated Utilisez requestAdminOrderRefundApproval + confirmAdminOrderRefund */
 export async function refundAdminOrder(id: string): Promise<AdminOrderDetail> {
   const res = await apiClient.post(`/orders/admin/${id}/refund`);
   return unwrap(res);

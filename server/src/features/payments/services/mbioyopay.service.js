@@ -50,7 +50,7 @@ async function initiatePayin({
     );
 
     throw new AppError(
-      mbiyopayMessage || "Failed to initiate payin.",
+      mbiyopayMessage || "Impossible d'initier le paiement entrant.",
       err.response?.status || 502,
       "MBIYOPAY_PAYIN_FAILED",
     );
@@ -125,7 +125,7 @@ async function initiatePayout({
 
     if (err.response?.status === 403) {
       throw new AppError(
-        mbiyopayMessage || "KYC approval required for live payouts.",
+        mbiyopayMessage || "Approbation KYC requise pour les paiements sortants en production.",
         403,
         "MBIYOPAY_KYC_REQUIRED",
       );
@@ -135,14 +135,14 @@ async function initiatePayout({
       err.response?.data?.message?.includes("Insufficient")
     ) {
       throw new AppError(
-        mbiyopayMessage || "Insufficient MbiyoPay balance for payout.",
+        mbiyopayMessage || "Solde MbiyoPay insuffisant pour ce paiement sortant.",
         400,
         "MBIYOPAY_INSUFFICIENT_BALANCE",
       );
     }
 
     throw new AppError(
-      mbiyopayMessage || "Failed to initiate payout.",
+      mbiyopayMessage || "Impossible d'initier le paiement sortant.",
       err.response?.status || 502,
       "MBIYOPAY_PAYOUT_FAILED",
     );
@@ -162,7 +162,7 @@ async function finalizePayment(transactionId, otp) {
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to finalize payment.",
+      "Impossible de finaliser le paiement.",
       502,
       "MBIYOPAY_FINALIZE_FAILED",
     );
@@ -181,7 +181,7 @@ async function checkTransactionStatus(transactionIdOrOrderId) {
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to check transaction status.",
+      "Impossible de vérifier le statut de la transaction.",
       502,
       "MBIYOPAY_STATUS_CHECK_FAILED",
     );
@@ -200,7 +200,7 @@ async function getWalletBalances(currency) {
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to fetch wallet balances.",
+      "Impossible de récupérer les soldes du portefeuille.",
       502,
       "MBIYOPAY_BALANCE_FETCH_FAILED",
     );
@@ -222,7 +222,7 @@ async function getNetworkBalances({ currency, countryCode } = {}) {
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to fetch network balances.",
+      "Impossible de récupérer les soldes par réseau.",
       502,
       "MBIYOPAY_NETWORK_BALANCE_FETCH_FAILED",
     );
@@ -239,7 +239,7 @@ async function getCountries({ page = 1, limit = 20 } = {}) {
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to fetch countries.",
+      "Impossible de récupérer la liste des pays.",
       502,
       "MBIYOPAY_COUNTRIES_FETCH_FAILED",
     );
@@ -256,7 +256,7 @@ async function getAllCountries() {
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to fetch all countries.",
+      "Impossible de récupérer tous les pays.",
       502,
       "MBIYOPAY_COUNTRIES_FETCH_FAILED",
     );

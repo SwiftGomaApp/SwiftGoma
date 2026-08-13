@@ -109,13 +109,8 @@ function assertRequiredEnv() {
   if (!env.cloudinary.apiKey) missing.push("CLOUDINARY_API_KEY");
   if (!env.cloudinary.apiSecret) missing.push("CLOUDINARY_API_SECRET");
   if (!env.totpSecretEncryptionKey) missing.push("TOTP_SECRET_ENCRYPTION_KEY");
+  if (!env.redisUrl) missing.push("REDIS_URL");
 
-  // Checked whenever this process is a production deployment — not gated
-  // on PAWAPAY_ENVIRONMENT — because the risk is a publicly reachable
-  // callback URL with signature verification off (see
-  // pawapayCallback.controller.js), which can happen even while PawaPay
-  // itself is still pointed at sandbox. Refuse to boot rather than risk
-  // that going unnoticed.
   if (!env.pawapay.signingEnabled) {
     missing.push("PAWAPAY_SIGNING_ENABLED=true");
   }

@@ -101,7 +101,7 @@ async function postCheckPaymentStatus(req, res, next) {
     if (depositStatus === "FAILED" || depositStatus === "REJECTED") {
       const result = await failSubscriptionPayment(
         depositId,
-        statusResult?.data?.failureReason?.failureMessage || "Payment failed",
+        statusResult?.data?.failureReason?.failureMessage || "Paiement échoué",
       );
       return res.status(200).json({
         success: true,

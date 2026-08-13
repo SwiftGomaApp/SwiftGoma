@@ -49,6 +49,7 @@ SubscriptionRouter.post(
 SubscriptionRouter.post(
   "/payments/:depositId/check-status",
   authorize("SELLER"),
+  paymentLimiter,
   postCheckPaymentStatus,
 );
 SubscriptionRouter.get("/stats", authorize("ADMIN", "ACCOUNTANT"), getStats);

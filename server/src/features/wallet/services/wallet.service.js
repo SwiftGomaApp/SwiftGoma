@@ -36,12 +36,14 @@ const {
 const {
   NOTIFICATION_TYPES,
 } = require("../../notification/config/notificationTypes");
+const {
+  assertOtpNotLocked,
+  handleInvalidOtpAttempt,
+  clearOtpAttempts,
+  sellerWalletOtpScope,
+} = require("../../payments/utils/payoutSecurity");
 
 const prisma = getPrismaClient();
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function payoutOtpKey(sellerProfileId) {
   return `${WALLET_CONFIG.PAYOUT_OTP_CACHE_PREFIX}${sellerProfileId}`;
@@ -214,10 +216,6 @@ async function applyPayoutFailed(walletTransaction, failureReason) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Reads
-// ---------------------------------------------------------------------------
-
 async function getWalletOverview(sellerProfileId) {
   const wallet = await prisma.wallet.findUnique({
     where: { sellerProfileId },
@@ -274,10 +272,6 @@ async function listWalletTransactions(sellerProfileId, query = {}) {
     totalPages: Math.ceil(total / limit) || 1,
   };
 }
-
-// ---------------------------------------------------------------------------
-// Payout initiation (debit)
-// ---------------------------------------------------------------------------
 
 async function debitWalletForPayout(sellerProfileId, currency, amount) {
   return prisma.$transaction(async (tx) => {
@@ -407,6 +401,9 @@ async function requestPayoutOtp(sellerProfileId) {
 }
 
 async function verifyAndConsumePayoutOtp(sellerProfileId, otpCode) {
+  const otpScope = sellerWalletOtpScope(sellerProfileId);
+  await assertOtpNotLocked(otpScope);
+
   const key = payoutOtpKey(sellerProfileId);
   const stored = await cache.get(key);
 
@@ -416,10 +413,14 @@ async function verifyAndConsumePayoutOtp(sellerProfileId, otpCode) {
     );
   }
   if (!safeCompareCode(stored.code, otpCode)) {
-    throw new UnauthorizedError("Code de confirmation invalide.");
+    await handleInvalidOtpAttempt(
+      otpScope,
+      "Code de confirmation invalide.",
+    );
   }
 
   await cache.del(key);
+  await clearOtpAttempts(otpScope);
 }
 
 async function initiateSellerPayout({
@@ -509,17 +510,12 @@ async function initiateSellerPayout({
         walletBalance.id,
         walletTransaction.id,
         validAmount,
-        err.message || "MbiyoPay payout initiation failed",
+        err.message || "Échec de l'initiation du payout MbiyoPay",
       );
       throw err;
     }
   });
 }
-
-// ---------------------------------------------------------------------------
-// Payout callback handlers (wired into mbiyopayCallback.controller.js's
-// "cashout" branch)
-// ---------------------------------------------------------------------------
 
 async function findPayoutTransactionForCallback({ transactionId, orderId }) {
   let walletTransaction = await prisma.walletTransaction.findFirst({
@@ -563,11 +559,6 @@ async function failSellerPayout(transactionId, failureReason, orderId) {
   }
   return applyPayoutFailed(walletTransaction, failureReason);
 }
-
-// ---------------------------------------------------------------------------
-// Payout receipt delivery (invoked by the "invoices" BullMQ worker via the
-// "wallet-payout-receipt" job — see src/jobs/invoiceDocuments.job.js)
-// ---------------------------------------------------------------------------
 
 async function sendPayoutReceiptDocument(walletTransactionId) {
   const walletTransaction = await prisma.walletTransaction.findUnique({
@@ -638,11 +629,6 @@ async function sendPayoutReceiptDocument(walletTransactionId) {
 
   return receiptRecord;
 }
-
-// ---------------------------------------------------------------------------
-// Reconciliation for payouts stuck in PENDING (webhook never arrived) —
-// invoked by the cron job in src/jobs/payoutReconciliation.job.js
-// ---------------------------------------------------------------------------
 
 async function reconcileOnePendingPayout(walletTransaction) {
   const reference =

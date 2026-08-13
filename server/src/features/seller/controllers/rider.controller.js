@@ -19,10 +19,6 @@ async function getSellerProfileIdForUser(userId) {
   return profile.id;
 }
 
-// -----------------------------
-// VENDEUR (authentifié)
-// -----------------------------
-
 async function getSellerRiders(req, res, next) {
   try {
     const sellerProfileId = await getSellerProfileIdForUser(req.user.id);
@@ -82,10 +78,6 @@ async function deleteRiderHandler(req, res, next) {
     next(err);
   }
 }
-
-// -----------------------------
-// RIDER (authentifié, son propre historique)
-// -----------------------------
 
 async function getMyDeliveryHistory(req, res, next) {
   try {

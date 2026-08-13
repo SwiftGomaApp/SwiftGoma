@@ -51,8 +51,6 @@ async function updateExchangeRate(id, { rate, updatedBy }) {
   });
 }
 
-// Pratique pour l'admin : crée le taux s'il n'existe pas encore dans aucun
-// sens, sinon met à jour celui qui existe déjà (peu importe le sens stocké).
 async function upsertExchangeRate({
   fromCurrency,
   toCurrency,
@@ -76,8 +74,6 @@ async function upsertExchangeRate({
     });
   }
 
-  // Si le sens stocké est inversé par rapport à la requête, on met à jour
-  // avec le taux inversé pour rester cohérent avec ce qui est en DB.
   const isSameDirection = existing.fromCurrency === fromCurrency;
   const newRate = isSameDirection ? rate : 1 / Number(rate);
 
@@ -107,9 +103,6 @@ async function deleteExchangeRate(id) {
   return { id, deleted: true };
 }
 
-// Endpoint de preview pour l'admin : "si je convertis 100 USD en CDF avec
-// les taux actuels, ça donne combien ?" — réutilise le même getExchangeRate
-// que checkout()/cart.service.js pour être garanti cohérent.
 async function previewConversion({ amount, fromCurrency, toCurrency }) {
   const rate = await getExchangeRate(fromCurrency, toCurrency);
   const convertedAmount = Math.round(Number(amount) * rate * 100) / 100;

@@ -49,12 +49,10 @@ function isOtpExpired(expiresAt) {
   return new Date(expiresAt).getTime() < Date.now();
 }
 
-/** @param {string} password @returns {Promise<string>} */
 function hashPassword(password) {
   return bcrypt.hash(password, SALT_ROUNDS);
 }
 
-/** @param {string} password @param {string} hash @returns {Promise<boolean>} */
 function comparePassword(password, hash) {
   return bcrypt.compare(password, hash);
 }

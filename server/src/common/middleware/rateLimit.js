@@ -10,15 +10,21 @@ function buildStore(name) {
 
   return new RedisStore({
     sendCommand: (...args) => client.call(...args),
-
     prefix: `rl:${name}:`,
   });
+}
+
+function userOrIpKey(req) {
+  if (req.user?.id) {
+    return `user:${req.user.id}`;
+  }
+  return `ip:${req.ip}`;
 }
 
 function createRateLimiter({ name, windowMs, max, message, keyGenerator }) {
   if (!name) {
     throw new Error(
-      "createRateLimiter: `name` is required (used to namespace this limiter's Redis keys).",
+      "createRateLimiter : `name` est requis (utilisé pour namespacer les clés Redis de ce limiteur).",
     );
   }
   return rateLimit({
@@ -34,4 +40,4 @@ function createRateLimiter({ name, windowMs, max, message, keyGenerator }) {
   });
 }
 
-module.exports = { createRateLimiter };
+module.exports = { createRateLimiter, userOrIpKey };

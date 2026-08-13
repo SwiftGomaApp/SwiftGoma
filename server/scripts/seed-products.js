@@ -11,7 +11,6 @@ const SHOP_ID =
   "2734940f-845e-4e6f-9177-2a2ea69e9148";
 
 const SUBCATEGORIES = [
-  // Alimentation & Boissons
   {
     key: "153fab05-cdec-4603-b77c-d5d85e494da3",
     name: "Boissons",
@@ -38,7 +37,6 @@ const SUBCATEGORIES = [
     isFood: true,
   },
 
-  // Épicerie / Produits ménagers
   {
     key: "a6cb0eb6-b129-4881-8152-3e34d9ef229d",
     name: "Produits d'entretien & nettoyage",
@@ -60,7 +58,6 @@ const SUBCATEGORIES = [
     isFood: false,
   },
 
-  // Beauté & Soins personnels
   {
     key: "c2f16357-c589-4277-82a2-2261283ee0fa",
     name: "Soins du visage & du corps",
@@ -87,7 +84,6 @@ const SUBCATEGORIES = [
     isFood: false,
   },
 
-  // Mode & Vêtements
   {
     key: "2516b292-47e8-43e7-a95c-5f8432552444",
     name: "Vêtements homme",
@@ -114,7 +110,6 @@ const SUBCATEGORIES = [
     isFood: false,
   },
 
-  // Fournitures (meuble)
   { key: "c62b7d61-02e0-4d52-b9d3-a952f8c204fa", name: "Salon", isFood: false },
   {
     key: "bd0e0249-4834-4c1f-bd49-6eeef6e41ddb",
@@ -133,7 +128,6 @@ const SUBCATEGORIES = [
     isFood: false,
   },
 
-  // Électroniques
   {
     key: "e6ffbdf0-0dea-44ed-9c87-ff73ac036a35",
     name: "Téléphones & accessoires",
@@ -161,7 +155,6 @@ const SUBCATEGORIES = [
   },
 ];
 
-// Helper to generate slugs
 const slugify = (text) =>
   text
     .toString()
@@ -170,9 +163,7 @@ const slugify = (text) =>
     .replace(/[\s\W-]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-// Raw product data specifically tailored to North Kivu / Goma commerce
 const PRODUCTS_DATA = {
-  // 1. Boissons
   "153fab05-cdec-4603-b77c-d5d85e494da3": [
     {
       name: "Jus de Fruit Vitalo Ananas",

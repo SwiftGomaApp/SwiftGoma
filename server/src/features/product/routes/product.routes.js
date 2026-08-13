@@ -38,21 +38,14 @@ const ProductRouter = express.Router();
 
 const productImages = [imageUpload.array("images", 10), verifyImageContents];
 
-// -----------------------------
-// PUBLIC — pas d'auth
-// -----------------------------
 ProductRouter.get("/categories", getCategories);
 ProductRouter.get("/categories/:id", getCategory);
 
 ProductRouter.get("/", getProducts);
 ProductRouter.get("/slug/:slug", getProductBySlugHandler);
 
-// -----------------------------
-// À partir d'ici, authentification requise
-// -----------------------------
 ProductRouter.use(authenticate);
 
-// ----- Categories (ADMIN/SUPPORT) -----
 ProductRouter.post(
   "/categories",
   authorize("ADMIN", "SUPPORT"),
@@ -74,7 +67,6 @@ ProductRouter.put(
   putUpdateSubcategory,
 );
 
-// ----- Exchange rates (ADMIN/SUPPORT) — before /:id seller routes -----
 ProductRouter.get(
   "/exchange-rates",
   authorize("ADMIN", "SUPPORT"),
@@ -111,7 +103,6 @@ ProductRouter.post(
   postPreviewConversion,
 );
 
-// ----- Products (vendeur) -----
 ProductRouter.post(
   "/",
   authorize("SELLER"),
@@ -122,10 +113,8 @@ ProductRouter.get("/shop/:shopId", authorize("SELLER"), getMyShopProducts);
 ProductRouter.put("/:id", authorize("SELLER"), putUpdateProduct);
 ProductRouter.post("/:id/status", authorize("SELLER"), postSetProductStatus);
 
-// ----- Reviews (acheteur) -----
 ProductRouter.post("/:productId/reviews", postSubmitReview);
 
-// ----- Stock (vendeur) -----
 ProductRouter.post(
   "/variants/:variantId/stock",
   authorize("SELLER"),

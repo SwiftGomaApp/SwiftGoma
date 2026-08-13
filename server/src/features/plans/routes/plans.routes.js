@@ -17,7 +17,6 @@ PlansRouter.get("/", getPlans);
 PlansRouter.get("/slug/:slug", getPlanBySlugHandler);
 PlansRouter.get("/:id", getPlan);
 
-// ADMIN only
 PlansRouter.use(authenticate);
 PlansRouter.post("/", authorize("ADMIN"), postCreatePlan);
 PlansRouter.put("/:id", authorize("ADMIN"), putUpdatePlan);

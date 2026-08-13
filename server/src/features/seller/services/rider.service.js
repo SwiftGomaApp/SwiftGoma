@@ -30,10 +30,6 @@ async function assertRiderOwnedBySeller(riderId, sellerProfileId) {
   return rider;
 }
 
-/**
- * Resolves a rider for order assignment. Accepts either riders.id or the
- * linked users.id — clients often send userId after invite/create.
- */
 async function findRiderForSellerAssignment(sellerProfileId, riderIdOrUserId) {
   if (!riderIdOrUserId || typeof riderIdOrUserId !== "string") {
     throw new ConflictError("Identifiant du livreur requis (riderId).");
@@ -241,10 +237,6 @@ async function reactivateRider(riderId, sellerProfileId) {
 async function deleteRider(riderId, sellerProfileId) {
   const rider = await assertRiderOwnedBySeller(riderId, sellerProfileId);
 
-  // TODO une fois Order/Delivery construits : vérifier qu'aucune livraison
-  // n'est actuellement assignée à ce rider (status ASSIGNED/PICKED_UP/
-  // ON_THE_WAY) avant de permettre la suppression.
-
   const updated = await prisma.rider.update({
     where: { id: riderId },
     data: { status: "SUSPENDED", isAvailable: false, deletedAt: new Date() },
@@ -264,12 +256,6 @@ async function deleteRider(riderId, sellerProfileId) {
 
   return updated;
 }
-
-// -----------------------------
-// HISTORIQUE DES LIVRAISONS
-// Placeholder — sera remplacée par une vraie requête sur Delivery/Order
-// une fois ces modèles construits.
-// -----------------------------
 
 async function getRiderDeliveryHistory(riderId, { page = 1, limit = 20 } = {}) {
   const rider = await prisma.rider.findUnique({ where: { id: riderId } });

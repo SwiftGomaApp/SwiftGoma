@@ -1,10 +1,11 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { env } from "@/lib/api/config/env";
 import type { User } from "./routes/auth";
 
 const ACCESS_TOKEN_COOKIE = "swg_access_token";
 
-export async function getServerUser(): Promise<User | null> {
+export const getServerUser = cache(async (): Promise<User | null> => {
   const cookieStore = await cookies();
   if (!cookieStore.get(ACCESS_TOKEN_COOKIE)) return null;
 
@@ -29,4 +30,4 @@ export async function getServerUser(): Promise<User | null> {
   } catch {
     return null;
   }
-}
+});

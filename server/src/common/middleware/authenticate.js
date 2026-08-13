@@ -17,14 +17,11 @@ async function authenticate(req, res, next) {
   }
 
   if (!token) {
-    throw new UnauthorizedError("Authentication required.");
+    throw new UnauthorizedError("Authentification requise.");
   }
 
   const claims = verifyAccessToken(token);
 
-  // Re-checked on every request (not just baked into the JWT) so a block
-  // takes effect immediately instead of waiting out the access token's
-  // remaining lifetime.
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: claims.sub },

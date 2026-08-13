@@ -76,13 +76,13 @@ function verify(token, secret, expectedType) {
     });
   } catch (err) {
     if (err.name === "TokenExpiredError") {
-      throw new UnauthorizedError("Session expired. Please log in again.");
+      throw new UnauthorizedError("Session expirée. Veuillez vous reconnecter.");
     }
-    throw new UnauthorizedError("Invalid authentication token.");
+    throw new UnauthorizedError("Jeton d'authentification invalide.");
   }
 
   if (payload.type !== expectedType) {
-    throw new UnauthorizedError("Invalid authentication token.");
+    throw new UnauthorizedError("Jeton d'authentification invalide.");
   }
 
   return payload;

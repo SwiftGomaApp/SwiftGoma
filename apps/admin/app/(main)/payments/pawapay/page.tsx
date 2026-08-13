@@ -23,19 +23,21 @@ import {
   getPawaPayPayoutStatus,
   getPawaPayRefundStatus,
   getAdminTransactions,
-  initiatePawaPayRefund,
+  requestPawaPayRefundApproval,
+  confirmPawaPayRefund,
   type PawaPayWalletBalance,
 } from "@/lib/api/routes/payments";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { filterPawaPayWalletBalances } from "@/lib/drc-payments";
 import { useConfirm } from "@/components/admin/confirm-dialog";
-import { showSuccessToast } from "@/lib/admin-toast";
+import { showSuccessToast, showErrorToast } from "@/lib/admin-toast";
 import { TransactionResultCard } from "@/components/admin/transaction-result-card";
 import { PaymentTransactionLookup } from "@/components/admin/payment-transaction-lookup";
 import { FeedbackDialog } from "@/components/admin/feedback-dialog";
 import { PawaPayPayoutDialog } from "@/components/admin/pawapay-payout-dialog";
 import { PawaPayDepositDialog } from "@/components/admin/pawapay-deposit-dialog";
 import { WalletBalancesPanel } from "@/components/admin/wallet-balances-panel";
+import { VerificationCodeDialog } from "@/components/dialogs/codes-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import { ui } from "@/lib/i18n/common";
 
@@ -59,7 +61,17 @@ export default function PawaPayPage() {
 
   const [refundOpen, setRefundOpen] = useState(false);
   const [refundForm, setRefundForm] = useState(emptyRefundForm);
-  const [isRefunding, setIsRefunding] = useState(false);
+  const [isRequestingRefundApproval, setIsRequestingRefundApproval] = useState(false);
+  const [refundPendingId, setRefundPendingId] = useState<string | null>(null);
+  const [refundApprovalContext, setRefundApprovalContext] = useState<{
+    amount: number | string;
+    currency: string;
+    beneficiary: string;
+    providerLabel: string;
+  } | null>(null);
+  const [refundOtpOpen, setRefundOtpOpen] = useState(false);
+  const [refundOtpError, setRefundOtpError] = useState<string | null>(null);
+  const [isConfirmingRefund, setIsConfirmingRefund] = useState(false);
   const [refundResult, setRefundResult] = useState<unknown>(null);
 
   const [feedback, setFeedback] = useState<{
@@ -86,37 +98,67 @@ export default function PawaPayPage() {
     loadBalances();
   }, []);
 
-  async function handleRefund(e: React.FormEvent) {
+  async function handleRequestRefundApproval(e: React.FormEvent) {
     e.preventDefault();
     if (!refundForm.depositId.trim()) return;
 
     const ok = await confirm({
-      title: "Confirmer le remboursement",
-      description: `Émettre un remboursement pour le dépôt ${refundForm.depositId}${refundForm.amount ? ` d'un montant de ${refundForm.amount}` : " (montant total)"} ? Cette action est irréversible.`,
-      confirmLabel: "Émettre le remboursement",
+      title: "Demander l'approbation du remboursement",
+      description: `Demander un remboursement pour le dépôt ${refundForm.depositId}${refundForm.amount ? ` d'un montant de ${refundForm.amount}` : " (montant total)"} ? Un code de vérification sera envoyé à votre e-mail administrateur.`,
+      confirmLabel: "Envoyer le code de vérification",
       destructive: true,
     });
     if (!ok) return;
 
-    setIsRefunding(true);
+    setIsRequestingRefundApproval(true);
+    setRefundOtpError(null);
     try {
-      const result = await initiatePawaPayRefund({
+      const result = await requestPawaPayRefundApproval({
         depositId: refundForm.depositId.trim(),
         amount: refundForm.amount ? Number(refundForm.amount) : undefined,
       });
-      setRefundResult(result);
-      setRefundOpen(false);
-      setRefundForm(emptyRefundForm);
-      showSuccessToast("Remboursement initié", "La demande de remboursement a été envoyée à PawaPay.");
-    } catch (err) {
-      setFeedback({
-        open: true,
-        variant: "error",
-        title: "Échec du remboursement",
-        description: getErrorMessage(err, "Impossible d'initier ce remboursement."),
+      setRefundPendingId(result.pendingId);
+      setRefundApprovalContext({
+        amount: result.summary.amount ?? "total",
+        currency: result.summary.currency ?? "—",
+        beneficiary: result.summary.depositId,
+        providerLabel: "PawaPay Remboursement",
       });
+      setRefundOpen(false);
+      setRefundOtpOpen(true);
+      showSuccessToast("Code de vérification envoyé", result.message);
+    } catch (err) {
+      showErrorToast(
+        "Échec de la demande d'approbation",
+        getErrorMessage(err, "Impossible de demander l'approbation du remboursement."),
+      );
     } finally {
-      setIsRefunding(false);
+      setIsRequestingRefundApproval(false);
+    }
+  }
+
+  async function handleConfirmRefundOtp(code: string) {
+    if (!refundPendingId) return;
+    setIsConfirmingRefund(true);
+    setRefundOtpError(null);
+    try {
+      const result = await confirmPawaPayRefund({
+        pendingId: refundPendingId,
+        code,
+      });
+      setRefundResult(result);
+      setRefundOtpOpen(false);
+      setRefundPendingId(null);
+      setRefundApprovalContext(null);
+      setRefundForm(emptyRefundForm);
+      showSuccessToast(
+        "Remboursement approuvé",
+        "La demande de remboursement a été envoyée à PawaPay.",
+      );
+    } catch (err) {
+      setRefundOtpError(getErrorMessage(err, "Code invalide ou expiré."));
+    } finally {
+      setIsConfirmingRefund(false);
     }
   }
 
@@ -237,10 +279,10 @@ export default function PawaPayPage() {
                 <DialogDescription>
                   Rembourse un dépôt complété. Commencez par vérifier le dépôt
                   concerné, puis laissez le montant vide pour rembourser la
-                  totalité.
+                  totalité. Vérification par e-mail requise.
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleRefund}>
+              <form onSubmit={handleRequestRefundApproval}>
                 <FieldGroup className="gap-4 py-2">
                   <Field>
                     <FieldLabel>Référence du dépôt à rembourser</FieldLabel>
@@ -270,13 +312,25 @@ export default function PawaPayPage() {
                   <Button type="button" variant="outline" onClick={() => setRefundOpen(false)}>
                     {ui.cancel}
                   </Button>
-                  <Button type="submit" variant="destructive" disabled={isRefunding}>
-                    {isRefunding ? "Traitement…" : "Émettre le remboursement"}
+                  <Button type="submit" variant="destructive" disabled={isRequestingRefundApproval}>
+                    {isRequestingRefundApproval
+                      ? "Envoi du code…"
+                      : "Demander le code d'approbation"}
                   </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
+
+          <VerificationCodeDialog
+            open={refundOtpOpen}
+            onOpenChange={setRefundOtpOpen}
+            type="payout-approval"
+            context={refundApprovalContext ?? undefined}
+            onSubmit={handleConfirmRefundOtp}
+            isSubmitting={isConfirmingRefund}
+            error={refundOtpError}
+          />
         </>
       )}
 

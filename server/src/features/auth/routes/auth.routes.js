@@ -6,12 +6,6 @@ const { authLimiter } = require("../../../common/middleware/rateLimiters");
 
 const AuthRouter = express.Router();
 
-// authLimiter is applied only to the endpoints that are actually
-// brute-forceable / abusable (credential guessing, OTP guessing, OTP/SMS
-// spam, registration spam) — NOT to routes like /refresh-token, /logout, or
-// /me, which legitimate clients call routinely per session and which a
-// blanket limiter would throttle for real users without stopping abuse
-// (those require an existing valid token/session already).
 AuthRouter.post("/create-account", authLimiter, authController.createAccount);
 AuthRouter.post("/verify-email", authLimiter, authController.verifyEmail);
 AuthRouter.post(

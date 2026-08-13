@@ -22,15 +22,9 @@ const coverImageUpload = [
   verifyImageContents,
 ];
 
-// -----------------------------
-// PUBLIC
-// -----------------------------
 BlogRouter.get("/", getPosts);
 BlogRouter.get("/slug/:slug", getPostBySlugHandler);
 
-// -----------------------------
-// ADMIN
-// -----------------------------
 BlogRouter.use(authenticate, authorize("ADMIN", "SUPPORT"));
 
 BlogRouter.get("/admin", getAdminPosts);

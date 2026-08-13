@@ -17,10 +17,17 @@ import { getDashboardPath } from "@/lib/get-dashboard-path";
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({
+  children,
+  initialUser,
+}: {
+  children: ReactNode;
+  /** Pass from the server when the session is already resolved to skip a client /auth/me call. */
+  initialUser?: AuthUser | null;
+}) {
   const router = useRouter();
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<AuthUser | null>(initialUser ?? null);
+  const [isLoading, setIsLoading] = useState(initialUser === undefined);
   const [isCompletingLogin, setIsCompletingLogin] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
 
@@ -54,6 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (initialUser !== undefined) return;
+
     let cancelled = false;
     (async () => {
       setIsLoading(true);
@@ -63,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [fetchUser]);
+  }, [fetchUser, initialUser]);
 
   const completeLogin = useCallback(
     async (sessionUser?: AuthUser | null) => {

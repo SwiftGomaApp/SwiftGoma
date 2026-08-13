@@ -15,24 +15,43 @@ const {
 const {
   initiatePayout: initiateMbiyoPayPayout,
 } = require("./mbioyopay.service");
-const { initiatePayout: initiatePawaPayPayout } = require("./pawapay.service");
-const { recordAdminPayout, mapPayoutInput } = require("./adminPayout.service");
+const {
+  initiatePayout: initiatePawaPayPayout,
+  initiateRefund: initiatePawaPayRefund,
+} = require("./pawapay.service");
+const {
+  recordAdminPayout,
+  updateAdminPayout,
+  mapPayoutInput,
+  extractExternalMeta,
+} = require("./adminPayout.service");
 const { assertValidPayoutInput } = require("../utils/mbiyopay.utils");
 const {
   isValidAmount,
   isValidMsisdn,
   isValidStatementDescription,
 } = require("../utils/pawapay.utils");
+const {
+  assertOtpNotLocked,
+  assertOtpResendCooldown,
+  markOtpSent,
+  handleInvalidOtpAttempt,
+  clearOtpAttempts,
+  assertAdminDailyPayoutLimits,
+  withPayoutConfirmLock,
+  adminPayoutOtpScope,
+  adminRefundOtpScope,
+} = require("../utils/payoutSecurity");
 
 const PAYOUT_OTP_TTL_MINUTES = 5;
 const memoryStore = new Map();
 
-function storeKey(provider, adminId) {
-  return `${provider}-payout-approval:${adminId}`;
+function storeKey(provider, adminId, kind = "payout") {
+  return `${provider}-${kind}-approval:${adminId}`;
 }
 
-async function savePendingApproval(provider, adminId, data) {
-  const key = storeKey(provider, adminId);
+async function savePendingApproval(provider, adminId, data, kind = "payout") {
+  const key = storeKey(provider, adminId, kind);
   const serialized = JSON.stringify(data);
   const redis = getRedisClient();
   if (redis) {
@@ -43,8 +62,8 @@ async function savePendingApproval(provider, adminId, data) {
   setTimeout(() => memoryStore.delete(key), PAYOUT_OTP_TTL_MINUTES * 60 * 1000);
 }
 
-async function loadPendingApproval(provider, adminId) {
-  const key = storeKey(provider, adminId);
+async function loadPendingApproval(provider, adminId, kind = "payout") {
+  const key = storeKey(provider, adminId, kind);
   const redis = getRedisClient();
   if (redis) {
     const raw = await redis.get(key);
@@ -53,8 +72,8 @@ async function loadPendingApproval(provider, adminId) {
   return memoryStore.get(key) || null;
 }
 
-async function clearPendingApproval(provider, adminId) {
-  const key = storeKey(provider, adminId);
+async function clearPendingApproval(provider, adminId, kind = "payout") {
+  const key = storeKey(provider, adminId, kind);
   const redis = getRedisClient();
   if (redis) {
     await redis.del(key);
@@ -78,7 +97,7 @@ async function getAdminPrimaryEmail(adminId) {
     },
   });
   if (!user || user.role !== "ADMIN") {
-    throw new UnauthorizedError("Admin access required.");
+    throw new UnauthorizedError("Accès administrateur requis.");
   }
 
   const primary = user.emails.find((entry) => entry.isPrimary);
@@ -86,7 +105,7 @@ async function getAdminPrimaryEmail(adminId) {
   const email = primary?.email || verified?.email || user.emails[0]?.email;
   if (!email) {
     throw new ValidationError(
-      "Your admin account has no email address — payout approval requires one.",
+      "Votre compte administrateur n'a pas d'adresse e-mail — l'approbation de paiement en nécessite une.",
     );
   }
   return { email, name: user.name };
@@ -101,18 +120,27 @@ function getAdminDashboardUrl() {
 
 function assertValidPawaPayPayoutInput(input) {
   if (!isValidAmount(input.amount)) {
-    throw new ValidationError("Invalid payout amount.");
+    throw new ValidationError("Montant de paiement sortant invalide.");
   }
   if (!input.currency || !input.country || !input.provider) {
-    throw new ValidationError("Currency, country, and provider are required.");
+    throw new ValidationError("Devise, pays et fournisseur sont requis.");
   }
   if (!isValidMsisdn(input.recipientPhoneNumber)) {
-    throw new ValidationError("Invalid recipient phone number.");
+    throw new ValidationError("Numéro de téléphone du destinataire invalide.");
   }
   if (!isValidStatementDescription(input.customerMessage)) {
     throw new ValidationError(
-      "customerMessage must be 4-22 alphanumeric characters.",
+      "Le message client doit contenir entre 4 et 22 caractères alphanumériques.",
     );
+  }
+}
+
+function assertValidPawaPayRefundInput(input) {
+  if (!input.depositId) {
+    throw new ValidationError("L'identifiant de dépôt est requis pour un remboursement.");
+  }
+  if (input.amount !== undefined && !isValidAmount(input.amount)) {
+    throw new ValidationError("Montant de remboursement invalide.");
   }
 }
 
@@ -120,9 +148,15 @@ async function requestPayoutApproval(
   provider,
   adminId,
   payoutInput,
-  { validate, providerLabel, beneficiaryLabel, buildSummary },
+  { validate, providerLabel, beneficiaryLabel, buildSummary, kind = "payout" },
 ) {
   validate(payoutInput);
+
+  const otpScope =
+    kind === "refund"
+      ? adminRefundOtpScope(provider, adminId)
+      : adminPayoutOtpScope(provider, adminId);
+  await assertOtpResendCooldown(otpScope);
 
   const { email, name } = await getAdminPrimaryEmail(adminId);
   const code = generateAuthOtp();
@@ -131,13 +165,19 @@ async function requestPayoutApproval(
     Date.now() + PAYOUT_OTP_TTL_MINUTES * 60 * 1000,
   ).toISOString();
 
-  await savePendingApproval(provider, adminId, {
-    pendingId,
-    code,
-    expiresAt,
+  await savePendingApproval(
     provider,
-    payout: payoutInput,
-  });
+    adminId,
+    {
+      pendingId,
+      code,
+      expiresAt,
+      provider,
+      kind,
+      payout: payoutInput,
+    },
+    kind,
+  );
 
   try {
     await sendAdminPayoutOtpEmail(email, {
@@ -151,18 +191,20 @@ async function requestPayoutApproval(
       locale: "fr",
     });
   } catch (err) {
-    await clearPendingApproval(provider, adminId);
+    await clearPendingApproval(provider, adminId, kind);
     console.error("[admin-payout] OTP email failed:", err.message);
     throw new AppError(
-      "Failed to send payout verification email. Check SMTP configuration.",
+      "Impossible d'envoyer l'e-mail de vérification de paiement. Vérifiez la configuration SMTP.",
       502,
       "PAYOUT_OTP_EMAIL_FAILED",
     );
   }
 
+  await markOtpSent(otpScope);
+
   return {
     pendingId,
-    message: `A verification code was sent to ${email}. Enter it to approve this payout.`,
+    message: `Un code de vérification a été envoyé à ${email}. Saisissez-le pour approuver ce paiement.`,
     expiresInMinutes: PAYOUT_OTP_TTL_MINUTES,
     summary: buildSummary(payoutInput),
   };
@@ -204,69 +246,91 @@ async function confirmPayoutApproval(
   { pendingId, code },
   execute,
   providerLabel,
+  kind = "payout",
 ) {
-  if (!pendingId || !code) {
-    throw new ValidationError("Pending ID and verification code are required.");
-  }
+  return withPayoutConfirmLock(adminId, async () => {
+    if (!pendingId || !code) {
+      throw new ValidationError("Identifiant de session et code de vérification requis.");
+    }
 
-  const pending = await loadPendingApproval(provider, adminId);
-  if (!pending) {
-    throw new UnauthorizedError(
-      "No pending payout approval found. Request a new code.",
-    );
-  }
-  if (pending.pendingId !== pendingId) {
-    throw new UnauthorizedError("Invalid payout approval session.");
-  }
-  if (pending.provider !== provider) {
-    throw new UnauthorizedError("Payout provider mismatch.");
-  }
-  if (new Date(pending.expiresAt).getTime() < Date.now()) {
-    await clearPendingApproval(provider, adminId);
-    throw new UnauthorizedError(
-      "Verification code expired. Request a new payout approval.",
-    );
-  }
-  if (!safeCompareCode(pending.code, code)) {
-    throw new UnauthorizedError("Invalid verification code.");
-  }
+    const otpScope =
+      kind === "refund"
+        ? adminRefundOtpScope(provider, adminId)
+        : adminPayoutOtpScope(provider, adminId);
+    await assertOtpNotLocked(otpScope);
 
-  await clearPendingApproval(provider, adminId);
+    const pending = await loadPendingApproval(provider, adminId, kind);
+    if (!pending) {
+      throw new UnauthorizedError(
+        "Aucune approbation de paiement en attente. Demandez un nouveau code.",
+      );
+    }
+    if (pending.pendingId !== pendingId) {
+      throw new UnauthorizedError("Session d'approbation de paiement invalide.");
+    }
+    if (pending.provider !== provider) {
+      throw new UnauthorizedError("Fournisseur de paiement incompatible.");
+    }
+    if (pending.kind && pending.kind !== kind) {
+      throw new UnauthorizedError("Type d'approbation de paiement incompatible.");
+    }
+    if (new Date(pending.expiresAt).getTime() < Date.now()) {
+      await clearPendingApproval(provider, adminId, kind);
+      throw new UnauthorizedError(
+        "Code de vérification expiré. Demandez une nouvelle approbation de paiement.",
+      );
+    }
+    if (!safeCompareCode(pending.code, code)) {
+      await handleInvalidOtpAttempt(otpScope);
+    }
 
-  let result;
-  try {
-    result = await execute(pending.payout);
-  } catch (err) {
-    await recordAdminPayout({
+    await clearPendingApproval(provider, adminId, kind);
+    await clearOtpAttempts(otpScope);
+
+    const amount = Number(pending.payout.amount || 0);
+    const currency = pending.payout.currency;
+    if (amount > 0 && currency) {
+      await assertAdminDailyPayoutLimits(adminId, amount, currency);
+    }
+
+    let payoutRecord = await recordAdminPayout({
       adminId,
       provider,
       payoutInput: pending.payout,
-      status: "FAILED",
-      failureReason: err.message,
+      status: "PROCESSING",
     });
-    throw err;
-  }
 
-  const record = await recordAdminPayout({
-    adminId,
-    provider,
-    payoutInput: pending.payout,
-    result,
-    status: "PROCESSING",
+    let result;
+    try {
+      result = await execute(pending.payout, payoutRecord.id);
+    } catch (err) {
+      await updateAdminPayout(payoutRecord.id, {
+        status: "FAILED",
+        failureReason: err.message,
+      });
+      throw err;
+    }
+
+    const external = extractExternalMeta(provider, result);
+    payoutRecord = await updateAdminPayout(payoutRecord.id, {
+      externalId: external.externalId || payoutRecord.id,
+      externalStatus: external.externalStatus,
+      providerResponse: result,
+    });
+
+    await sendPayoutInitiatedEmail(
+      adminId,
+      provider,
+      providerLabel,
+      pending.payout,
+      result,
+    );
+
+    return {
+      ...result,
+      adminPayout: payoutRecord,
+    };
   });
-
-  await sendPayoutInitiatedEmail(
-    adminId,
-    provider,
-    providerLabel,
-    pending.payout,
-    result,
-  );
-
-  return {
-    ...result,
-    adminPayout: record,
-  };
 }
 
 async function requestMbiyoPayPayoutApproval(adminId, payoutInput) {
@@ -289,7 +353,8 @@ async function confirmMbiyoPayPayout(adminId, { pendingId, code }) {
     "mbiyopay",
     adminId,
     { pendingId, code },
-    initiateMbiyoPayPayout,
+    (payoutInput, adminPayoutId) =>
+      initiateMbiyoPayPayout({ ...payoutInput, orderId: adminPayoutId }),
     "MbiyoPay",
   );
 }
@@ -314,8 +379,38 @@ async function confirmPawaPayPayout(adminId, { pendingId, code }) {
     "pawapay",
     adminId,
     { pendingId, code },
-    initiatePawaPayPayout,
+    (payoutInput, adminPayoutId) =>
+      initiatePawaPayPayout({ ...payoutInput, payoutId: adminPayoutId }),
     "PawaPay",
+    "payout",
+  );
+}
+
+async function requestPawaPayRefundApproval(adminId, refundInput) {
+  return requestPayoutApproval("pawapay", adminId, refundInput, {
+    validate: assertValidPawaPayRefundInput,
+    providerLabel: "PawaPay Remboursement",
+    beneficiaryLabel: (p) => p.depositId,
+    buildSummary: (p) => ({
+      depositId: p.depositId,
+      amount: p.amount,
+      currency: p.currency,
+      country: p.country,
+      provider: p.provider,
+    }),
+    kind: "refund",
+  });
+}
+
+async function confirmPawaPayRefundApproval(adminId, { pendingId, code }) {
+  return confirmPayoutApproval(
+    "pawapay",
+    adminId,
+    { pendingId, code },
+    (refundInput, adminPayoutId) =>
+      initiatePawaPayRefund({ ...refundInput, refundId: adminPayoutId }),
+    "PawaPay Remboursement",
+    "refund",
   );
 }
 
@@ -324,5 +419,8 @@ module.exports = {
   confirmMbiyoPayPayout,
   requestPawaPayPayoutApproval,
   confirmPawaPayPayout,
+  requestPawaPayRefundApproval,
+  confirmPawaPayRefundApproval,
   assertValidPawaPayPayoutInput,
+  assertValidPawaPayRefundInput,
 };

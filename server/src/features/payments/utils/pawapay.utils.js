@@ -15,7 +15,7 @@ function isValidAmount(amount) {
 
 function formatAmount(amount, decimalsInAmount) {
   if (!isValidAmount(amount)) {
-    throw new ValidationError("Invalid amount.");
+    throw new ValidationError("Montant invalide.");
   }
   const num = Number(amount);
   return decimalsInAmount === "NONE" ? String(Math.round(num)) : num.toFixed(2);
@@ -53,7 +53,7 @@ function buildMetadata(entries) {
     });
 
   if (metadata.length > 10) {
-    throw new ValidationError("Metadata cannot exceed 10 items.");
+    throw new ValidationError("Les métadonnées ne peuvent pas dépasser 10 éléments.");
   }
   return metadata;
 }

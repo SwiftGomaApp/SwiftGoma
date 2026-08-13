@@ -104,8 +104,7 @@ function assertValidPayoutInput({
 
 function verifyWebhookSignature(rawBody, signatureHeader) {
   if (!env.mbiyopay.webhookSecret) {
-    // Fail closed: a missing/misconfigured secret must never be treated as
-    // "verification not required" — that would let anyone forge a callback.
+
     console.error(
       "[mbiyopay] MBIYOPAY_WEBHOOK_SECRET is not configured — rejecting webhook (fail closed).",
     );

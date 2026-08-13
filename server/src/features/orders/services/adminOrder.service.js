@@ -3,6 +3,7 @@ const {
   NotFoundError,
   BadRequestError,
   ConflictError,
+  ValidationError,
 } = require("../../../common/errors");
 const { assertCancellable } = require("../utils/order.utils");
 const { initiatePayout } = require("../../payments/services/mbioyopay.service");
@@ -121,7 +122,7 @@ async function refundOrderPayment(order, reasonLabel) {
         data: {
           status: "SUCCEEDED",
           refundedAt: null,
-          failureReason: `Refund initiation failed (${reasonLabel}): ${err.message}`,
+          failureReason: `Échec du remboursement (${reasonLabel}): ${err.message}`,
         },
       })
       .catch(() => {});
@@ -225,28 +226,9 @@ async function adminCancelOrder(orderId, actor, reason) {
 }
 
 async function adminRefundOrder(orderId) {
-  const order = await getFullOrder(orderId);
-
-  if (order.paymentMethod !== "ONLINE_PAYMENT" || !order.payment) {
-    throw new BadRequestError(
-      "Cette commande n'a pas de paiement en ligne à rembourser.",
-    );
-  }
-  if (order.payment.status !== "SUCCEEDED") {
-    throw new BadRequestError(
-      "Seuls les paiements réussis non remboursés peuvent être remboursés.",
-    );
-  }
-
-  const refundableStatuses = ["CANCELLED", "REJECTED", "EXPIRED", "FAILED"];
-  if (!refundableStatuses.includes(order.status)) {
-    throw new BadRequestError(
-      "Remboursement manuel autorisé uniquement pour commandes annulées, rejetées, expirées ou échouées.",
-    );
-  }
-
-  await refundOrderPayment(order, "admin_manual_refund");
-  return serializeOrder(await getFullOrder(orderId));
+  throw new ValidationError(
+    "Les remboursements directs sont désactivés. Utilisez POST /orders/admin/:id/refund/request-approval puis POST /orders/admin/:id/refund/confirm avec le code OTP.",
+  );
 }
 
 module.exports = {

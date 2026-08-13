@@ -57,7 +57,7 @@ async function postCreateProduct(req, res, next) {
       expiresAt: req.body.expiresAt,
       currency: req.body.currency,
       variants: parseVariants(req.body),
-      imageBuffers: parseImageFiles(req.files), // ← était req.files?.images
+      imageBuffers: parseImageFiles(req.files),
     });
     res.status(201).json({ success: true, data: product });
   } catch (err) {

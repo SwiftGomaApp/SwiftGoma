@@ -159,7 +159,7 @@ async function applyAdminPayoutFailed(
   const reason =
     failureReason ||
     extractFailureReason(providerResponse) ||
-    "Payout failed.";
+    "Échec du paiement sortant.";
 
   const updated = await prisma.adminPayout.updateMany({
     where: { id: payout.id, status: "PROCESSING" },

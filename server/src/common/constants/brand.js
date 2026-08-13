@@ -4,7 +4,7 @@ const BRAND = {
     "https://res.cloudinary.com/dx3wclabo/image/upload/v1784021180/logo_ouhcuv.png",
 
   supportEmail: "support@swiftgoma.com",
-  address: "Goma, Nord Kivu, Democratic Republic of the Congo",
+  address: "Goma, Nord-Kivu, République démocratique du Congo",
   social: {
     instagram: "https://instagram.com/swiftgomaapp",
     facebook: "https://facebook.com/swiftgomaapp",

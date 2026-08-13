@@ -4,9 +4,15 @@ const {
   getAdminOrder,
   postAdminCancelOrder,
   postAdminRefundOrder,
+  postRequestOrderRefundApproval,
+  postConfirmOrderRefund,
 } = require("../controllers/adminOrder.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
+const {
+  payoutOtpLimiter,
+  payoutConfirmLimiter,
+} = require("../../../common/middleware/rateLimiters");
 
 const AdminOrderRouter = express.Router();
 
@@ -18,6 +24,23 @@ AdminOrderRouter.post(
   authorize("ADMIN", "SUPPORT"),
   postAdminCancelOrder,
 );
-AdminOrderRouter.post("/:id/refund", authorize("ADMIN"), postAdminRefundOrder);
+AdminOrderRouter.post(
+  "/:id/refund/request-approval",
+  authorize("ADMIN"),
+  payoutOtpLimiter,
+  postRequestOrderRefundApproval,
+);
+AdminOrderRouter.post(
+  "/:id/refund/confirm",
+  authorize("ADMIN"),
+  payoutConfirmLimiter,
+  postConfirmOrderRefund,
+);
+AdminOrderRouter.post(
+  "/:id/refund",
+  authorize("ADMIN"),
+  payoutConfirmLimiter,
+  postAdminRefundOrder,
+);
 
 module.exports = AdminOrderRouter;

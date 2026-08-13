@@ -47,13 +47,13 @@ function formatPaymentMethodLabel(providerCode) {
   const normalized = providerCode.toString().toLowerCase();
 
   const providerNames = {
-    // PawaPay (subscriptions)
+
     airtel_cod: "Mobile Money — Airtel",
     orange_cod: "Mobile Money — Orange",
     vodacom_mpesa_cod: "Mobile Money — Vodacom M-Pesa",
     mtn_momo_rwa: "Mobile Money — MTN",
     airtel_rwa: "Mobile Money — Airtel",
-    // MbiyoPay (commandes)
+
     airtel: "Mobile Money — Airtel",
     orange: "Mobile Money — Orange",
     vodacom: "Mobile Money — Vodacom",

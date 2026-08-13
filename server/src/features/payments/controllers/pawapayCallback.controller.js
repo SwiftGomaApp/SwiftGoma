@@ -89,7 +89,7 @@ async function postDepositCallback(req, res, next) {
         } else if (DEPOSIT_FAILURE_STATUSES.includes(status)) {
           await failSubscriptionPayment(
             depositId,
-            body.failureReason?.failureMessage || "Payment failed",
+            body.failureReason?.failureMessage || "Paiement échoué",
           );
         }
         break;

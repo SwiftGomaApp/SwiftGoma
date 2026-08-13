@@ -62,7 +62,6 @@ async function postResubmitKyc(req, res, next) {
   }
 }
 
-// ADMIN + SUPPORT
 async function getKycList(req, res, next) {
   try {
     const result = await listKyc(req.query);
@@ -81,7 +80,6 @@ async function getKycDetail(req, res, next) {
   }
 }
 
-// SUPPORT only
 async function postSupportReview(req, res, next) {
   try {
     const kyc = await supportReviewKyc(req.user, req.params.id);
@@ -91,7 +89,6 @@ async function postSupportReview(req, res, next) {
   }
 }
 
-// ADMIN only
 async function postAdminApprove(req, res, next) {
   try {
     const kyc = await adminApproveKyc(req.user, req.params.id);
@@ -101,7 +98,6 @@ async function postAdminApprove(req, res, next) {
   }
 }
 
-// ADMIN + SUPPORT (les deux peuvent rejeter, par ta décision plus tôt)
 async function postRejectKyc(req, res, next) {
   try {
     const kyc = await rejectKyc(req.user, req.params.id, req.body.reason);

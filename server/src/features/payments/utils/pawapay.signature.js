@@ -67,14 +67,6 @@ async function signFinancialRequest({ method, path, bodyString }) {
   return signedRequest.headers;
 }
 
-// --- Inbound webhook verification (PawaPay -> us) ---
-// Per https://docs.pawapay.io/v2/docs/signatures.md, PawaPay signs callbacks
-// using the same RFC-9421 HTTP Message Signatures scheme as the one we use
-// to sign our own outbound requests above (Signature / Signature-Input /
-// Signature-Date / Content-Digest headers, ecdsa-p256-sha256, DER-encoded).
-// Verification is done against PawaPay's public key (GET /v2/public-key/http),
-// which must be configured via PAWAPAY_{ENV}_PUBLIC_KEY_PEM.
-
 function verifyContentDigest(headerValue, bodyBuffer) {
   if (!headerValue) return false;
   const raw = Array.isArray(headerValue) ? headerValue[0] : headerValue;

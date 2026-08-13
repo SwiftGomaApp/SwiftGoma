@@ -21,6 +21,16 @@ const {
 } = require("../../payments/services/adminPayout.service");
 const { assertValidPawaPayPayoutInput } = require("../../payments/services/adminPayoutApproval.service");
 const {
+  assertOtpNotLocked,
+  assertOtpResendCooldown,
+  markOtpSent,
+  handleInvalidOtpAttempt,
+  clearOtpAttempts,
+  assertAdminDailyPayoutLimits,
+  withPayoutConfirmLock,
+  adminExpenseOtpScope,
+} = require("../../payments/utils/payoutSecurity");
+const {
   applyAdminPayoutFailed,
   notifyExpensePayoutOutcome,
 } = require("../../payments/services/adminPayoutStatus.service");
@@ -140,7 +150,7 @@ function getAdminDashboardUrl() {
   return adminOrigin || env.clientOrigins[0] || null;
 }
 
-function assertPendingSession(pending, { pendingId, expenseId, code }) {
+function assertPendingSession(pending, { pendingId, expenseId }) {
   if (!pending) {
     throw new UnauthorizedError(
       "Aucune approbation en attente. Demandez un nouveau code.",
@@ -155,12 +165,12 @@ function assertPendingSession(pending, { pendingId, expenseId, code }) {
   if (isPendingExpired(pending)) {
     throw new UnauthorizedError("Code expiré. Demandez une nouvelle approbation.");
   }
-  if (!safeCompareCode(pending.code, code)) {
-    throw new UnauthorizedError("Code de vérification invalide.");
-  }
 }
 
 async function requestExpenseApproval(adminId, expenseId) {
+  const otpScope = adminExpenseOtpScope(adminId);
+  await assertOtpResendCooldown(otpScope);
+
   const expense = await getExpenseRecordForApproval(expenseId);
   if (expense.status === "FAILED") {
     await resetFailedExpenseForApproval(expenseId);
@@ -206,6 +216,8 @@ async function requestExpenseApproval(adminId, expenseId) {
     );
   }
 
+  await markOtpSent(otpScope);
+
   return {
     pendingId,
     message: `Un code de vérification a été envoyé à ${email}.`,
@@ -222,6 +234,8 @@ async function requestExpenseApproval(adminId, expenseId) {
 }
 
 async function resendExpenseApproval(adminId, expenseId, { pendingId } = {}) {
+  await assertOtpResendCooldown(adminExpenseOtpScope(adminId));
+
   const pending = await loadPending(adminId);
   if (pending) {
     if (pending.expenseId !== expenseId) {
@@ -242,113 +256,133 @@ async function confirmExpenseApproval(adminId, expenseId, { pendingId, code }) {
     throw new ValidationError("Identifiant de session et code requis.");
   }
 
-  const pending = await loadPending(adminId);
-  try {
-    assertPendingSession(pending, { pendingId, expenseId, code });
-  } catch (err) {
-    if (pending && isPendingExpired(pending)) {
-      await clearPending(adminId);
-    }
-    throw err;
-  }
+  const otpScope = adminExpenseOtpScope(adminId);
 
-  await clearPending(adminId);
+  return withPayoutConfirmLock(adminId, async () => {
+    await assertOtpNotLocked(otpScope);
 
-  const expense = await claimExpenseForPayout(adminId, expenseId);
-  const payoutInput = buildPayoutInputFromExpense(expense);
-  assertValidPawaPayPayoutInput(payoutInput);
-
-  let payoutRecord = await recordAdminPayout({
-    adminId,
-    provider: "pawapay",
-    payoutInput: pending.payout,
-    status: "PROCESSING",
-  });
-
-  let result;
-  try {
-    result = await initiatePayout({
-      ...pending.payout,
-      payoutId: payoutRecord.id,
-      metadata: buildMetadata({
-        type: "EXPENSE_PAYOUT",
-        expenseId,
-        adminPayoutId: payoutRecord.id,
-      }),
-    });
-  } catch (err) {
-    payoutRecord = await updateAdminPayout(payoutRecord.id, {
-      status: "FAILED",
-      externalId: payoutRecord.id,
-      failureReason: err.message,
-    });
-    await markExpenseFailed(expenseId, err.message);
+    const pending = await loadPending(adminId);
     try {
-      const expense = await getExpenseById(expenseId);
-      await notifyExpensePayoutOutcome(expense, "FAILED", {
-        failureReason: err.message,
-        source: "initiation",
-      });
-    } catch (notifyErr) {
-      console.error(
-        "[expense-approval] Failed to notify payout initiation failure:",
-        notifyErr.message,
+      assertPendingSession(pending, { pendingId, expenseId });
+    } catch (err) {
+      if (pending && isPendingExpired(pending)) {
+        await clearPending(adminId);
+      }
+      throw err;
+    }
+
+    if (!safeCompareCode(pending.code, code)) {
+      await handleInvalidOtpAttempt(
+        otpScope,
+        "Code de vérification invalide.",
       );
     }
-    throw err;
-  }
 
-  const externalStatus = result?.status || result?.data?.status || null;
-  payoutRecord = await updateAdminPayout(payoutRecord.id, {
-    externalId: result?.payoutId || payoutRecord.id,
-    externalStatus,
-    providerResponse: result,
-  });
+    await clearPending(adminId);
+    await clearOtpAttempts(otpScope);
 
-  if (externalStatus === "FAILED") {
-    await applyAdminPayoutFailed(
-      payoutRecord.externalId,
-      "PawaPay payout rejected.",
-      {
-        externalStatus,
-        providerResponse: result,
-        source: "initiation",
-      },
-    );
-    throw new AppError(
-      "Le paiement PawaPay a été rejeté immédiatement.",
-      502,
-      "EXPENSE_PAYOUT_REJECTED",
-    );
-  }
+    const amount = Number(pending.payout.amount || 0);
+    const currency = pending.payout.currency;
+    if (amount > 0 && currency) {
+      await assertAdminDailyPayoutLimits(adminId, amount, currency);
+    }
 
-  await attachExpensePayout(expenseId, payoutRecord.id);
+    const expense = await claimExpenseForPayout(adminId, expenseId);
+    const payoutInput = buildPayoutInputFromExpense(expense);
+    assertValidPawaPayPayoutInput(payoutInput);
 
-  try {
-    const { email, name } = await getAdminPrimaryEmail(adminId);
-    const mapped = mapPayoutInput("pawapay", pending.payout);
-    await sendAdminPayoutInitiatedEmail(email, {
-      name,
-      amount: mapped.amount,
-      currency: mapped.currency,
-      beneficiary: mapped.beneficiary,
-      phoneNumber: mapped.phoneNumber,
-      providerName: mapped.providerName,
-      providerLabel: "PawaPay (dépense)",
-      externalId: result?.payoutId || payoutRecord.id,
-      externalStatus: externalStatus,
-      adminUrl: getAdminDashboardUrl(),
-      locale: "fr",
+    let payoutRecord = await recordAdminPayout({
+      adminId,
+      provider: "pawapay",
+      payoutInput: pending.payout,
+      status: "PROCESSING",
     });
-  } catch (err) {
-    console.error("[expense-approval] confirmation email failed:", err.message);
-  }
 
-  return {
-    ...result,
-    expense: await getExpenseById(expenseId),
-    adminPayout: payoutRecord,
-  };
+    let result;
+    try {
+      result = await initiatePayout({
+        ...pending.payout,
+        payoutId: payoutRecord.id,
+        metadata: buildMetadata({
+          type: "EXPENSE_PAYOUT",
+          expenseId,
+          adminPayoutId: payoutRecord.id,
+        }),
+      });
+    } catch (err) {
+      payoutRecord = await updateAdminPayout(payoutRecord.id, {
+        status: "FAILED",
+        externalId: payoutRecord.id,
+        failureReason: err.message,
+      });
+      await markExpenseFailed(expenseId, err.message);
+      try {
+        const expenseRecord = await getExpenseById(expenseId);
+        await notifyExpensePayoutOutcome(expenseRecord, "FAILED", {
+          failureReason: err.message,
+          source: "initiation",
+        });
+      } catch (notifyErr) {
+        console.error(
+          "[expense-approval] Failed to notify payout initiation failure:",
+          notifyErr.message,
+        );
+      }
+      throw err;
+    }
+
+    const externalStatus = result?.status || result?.data?.status || null;
+    payoutRecord = await updateAdminPayout(payoutRecord.id, {
+      externalId: result?.payoutId || payoutRecord.id,
+      externalStatus,
+      providerResponse: result,
+    });
+
+    if (externalStatus === "FAILED") {
+      await applyAdminPayoutFailed(
+        payoutRecord.externalId,
+        "PawaPay payout rejected.",
+        {
+          externalStatus,
+          providerResponse: result,
+          source: "initiation",
+        },
+      );
+      throw new AppError(
+        "Le paiement PawaPay a été rejeté immédiatement.",
+        502,
+        "EXPENSE_PAYOUT_REJECTED",
+      );
+    }
+
+    await attachExpensePayout(expenseId, payoutRecord.id);
+
+    try {
+      const { email, name } = await getAdminPrimaryEmail(adminId);
+      const mapped = mapPayoutInput("pawapay", pending.payout);
+      await sendAdminPayoutInitiatedEmail(email, {
+        name,
+        amount: mapped.amount,
+        currency: mapped.currency,
+        beneficiary: mapped.beneficiary,
+        phoneNumber: mapped.phoneNumber,
+        providerName: mapped.providerName,
+        providerLabel: "PawaPay (dépense)",
+        externalId: result?.payoutId || payoutRecord.id,
+        externalStatus: externalStatus,
+        adminUrl: getAdminDashboardUrl(),
+        locale: "fr",
+      });
+    } catch (err) {
+      console.error("[expense-approval] confirmation email failed:", err.message);
+    }
+
+    return {
+      ...result,
+      expense: await getExpenseById(expenseId),
+      adminPayout: payoutRecord,
+    };
+  });
 }
 
 module.exports = {

@@ -48,10 +48,6 @@ async function getPlanOrThrow(planId) {
 
 const { SUBSCRIPTION_CONFIG } = require("../config/subscription.config");
 
-// Body text differs slightly depending on which flow triggered the
-// invoice (new subscription / upgrade / renewal) — everything else
-// about generating and emailing the invoice is identical, so this is
-// the only thing that varies between the three former call sites.
 const INVOICE_BODY_BY_KIND = {
   subscription: (planName) =>
     `Votre facture pour l'abonnement ${planName} est disponible.`,
@@ -61,29 +57,6 @@ const INVOICE_BODY_BY_KIND = {
     `Votre facture pour le renouvellement de l'abonnement ${planName} est disponible.`,
 };
 
-// Extracted from the three near-identical inline blocks that used to sit
-// in subscribeToPlan(), upgradeSubscription(), and renewSubscription().
-// Re-fetches the payment (with plan + seller relations) itself rather
-// than relying on whatever the caller already had loaded, which makes
-// it safe to call from the BullMQ worker with just a paymentId.
-//
-// This also fixes a real bug that was in renewSubscription(): that call
-// site was invoking `generateInvoiceDocument(payment.id)` — a single
-// argument — where the function signature is `(type, paymentId)`. That
-// meant `type` was actually the payment UUID, which matches neither
-// "subscription" nor "order" inside resolvePaymentContext(), so the call
-// always threw and was silently swallowed by the surrounding catch.
-// Every renewal invoice has been failing silently until this fix.
-//
-// Errors here are re-thrown (not swallowed) on purpose: this function is
-// only ever called from the BullMQ worker (jobs/invoiceDocuments.job.js),
-// and letting the error propagate is what makes BullMQ mark the job as
-// "failed" — which is what triggers its built-in retry (3 attempts,
-// exponential backoff, configured in config/queue.js) and, if all
-// retries are exhausted, the Sentry capture already wired up in
-// config/worker.js. Swallowing the error here silently would mean a
-// transient failure (Cloudinary hiccup, DB blip) never gets retried and
-// never gets reported — exactly the gap we found via testInvoiceJobError.js.
 async function sendSubscriptionInvoiceDocument(
   paymentId,
   kind = "subscription",
@@ -98,9 +71,7 @@ async function sendSubscriptionInvoiceDocument(
     },
   });
   if (!payment) {
-    // Payment introuvable = erreur permanente (retry ne changera rien),
-    // mais on throw quand même pour que ça remonte à Sentry après les
-    // 3 tentatives BullMQ plutôt que de disparaître silencieusement.
+
     throw new Error(
       `sendSubscriptionInvoiceDocument: payment ${paymentId} introuvable.`,
     );
@@ -156,12 +127,6 @@ async function sendSubscriptionInvoiceDocument(
   }
 }
 
-// Extracted from confirmSubscriptionPayment()'s inline receipt block,
-// unchanged aside from taking paymentId as a parameter and re-fetching
-// what it needs, same reasoning as sendSubscriptionInvoiceDocument above.
-// Same error-propagation reasoning too: both catches re-throw so BullMQ
-// retry/Sentry actually engage instead of the failure being logged and
-// forgotten.
 async function sendSubscriptionReceiptDocument(paymentId) {
   const payment = await prisma.subscriptionPayment.findUnique({
     where: { id: paymentId },
@@ -348,9 +313,6 @@ async function subscribeToPlan({
     },
   });
 
-  // Was: inline `await generateInvoiceDocument(...)` + email, blocking
-  // this request. Now: enqueue and return immediately — the worker calls
-  // sendSubscriptionInvoiceDocument() (defined above) with the same logic.
   await enqueueInvoiceJob(
     payment.id,
     "subscription",
@@ -478,11 +440,6 @@ async function upgradeSubscription({
     );
   }
 
-  // An upgrade doesn't move `subscription.status` off ACTIVE while its
-  // payment is in flight (only the initial subscription flow uses
-  // PENDING_PAYMENT for that), so without this check a duplicate/double-tap
-  // upgrade request would create a second, independent SubscriptionPayment
-  // and could end up charging the seller twice for one intended upgrade.
   const pendingUpgradePayment = await prisma.subscriptionPayment.findFirst({
     where: { subscriptionId: subscription.id, status: "PENDING" },
   });
@@ -511,7 +468,6 @@ async function upgradeSubscription({
     },
   });
 
-  // Same as subscribeToPlan: enqueue instead of generating/emailing inline.
   await enqueueInvoiceJob(
     payment.id,
     "upgrade",
@@ -542,9 +498,6 @@ async function upgradeSubscription({
       data: { depositId: deposit.depositId },
     });
 
-    // La subscription elle-même ne change de plan qu'une fois le paiement
-    // confirmé — voir confirmSubscriptionPayment, qui applique payment.planId
-    // et les nouvelles dates de période sur la Subscription.
     return {
       subscription,
       payment: { ...payment, depositId: deposit.depositId },
@@ -608,28 +561,21 @@ async function confirmSubscriptionPayment(depositId) {
     );
   }
   if (payment.status === "SUCCEEDED") {
-    return { payment, subscription: payment.subscription }; // idempotent — déjà confirmé
+    return { payment, subscription: payment.subscription };
   }
 
-  // Atomic claim — guards against a duplicate/concurrent webhook delivery
-  // (PawaPay's own retry policy can resend the same callback) both passing
-  // the in-memory check above and both applying the plan change / sending
-  // a duplicate receipt.
   const claimed = await prisma.subscriptionPayment.updateMany({
     where: { id: payment.id, status: "PENDING" },
     data: { status: "SUCCEEDED", paidAt: new Date() },
   });
   if (claimed.count !== 1) {
-    return { payment, subscription: payment.subscription }; // lost the race
+    return { payment, subscription: payment.subscription };
   }
 
   const updatedPayment = await prisma.subscriptionPayment.findUnique({
     where: { id: payment.id },
   });
 
-  // Applique le plan/cycle/devise/période de CE paiement à la subscription —
-  // fonctionne aussi bien pour une souscription initiale que pour un upgrade,
-  // puisque payment.planId contient déjà le bon plan dans les deux cas.
   const updatedSubscription = await prisma.subscription.update({
     where: { id: payment.subscriptionId },
     data: {
@@ -645,8 +591,6 @@ async function confirmSubscriptionPayment(depositId) {
     },
   });
 
-  // Was: inline `await generateReceiptDocument(...)` + email, blocking
-  // this webhook handler's response. Now: enqueue and return immediately.
   await enqueueReceiptJob(
     updatedPayment.id,
     `confirmSubscriptionPayment ${updatedPayment.id}`,
@@ -671,7 +615,7 @@ async function failSubscriptionPayment(depositId, failureReason) {
     );
   }
   if (payment.status === "FAILED") {
-    return { payment, subscription: payment.subscription }; // idempotent
+    return { payment, subscription: payment.subscription };
   }
 
   const claimed = await prisma.subscriptionPayment.updateMany({
@@ -679,16 +623,13 @@ async function failSubscriptionPayment(depositId, failureReason) {
     data: { status: "FAILED", failureReason },
   });
   if (claimed.count !== 1) {
-    return { payment, subscription: payment.subscription }; // lost the race
+    return { payment, subscription: payment.subscription };
   }
 
   const updatedPayment = await prisma.subscriptionPayment.findUnique({
     where: { id: payment.id },
   });
 
-  // Un échec d'upgrade ne doit PAS casser la subscription active existante —
-  // seulement un échec de souscription initiale (PENDING_PAYMENT) doit
-  // faire tomber la subscription en FAILED_PAYMENT.
   const wasInitialSubscription =
     payment.subscription.status === "PENDING_PAYMENT";
 
@@ -1041,9 +982,7 @@ async function renewSubscription(subscription) {
       subscription.currency,
     );
   } catch (err) {
-    // Previously this threw before any FAILED/PAST_DUE state was recorded,
-    // so the subscription stayed ACTIVE past its paid period and the cron
-    // silently re-failed on it every day thereafter (see audit finding).
+
     console.error(
       `[renewal] No price found for subscription ${subscription.id} (plan/cycle/currency changed?):`,
       err.message,
@@ -1071,10 +1010,6 @@ async function renewSubscription(subscription) {
     },
   });
 
-  // Was the buggy `generateInvoiceDocument(payment.id)` single-argument
-  // call (see the comment on sendSubscriptionInvoiceDocument above) —
-  // now enqueues correctly with kind "renewal", same as the other two
-  // call sites.
   await enqueueInvoiceJob(
     payment.id,
     "renewal",

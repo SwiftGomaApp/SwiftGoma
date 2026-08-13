@@ -26,7 +26,6 @@ async function getCategory(req, res, next) {
   }
 }
 
-// ADMIN only
 async function postCreateCategory(req, res, next) {
   try {
     const category = await createCategory({

@@ -14,7 +14,7 @@ function getGoogleClient() {
 
 async function verifyGoogleIdToken(idToken) {
   if (!idToken || typeof idToken !== "string") {
-    throw new UnauthorizedError("Missing Google ID token.");
+    throw new UnauthorizedError("Jeton Google ID manquant.");
   }
 
   let ticket;
@@ -25,13 +25,13 @@ async function verifyGoogleIdToken(idToken) {
     });
   } catch (err) {
     throw new UnauthorizedError(
-      "Invalid or expired Google sign-in. Please try again.",
+      "Connexion Google invalide ou expirée. Veuillez réessayer.",
     );
   }
 
   const payload = ticket.getPayload();
   if (!payload || !payload.sub || !payload.email) {
-    throw new UnauthorizedError("Invalid Google sign-in response.");
+    throw new UnauthorizedError("Réponse de connexion Google invalide.");
   }
 
   return {

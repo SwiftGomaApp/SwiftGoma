@@ -136,7 +136,7 @@ function drawHeader(layout, doc, logoBuffer, title, subtitle) {
         width: logoWidth,
       });
     } catch {
-      /* ignore logo errors */
+
     }
   }
 

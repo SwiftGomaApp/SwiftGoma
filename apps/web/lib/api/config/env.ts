@@ -23,6 +23,13 @@ function resolveServerApiUrl(publicApiUrl: string): string {
       return publicApiUrl;
     }
 
+    // Server-side: call the upstream API directly when configured, avoiding
+    // an extra same-origin round-trip through the Next.js proxy on Vercel.
+    const directUrl = process.env.API_BASE_URL?.replace(/\/$/, "");
+    if (directUrl) {
+      return directUrl;
+    }
+
     const siteUrl = required(
       process.env.NEXT_PUBLIC_SITE_URL ||
         (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined),

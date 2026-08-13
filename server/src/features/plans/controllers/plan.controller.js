@@ -36,7 +36,6 @@ async function getPlanBySlugHandler(req, res, next) {
   }
 }
 
-// ADMIN only
 async function postCreatePlan(req, res, next) {
   try {
     const plan = await createPlan({
@@ -54,7 +53,6 @@ async function postCreatePlan(req, res, next) {
   }
 }
 
-// ADMIN only
 async function putUpdatePlan(req, res, next) {
   try {
     const plan = await updatePlan(req.params.id, {
@@ -72,7 +70,6 @@ async function putUpdatePlan(req, res, next) {
   }
 }
 
-// ADMIN only
 async function putUpdatePlanPrice(req, res, next) {
   try {
     const price = await updatePlanPrice(req.params.id, {
@@ -86,7 +83,6 @@ async function putUpdatePlanPrice(req, res, next) {
   }
 }
 
-// ADMIN only
 async function postSetPlanActive(req, res, next) {
   try {
     const plan = await setPlanActive(req.params.id, req.body.isActive);

@@ -26,16 +26,13 @@ const OrderRouter = express.Router();
 
 OrderRouter.use(authenticate);
 
-// ----- Acheteur -----
 OrderRouter.post("/checkout", paymentLimiter, postCheckout);
 OrderRouter.get("/me", getMyOrders);
 OrderRouter.post("/:id/cancel", postCancelOrder);
 OrderRouter.get("/:id/qr-code", getOrderQr);
 
-// ----- Scan universel (vendeur en pickup, rider en delivery) -----
 OrderRouter.post("/scan", postScanQr);
 
-// ----- Vendeur -----
 OrderRouter.post("/:id/accept", authorize("SELLER"), postAcceptOrder);
 OrderRouter.post("/:id/reject", authorize("SELLER"), postRejectOrder);
 OrderRouter.post("/:id/ready", authorize("SELLER"), postMarkReady);
@@ -47,7 +44,6 @@ OrderRouter.post(
 OrderRouter.post("/:id/assign-rider", authorize("SELLER"), postAssignRider);
 OrderRouter.get("/shop/:shopId", authorize("SELLER"), getShopOrders);
 
-// ----- Livreur -----
 OrderRouter.post("/:id/picked-up", authorize("RIDER"), postMarkPickedUp);
 OrderRouter.post("/:id/on-the-way", authorize("RIDER"), postMarkOnTheWay);
 OrderRouter.post(
@@ -62,7 +58,6 @@ OrderRouter.post(
 );
 OrderRouter.get("/rider/me", authorize("RIDER"), getMyDeliveries);
 
-// ----- Commun -----
 OrderRouter.get("/:id", getOrder);
 
 module.exports = OrderRouter;

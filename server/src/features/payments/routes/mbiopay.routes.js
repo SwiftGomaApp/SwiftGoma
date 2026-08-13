@@ -11,6 +11,11 @@ const {
 } = require("../controllers/mbiopay.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
+const {
+  payoutOtpLimiter,
+  payoutConfirmLimiter,
+  paymentLimiter,
+} = require("../../../common/middleware/rateLimiters");
 
 const FINANCE_READ = authorize("ADMIN", "ACCOUNTANT");
 
@@ -18,13 +23,19 @@ const MbiyoPayRouter = express.Router();
 
 MbiyoPayRouter.use(authenticate);
 
-MbiyoPayRouter.post("/payin", authorize("ADMIN"), postInitiatePayin);
+MbiyoPayRouter.post("/payin", authorize("ADMIN"), paymentLimiter, postInitiatePayin);
 MbiyoPayRouter.post(
   "/payout/request-approval",
   authorize("ADMIN"),
+  payoutOtpLimiter,
   postRequestPayoutApproval,
 );
-MbiyoPayRouter.post("/payout/confirm", authorize("ADMIN"), postConfirmPayout);
+MbiyoPayRouter.post(
+  "/payout/confirm",
+  authorize("ADMIN"),
+  payoutConfirmLimiter,
+  postConfirmPayout,
+);
 MbiyoPayRouter.get("/payout/history", FINANCE_READ, getPayoutHistory);
 MbiyoPayRouter.get("/transactions/:transactionId", FINANCE_READ, getTransactionStatus);
 MbiyoPayRouter.get("/balances", FINANCE_READ, getBalances);

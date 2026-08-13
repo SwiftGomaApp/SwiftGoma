@@ -93,7 +93,7 @@ async function verifyPhone(req, res) {
 
 async function uploadProfilePicture(req, res) {
   if (!req.file) {
-    throw new ValidationError("No image file provided.");
+    throw new ValidationError("Aucun fichier image fourni.");
   }
   const user = await userService.uploadProfilePicture({
     userId: req.user.id,

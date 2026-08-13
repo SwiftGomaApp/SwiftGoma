@@ -46,7 +46,7 @@ async function resolveDecimalsInAmount({
 
   if (!operationConfig) {
     throw new AppError(
-      `No active configuration found for ${provider} / ${currency} / ${operationType} in ${country}.`,
+      `Aucune configuration active trouvée pour ${provider} / ${currency} / ${operationType} en ${country}.`,
       400,
       "PAWAPAY_PROVIDER_NOT_CONFIGURED",
     );
@@ -64,28 +64,20 @@ async function initiateDeposit({
   customerMessage,
   clientReferenceId,
   metadata = {},
-  // Per docs.pawapay.io/v2/docs/signatures.md + the deposit/payout/refund
-  // API reference: "This API call is idempotent — it is safe to submit a
-  // request with the same depositId multiple times" (duplicates come back
-  // as DUPLICATE_IGNORED, no new deposit is created). Callers that already
-  // have a stable internal record for this payment (e.g. a
-  // SubscriptionPayment row) should pass its id here so that a retry of
-  // this exact logical operation can't create a second real deposit at
-  // PawaPay — falls back to a fresh UUID for callers with no such record
-  // (e.g. the admin-only direct PawaPay endpoints).
+
   depositId: requestedDepositId,
 }) {
   if (!isValidAmount(amount))
-    throw new ValidationError("Invalid deposit amount.");
+    throw new ValidationError("Montant de dépôt invalide.");
   if (!isValidMsisdn(payerPhoneNumber))
-    throw new ValidationError("Invalid payer phone number.");
+    throw new ValidationError("Numéro de téléphone du payeur invalide.");
   if (!isValidStatementDescription(customerMessage)) {
     throw new ValidationError(
-      "customerMessage must be 4-22 alphanumeric characters.",
+      "Le message client doit contenir entre 4 et 22 caractères alphanumériques.",
     );
   }
   if (!provider)
-    throw new ValidationError("Missing provider (mobile money operator).");
+    throw new ValidationError("Fournisseur mobile money manquant.");
 
   const decimalsInAmount = await resolveDecimalsInAmount({
     country,
@@ -117,7 +109,7 @@ async function initiateDeposit({
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to initiate deposit.",
+      "Impossible d'initier le dépôt.",
       502,
       "PAWAPAY_DEPOSIT_FAILED",
     );
@@ -134,7 +126,7 @@ async function checkDepositStatus(depositId) {
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to check deposit status.",
+      "Impossible de vérifier le statut du dépôt.",
       502,
       "PAWAPAY_STATUS_CHECK_FAILED",
     );
@@ -150,21 +142,20 @@ async function initiatePayout({
   customerMessage,
   clientReferenceId,
   metadata = {},
-  // Same idempotency contract as initiateDeposit's `depositId` override —
-  // pass the internal record id for this payout when one exists.
+
   payoutId: requestedPayoutId,
 }) {
   if (!isValidAmount(amount))
-    throw new ValidationError("Invalid payout amount.");
+    throw new ValidationError("Montant de paiement sortant invalide.");
   if (!isValidMsisdn(recipientPhoneNumber))
-    throw new ValidationError("Invalid recipient phone number.");
+    throw new ValidationError("Numéro de téléphone du destinataire invalide.");
   if (!isValidStatementDescription(customerMessage)) {
     throw new ValidationError(
-      "customerMessage must be 4-22 alphanumeric characters.",
+      "Le message client doit contenir entre 4 et 22 caractères alphanumériques.",
     );
   }
   if (!provider)
-    throw new ValidationError("Missing provider (mobile money operator).");
+    throw new ValidationError("Fournisseur mobile money manquant.");
 
   const decimalsInAmount = await resolveDecimalsInAmount({
     country,
@@ -196,7 +187,7 @@ async function initiatePayout({
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to initiate payout.",
+      "Impossible d'initier le paiement sortant.",
       502,
       "PAWAPAY_PAYOUT_FAILED",
     );
@@ -213,7 +204,7 @@ async function checkPayoutStatus(payoutId) {
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to check payout status.",
+      "Impossible de vérifier le statut du paiement sortant.",
       502,
       "PAWAPAY_STATUS_CHECK_FAILED",
     );
@@ -227,13 +218,12 @@ async function initiateRefund({
   country,
   provider,
   metadata = {},
-  // Same idempotency contract as initiateDeposit's `depositId` override —
-  // pass the internal record id for this refund when one exists.
+
   refundId: requestedRefundId,
 }) {
-  if (!depositId) throw new ValidationError("Missing depositId to refund.");
+  if (!depositId) throw new ValidationError("Identifiant de dépôt manquant pour le remboursement.");
   if (amount !== undefined && !isValidAmount(amount))
-    throw new ValidationError("Invalid refund amount.");
+    throw new ValidationError("Montant de remboursement invalide.");
 
   let formattedAmount;
   if (amount !== undefined) {
@@ -264,7 +254,7 @@ async function initiateRefund({
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to initiate refund.",
+      "Impossible d'initier le remboursement.",
       502,
       "PAWAPAY_REFUND_FAILED",
     );
@@ -281,7 +271,7 @@ async function checkRefundStatus(refundId) {
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to check refund status.",
+      "Impossible de vérifier le statut du remboursement.",
       502,
       "PAWAPAY_STATUS_CHECK_FAILED",
     );
@@ -298,7 +288,7 @@ async function getWalletBalances() {
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to fetch wallet balances.",
+      "Impossible de récupérer les soldes du portefeuille.",
       502,
       "PAWAPAY_BALANCE_FETCH_FAILED",
     );
@@ -341,7 +331,7 @@ async function getActiveConfiguration({
       err.response?.data || err.message,
     );
     throw new AppError(
-      "Failed to fetch active configuration.",
+      "Impossible de récupérer la configuration active.",
       502,
       "PAWAPAY_CONFIG_FETCH_FAILED",
     );

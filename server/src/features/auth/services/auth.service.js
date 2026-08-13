@@ -76,18 +76,6 @@ const LOGIN_OTP_RESEND_COOLDOWN_SECONDS = 30;
 const SELF_ASSIGNABLE_ROLES = ["BUYER", "SELLER", "RIDER"];
 const DEFAULT_SELF_REGISTRATION_ROLE = "BUYER";
 
-// function assertSelfAssignableRole(role) {
-//   if (role === undefined || role === null || role === "") {
-//     return DEFAULT_SELF_REGISTRATION_ROLE;
-//   }
-//   if (!SELF_ASSIGNABLE_ROLES.includes(role)) {
-//     throw new ValidationError(
-//       "Ce rôle ne peut pas être attribué via l'inscription publique.",
-//     );
-//   }
-//   return role;
-// }
-
 function passkeyUsernamelessChallengeKey(challengeId) {
   return `webauthn:auth:usernameless:${challengeId}`;
 }

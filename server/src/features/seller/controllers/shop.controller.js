@@ -29,10 +29,6 @@ async function getSellerProfileIdForUser(userId) {
   return profile.id;
 }
 
-// -----------------------------
-// VENDEUR (authentifié)
-// -----------------------------
-
 async function postCreateShop(req, res, next) {
   try {
     const sellerProfileId = await getSellerProfileIdForUser(req.user.id);
@@ -98,7 +94,6 @@ async function postUnpublishShop(req, res, next) {
   }
 }
 
-// Vendeur suspend/réactive/supprime sa PROPRE boutique
 async function postSuspendMyShop(req, res, next) {
   try {
     const sellerProfileId = await getSellerProfileIdForUser(req.user.id);
@@ -133,10 +128,6 @@ async function deleteMyShop(req, res, next) {
   }
 }
 
-// -----------------------------
-// PUBLIC (page vitrine, pas d'auth)
-// -----------------------------
-
 async function getShopBySlugHandler(req, res, next) {
   try {
     const shop = await getShopBySlug(req.params.slug);
@@ -145,10 +136,6 @@ async function getShopBySlugHandler(req, res, next) {
     next(err);
   }
 }
-
-// -----------------------------
-// ADMIN
-// -----------------------------
 
 async function postSuspendShop(req, res, next) {
   try {
@@ -200,7 +187,6 @@ async function getShopsHandler(req, res, next) {
   }
 }
 
-// ADMIN + SUPPORT — unlike getShopsHandler, not restricted to PUBLISHED.
 async function getShopsAdminHandler(req, res, next) {
   try {
     const result = await listAllShops({

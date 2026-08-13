@@ -63,7 +63,6 @@ SellerRouter.get("/shops", getShopsHandler);
 
 SellerRouter.use(authenticate);
 
-// ----- Seller Profile -----
 SellerRouter.post(
   "/",
   authorize("SELLER"),
@@ -91,7 +90,6 @@ SellerRouter.post(
   postReactivateSellerProfile,
 );
 
-// ----- KYC -----
 SellerRouter.post(
   "/kyc",
   authorize("SELLER"),
@@ -122,7 +120,6 @@ SellerRouter.post(
 );
 SellerRouter.post("/kyc/:id/approve", authorize("ADMIN"), postAdminApprove);
 
-// ----- Shop (vendeur) -----
 SellerRouter.post(
   "/shop",
   authorize("SELLER"),
@@ -152,7 +149,6 @@ SellerRouter.post(
 );
 SellerRouter.delete("/shop/:id", authorize("SELLER"), deleteMyShop);
 
-// ----- Shop (admin) -----
 SellerRouter.get(
   "/shops/admin",
   authorize("ADMIN", "SUPPORT"),

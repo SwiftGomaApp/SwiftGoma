@@ -3,20 +3,18 @@ const {
   checkDepositStatus,
   initiatePayout,
   checkPayoutStatus,
-  initiateRefund,
   checkRefundStatus,
   getWalletBalances,
   getActiveConfiguration,
 } = require("../services/pawapay.service");
+const { ValidationError } = require("../../../common/errors");
 const {
   requestPawaPayPayoutApproval,
   confirmPawaPayPayout,
+  requestPawaPayRefundApproval,
+  confirmPawaPayRefundApproval,
 } = require("../services/adminPayoutApproval.service");
 const { listAdminPayouts } = require("../services/adminPayout.service");
-
-// -----------------------------
-// DEPOSITS
-// -----------------------------
 
 async function postInitiateDeposit(req, res, next) {
   try {
@@ -44,10 +42,6 @@ async function getDepositStatus(req, res, next) {
     next(err);
   }
 }
-
-// -----------------------------
-// PAYOUTS
-// -----------------------------
 
 async function postInitiatePayout(req, res, next) {
   try {
@@ -106,13 +100,9 @@ async function postConfirmPayout(req, res, next) {
   }
 }
 
-// -----------------------------
-// REFUNDS
-// -----------------------------
-
-async function postInitiateRefund(req, res, next) {
+async function postRequestRefundApproval(req, res, next) {
   try {
-    const result = await initiateRefund({
+    const result = await requestPawaPayRefundApproval(req.user.id, {
       depositId: req.body.depositId,
       amount: req.body.amount,
       currency: req.body.currency,
@@ -120,10 +110,30 @@ async function postInitiateRefund(req, res, next) {
       provider: req.body.provider,
       metadata: req.body.metadata || {},
     });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postConfirmRefund(req, res, next) {
+  try {
+    const result = await confirmPawaPayRefundApproval(req.user.id, {
+      pendingId: req.body.pendingId,
+      code: req.body.code,
+    });
     res.status(201).json({ success: true, data: result });
   } catch (err) {
     next(err);
   }
+}
+
+async function postInitiateRefund(req, res, next) {
+  next(
+    new ValidationError(
+      "Les remboursements directs sont désactivés. Utilisez POST /pawapay/refunds/request-approval puis POST /pawapay/refunds/confirm avec le code OTP.",
+    ),
+  );
 }
 
 async function getRefundStatus(req, res, next) {
@@ -134,10 +144,6 @@ async function getRefundStatus(req, res, next) {
     next(err);
   }
 }
-
-// -----------------------------
-// WALLET / CONFIG (ADMIN only)
-// -----------------------------
 
 async function getBalances(req, res, next) {
   try {
@@ -176,6 +182,8 @@ module.exports = {
   postInitiatePayout,
   postRequestPayoutApproval,
   postConfirmPayout,
+  postRequestRefundApproval,
+  postConfirmRefund,
   getPayoutHistory,
   getPayoutStatus,
   postInitiateRefund,

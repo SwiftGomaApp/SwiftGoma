@@ -96,6 +96,37 @@ export async function getPawaPayPayoutStatus(payoutId: string): Promise<unknown>
   return unwrap(res);
 }
 
+export async function requestPawaPayRefundApproval(input: {
+  depositId: string;
+  amount?: number;
+  currency?: string;
+  country?: string;
+  provider?: string;
+}): Promise<{
+  pendingId: string;
+  message: string;
+  expiresInMinutes: number;
+  summary: {
+    depositId: string;
+    amount?: number;
+    currency?: string;
+    country?: string;
+    provider?: string;
+  };
+}> {
+  const res = await apiClient.post("/pawapay/refunds/request-approval", input);
+  return unwrap(res);
+}
+
+export async function confirmPawaPayRefund(input: {
+  pendingId: string;
+  code: string;
+}): Promise<unknown> {
+  const res = await apiClient.post("/pawapay/refunds/confirm", input);
+  return unwrap(res);
+}
+
+/** @deprecated Use requestPawaPayRefundApproval + confirmPawaPayRefund */
 export async function initiatePawaPayRefund(input: {
   depositId: string;
   amount?: number;

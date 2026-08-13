@@ -601,11 +601,6 @@ async function listPublishedShops({ page = 1, limit = 20, search, city } = {}) {
   });
 }
 
-// Admin/support moderation view — unlike listPublishedShops, this isn't
-// restricted to status: "PUBLISHED" (an admin needs to find DRAFT and
-// SUSPENDED shops too, e.g. to review a suspension or publish on a
-// seller's behalf) and isn't cached, since it's low-traffic and needs to
-// reflect the latest state right after a moderation action.
 async function listAllShops({ page = 1, limit = 20, search, status } = {}) {
   const safePage = Math.max(parseInt(page, 10) || 1, 1);
   const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);

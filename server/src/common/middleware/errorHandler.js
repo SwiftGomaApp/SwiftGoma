@@ -8,24 +8,24 @@ function normalize(err) {
     err.type === "entity.parse.failed" ||
     (err instanceof SyntaxError && "body" in err)
   ) {
-    return new AppError("Malformed JSON in request body.", 400, "BAD_REQUEST");
+    return new AppError("JSON mal formé dans le corps de la requête.", 400, "BAD_REQUEST");
   }
 
   if (err.name === "MulterError") {
     const messages = {
-      LIMIT_FILE_SIZE: "File is too large.",
-      LIMIT_FILE_COUNT: "Too many files uploaded.",
-      LIMIT_UNEXPECTED_FILE: "Unexpected file field.",
+      LIMIT_FILE_SIZE: "Fichier trop volumineux.",
+      LIMIT_FILE_COUNT: "Trop de fichiers téléversés.",
+      LIMIT_UNEXPECTED_FILE: "Champ de fichier inattendu.",
     };
     return new AppError(
-      messages[err.code] || "File upload failed.",
+      messages[err.code] || "Échec du téléversement du fichier.",
       400,
       "BAD_REQUEST",
     );
   }
 
   const fallback = new AppError(
-    isProduction ? "Something went wrong on our end." : err.message,
+    isProduction ? "Une erreur interne s'est produite." : err.message,
     err.status || err.statusCode || 500,
     "INTERNAL_ERROR",
   );

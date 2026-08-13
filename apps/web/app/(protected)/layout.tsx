@@ -5,10 +5,10 @@ import { getServerUser } from "@/lib/api/get-server-user";
 import { Header } from "@/components/global/hearder";
 import { Footer } from "@/components/global/footer";
 import { RequireAuth } from "@/components/auth/require-auth";
-import { publicApi } from "@/lib/api/routes/public";
+import { getCachedCategories } from "@/lib/api/cached-public";
 import { CATEGORIES } from "@/lib/mock-categories";
-import { ApiStatus, classifyApiError } from "@/lib/api/classify-error";
 import { NOINDEX_ROBOTS } from "@/lib/seo";
+import type { Category } from "@/lib/api/routes/public";
 
 export const metadata: Metadata = {
   robots: NOINDEX_ROBOTS,
@@ -19,25 +19,19 @@ export default async function ProtectedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getServerUser();
-
-  let categories: Awaited<ReturnType<typeof publicApi.listCategories>> =
-    CATEGORIES;
-  let status: ApiStatus = null;
-
-  try {
-    categories = await publicApi.listCategories();
-  } catch (err) {
-    status = classifyApiError(err);
-    console.warn(
-      "[MainLayout] Failed to load categories, using fallback:",
-      (err as Error).message,
-    );
-    categories = CATEGORIES;
-  }
-
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") ?? "/";
+
+  const [user, categories] = await Promise.all([
+    getServerUser(),
+    getCachedCategories().catch((err) => {
+      console.warn(
+        "[ProtectedLayout] Failed to load categories, using fallback:",
+        (err as Error).message,
+      );
+      return CATEGORIES as Category[];
+    }),
+  ]);
 
   if (!user) {
     redirect(`/auth/sign-in?next=${encodeURIComponent(pathname)}`);

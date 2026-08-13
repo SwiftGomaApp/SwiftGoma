@@ -31,7 +31,8 @@ import {
   listAdminOrders,
   getAdminOrder,
   cancelAdminOrder,
-  refundAdminOrder,
+  requestAdminOrderRefundApproval,
+  confirmAdminOrderRefund,
   type AdminOrderDetail,
   type AdminOrderSummary,
   type OrderStatus,
@@ -42,6 +43,8 @@ import { formatDateTime } from "@/lib/i18n/format";
 import { labelOf, orderStatusLabels } from "@/lib/i18n/labels";
 import { showErrorToast, showSuccessToast } from "@/lib/admin-toast";
 import { ui } from "@/lib/i18n/common";
+import { useConfirm } from "@/components/admin/confirm-dialog";
+import { VerificationCodeDialog } from "@/components/dialogs/codes-dialog";
 
 const STATUSES: OrderStatus[] = [
   "AWAITING_PAYMENT",
@@ -72,6 +75,7 @@ const CANCELLABLE: OrderStatus[] = [
 const REFUNDABLE: OrderStatus[] = ["CANCELLED", "REJECTED", "EXPIRED", "FAILED"];
 
 export default function OrdersPage() {
+  const confirm = useConfirm();
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
 
@@ -91,6 +95,16 @@ export default function OrdersPage() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [isActing, setIsActing] = useState(false);
+  const [refundPendingId, setRefundPendingId] = useState<string | null>(null);
+  const [refundApprovalContext, setRefundApprovalContext] = useState<{
+    amount: number | string;
+    currency: string;
+    beneficiary: string;
+    providerLabel: string;
+  } | null>(null);
+  const [refundOtpOpen, setRefundOtpOpen] = useState(false);
+  const [refundOtpError, setRefundOtpError] = useState<string | null>(null);
+  const [isConfirmingRefund, setIsConfirmingRefund] = useState(false);
 
   async function load() {
     setIsLoading(true);
@@ -155,20 +169,61 @@ export default function OrdersPage() {
     }
   }
 
-  async function handleRefund() {
-    if (!detailId) return;
+  async function handleRequestRefundApproval() {
+    if (!detailId || !detail) return;
+
+    const ok = await confirm({
+      title: "Demander l'approbation du remboursement",
+      description: `Demander le remboursement de ${detail.payment?.amount} ${detail.currency} à ${detail.buyer.name} ? Un code de vérification sera envoyé à votre e-mail administrateur.`,
+      confirmLabel: "Envoyer le code de vérification",
+      destructive: true,
+    });
+    if (!ok) return;
+
     setIsActing(true);
+    setRefundOtpError(null);
     try {
-      await refundAdminOrder(detailId);
+      const result = await requestAdminOrderRefundApproval(detailId);
+      setRefundPendingId(result.pendingId);
+      setRefundApprovalContext({
+        amount: result.summary.amount,
+        currency: result.summary.currency,
+        beneficiary: result.summary.beneficiary,
+        providerLabel: "MbiyoPay (remboursement commande)",
+      });
+      setRefundOtpOpen(true);
+      showSuccessToast("Code de vérification envoyé", result.message);
+    } catch (err) {
+      showErrorToast(
+        "Échec de la demande d'approbation",
+        getErrorMessage(err, "Impossible de demander l'approbation du remboursement."),
+      );
+    } finally {
+      setIsActing(false);
+    }
+  }
+
+  async function handleConfirmRefundOtp(code: string) {
+    if (!detailId || !refundPendingId) return;
+    setIsConfirmingRefund(true);
+    setRefundOtpError(null);
+    try {
+      await confirmAdminOrderRefund(detailId, {
+        pendingId: refundPendingId,
+        code,
+      });
+      setRefundOtpOpen(false);
+      setRefundPendingId(null);
+      setRefundApprovalContext(null);
       showSuccessToast(
-        "Remboursement lancé",
-        "Vérifiez le statut du paiement.",
+        "Remboursement approuvé",
+        "Le remboursement a été soumis à MbiyoPay.",
       );
       await reloadDetail();
     } catch (err) {
-      showErrorToast("Échec", getErrorMessage(err, "Remboursement impossible."));
+      setRefundOtpError(getErrorMessage(err, "Code invalide ou expiré."));
     } finally {
-      setIsActing(false);
+      setIsConfirmingRefund(false);
     }
   }
 
@@ -444,9 +499,9 @@ export default function OrdersPage() {
                   type="button"
                   variant="outline"
                   disabled={isActing}
-                  onClick={handleRefund}
+                  onClick={handleRequestRefundApproval}
                 >
-                  Relancer le remboursement
+                  Demander le remboursement (OTP)
                 </Button>
               )}
             </div>
@@ -459,6 +514,16 @@ export default function OrdersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <VerificationCodeDialog
+        open={refundOtpOpen}
+        onOpenChange={setRefundOtpOpen}
+        type="payout-approval"
+        context={refundApprovalContext ?? undefined}
+        onSubmit={handleConfirmRefundOtp}
+        isSubmitting={isConfirmingRefund}
+        error={refundOtpError}
+      />
     </div>
   );
 }

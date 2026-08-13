@@ -4,6 +4,7 @@ import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { ConsentBanner } from "@/components/global/consent-banner";
+import { getServerUser } from "@/lib/api/get-server-user";
 import { AuthProvider } from "@/providers/auth-provider";
 import { CartProvider } from "@/providers/cart-provider";
 import { FavoritesProvider } from "@/providers/favorites-provider";
@@ -71,11 +72,12 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const initialUser = await getServerUser();
   const structuredData = [organizationJsonLd(), websiteJsonLd()];
 
   return (
@@ -92,7 +94,7 @@ export default function RootLayout({
           }}
         />
         <Toaster>
-          <AuthProvider>
+          <AuthProvider initialUser={initialUser}>
             <SocketProvider>
               <CartProvider>
                 <FavoritesProvider>

@@ -28,13 +28,14 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({
   children,
-  initialUser = null,
+  initialUser,
 }: {
   children: React.ReactNode;
+  /** Pass from the server when the session is already resolved to skip a client /auth/me call. */
   initialUser?: User | null;
 }) {
-  const [user, setUser] = useState<User | null>(initialUser);
-  const [isLoading, setIsLoading] = useState(initialUser === null);
+  const [user, setUser] = useState<User | null>(initialUser ?? null);
+  const [isLoading, setIsLoading] = useState(initialUser === undefined);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const hadOneSignalSessionRef = useRef(Boolean(initialUser));
 
@@ -53,7 +54,7 @@ export function AuthProvider({
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional fetch on mount when no server-provided user
-    if (initialUser === null) refresh();
+    if (initialUser === undefined) refresh();
   }, []);
 
   useEffect(() => {

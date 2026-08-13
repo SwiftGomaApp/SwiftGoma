@@ -110,7 +110,7 @@ async function createNotification({
     where: { id: userId },
     include: { emails: { where: { isPrimary: true }, take: 1 } },
   });
-  if (!user) throw new NotFoundError("User not found.");
+  if (!user) throw new NotFoundError("Utilisateur introuvable.");
 
   const channels = await resolveChannels(userId, type);
 
@@ -174,7 +174,7 @@ async function markAsRead(userId, notificationId) {
   const notification = await prisma.notification.findFirst({
     where: { id: notificationId, userId },
   });
-  if (!notification) throw new NotFoundError("Notification not found.");
+  if (!notification) throw new NotFoundError("Notification introuvable.");
   if (notification.isRead) {
     return buildNotificationPayload(notification);
   }
@@ -200,7 +200,7 @@ async function deleteNotification(userId, notificationId) {
   const notification = await prisma.notification.findFirst({
     where: { id: notificationId, userId },
   });
-  if (!notification) throw new NotFoundError("Notification not found.");
+  if (!notification) throw new NotFoundError("Notification introuvable.");
 
   await prisma.notification.delete({ where: { id: notificationId } });
   return { id: notificationId, deleted: true };
@@ -211,7 +211,7 @@ async function getPreferences(userId) {
 }
 
 async function updatePreference({ userId, type, inApp, email, sms, push }) {
-  if (!type) throw new BadRequestError("Notification type is required.");
+  if (!type) throw new BadRequestError("Le type de notification est requis.");
 
   const updated = await prisma.notificationPreference.upsert({
     where: { userId_type: { userId, type } },

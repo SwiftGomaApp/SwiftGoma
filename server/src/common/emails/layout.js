@@ -20,10 +20,10 @@ function renderEmailLayout({
   bodyHtml,
   cta = null,
   reason,
-  locale = "en",
+  locale = "fr",
 }) {
   const { colors } = BRAND;
-  const t = FOOTER_TEXT[locale] || FOOTER_TEXT.en;
+  const t = FOOTER_TEXT[locale] || FOOTER_TEXT.fr;
 
   const ctaHtml = cta
     ? `
@@ -44,7 +44,7 @@ function renderEmailLayout({
     : "";
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${locale}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -127,35 +127,35 @@ function renderEmailLayout({
               style="padding: 16px 40px 32px 40px; font-family: ${FONT_FAMILY}; font-size: 12px; line-height: 1.6; color: ${colors.muted};"
             >
               ${t.reportIssue}
-              <a
+
                 href="mailto:${BRAND.supportEmail}"
                 style="color: ${colors.muted}; text-decoration: underline;"
               >
                 ${BRAND.supportEmail}
               </a>.
               <br /><br />
-              <a
+
                 href="${BRAND.social.instagram}"
                 style="color: ${colors.muted}; text-decoration: underline;"
               >
                 Instagram
               </a>
               &nbsp;&middot;&nbsp;
-              <a
+
                 href="${BRAND.social.facebook}"
                 style="color: ${colors.muted}; text-decoration: underline;"
               >
                 Facebook
               </a>
               &nbsp;&middot;&nbsp;
-              <a
+
                 href="${BRAND.social.tiktok}"
                 style="color: ${colors.muted}; text-decoration: underline;"
               >
                 TikTok
               </a>
               <br /><br />
-              Copyright &copy; ${new Date().getFullYear()} ${BRAND.name}. ${t.rights}
+              &copy; ${new Date().getFullYear()} ${BRAND.name}. ${t.rights}
               <br />
               ${BRAND.address}
             </td>
