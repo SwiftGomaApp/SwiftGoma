@@ -8,6 +8,7 @@ import 'package:swiftgoma_client/core/theme/app_typography.dart';
 import 'package:swiftgoma_client/core/widgets/button/view/app_button.dart';
 import 'package:swiftgoma_client/core/widgets/placeholder/image_placeholder.dart';
 import 'package:swiftgoma_client/features/cart/model/cart_item.dart';
+import 'package:swiftgoma_client/features/cart/view/widgets/cart_item_tile.dart';
 import 'package:swiftgoma_client/features/cart/viewmodel/cart_cubit.dart';
 
 class CartScreen extends StatelessWidget {
@@ -78,7 +79,7 @@ class CartScreen extends StatelessWidget {
                     height: 32.h,
                   ),
                   itemBuilder: (context, index) =>
-                      _CartItemTile(item: items[index]),
+                      CartItemTile(item: items[index]),
                 ),
               ),
               Padding(
@@ -95,7 +96,7 @@ class CartScreen extends StatelessWidget {
                     ),
                     Text(
                       '\$ ${cubit.total.toStringAsFixed(2)}',
-                      style: AppTypography.h2.copyWith(
+                      style: AppTypography.h3.copyWith(
                         color: AppColors.neutralDark1,
                       ),
                     ),
@@ -115,97 +116,6 @@ class CartScreen extends StatelessWidget {
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-class _CartItemTile extends StatelessWidget {
-  const _CartItemTile({required this.item});
-
-  final CartItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final CartCubit cubit = context.read<CartCubit>();
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 88.w,
-          height: 88.w,
-          child: ImagePlaceholder(borderRadius: BorderRadius.circular(20.r)),
-        ),
-        SizedBox(width: 16.w),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                item.product.name,
-                style: AppTypography.h4.copyWith(
-                  color: AppColors.neutralDark1,
-                ),
-              ),
-              SizedBox(height: 4.h),
-              Text(
-                '${item.color} / ${item.size}',
-                style: AppTypography.bodyM.copyWith(
-                  color: AppColors.neutralDark5,
-                ),
-              ),
-              SizedBox(height: 12.h),
-              Row(
-                children: [
-                  _QtyButton(
-                    icon: Icons.remove,
-                    onTap: () => cubit.decrement(item),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14.w),
-                    child: Text(
-                      '${item.quantity}',
-                      style: AppTypography.h4.copyWith(
-                        color: AppColors.neutralDark1,
-                      ),
-                    ),
-                  ),
-                  _QtyButton(
-                    icon: Icons.add,
-                    onTap: () => cubit.increment(item),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        Text(
-          '\$ ${item.total.toStringAsFixed(2)}',
-          style: AppTypography.h3.copyWith(color: AppColors.neutralDark1),
-        ),
-      ],
-    );
-  }
-}
-
-class _QtyButton extends StatelessWidget {
-  const _QtyButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 28.w,
-        height: 28.w,
-        decoration: const BoxDecoration(
-          color: AppColors.highlight5,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, size: 16.w, color: AppColors.highlight1),
       ),
     );
   }

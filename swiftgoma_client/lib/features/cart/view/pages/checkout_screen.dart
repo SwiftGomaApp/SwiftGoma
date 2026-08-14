@@ -6,7 +6,9 @@ import 'package:swiftgoma_client/app/routes/app_routes.dart';
 import 'package:swiftgoma_client/core/theme/app_colors.dart';
 import 'package:swiftgoma_client/core/theme/app_typography.dart';
 import 'package:swiftgoma_client/core/widgets/button/view/app_button.dart';
-// import 'package:swiftgoma_client/features/cart/model/cart_item.dart';
+import 'package:swiftgoma_client/features/cart/view/widgets/currency_card.dart';
+import 'package:swiftgoma_client/features/cart/view/widgets/method_card.dart';
+import 'package:swiftgoma_client/features/cart/view/widgets/provider_card.dart';
 import 'package:swiftgoma_client/features/cart/viewmodel/cart_cubit.dart';
 
 enum _PaymentMethod { mobile, cashOnDelivery }
@@ -109,7 +111,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                   ),
                   SizedBox(height: 20.h),
-                  _MethodCard(
+                  MethodCard(
                     title: 'Mobile Payment',
                     selected: _method == _PaymentMethod.mobile,
                     onTap: () =>
@@ -119,7 +121,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         : null,
                   ),
                   SizedBox(height: 16.h),
-                  _MethodCard(
+                  MethodCard(
                     title: 'Cash on Delivery',
                     selected: _method == _PaymentMethod.cashOnDelivery,
                     onTap: () => setState(
@@ -149,20 +151,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         SizedBox(height: 16.h),
         Row(
           children: [
-            _ProviderCard(
-              label: 'airtel\nmoney',
+            ProviderCard(
+              label: 'airtel money',
+              assetPath: 'assets/images/providers/airtel_money.png',
               selected: _provider == _Provider.airtel,
               onTap: () => setState(() => _provider = _Provider.airtel),
             ),
             SizedBox(width: 12.w),
-            _ProviderCard(
-              label: 'Orange\nMoney',
+            ProviderCard(
+              label: 'Orange Money',
+              assetPath: 'assets/images/providers/orange_money.png',
               selected: _provider == _Provider.orange,
               onTap: () => setState(() => _provider = _Provider.orange),
             ),
             SizedBox(width: 12.w),
-            _ProviderCard(
-              label: 'vodacom\nM-Pesa',
+            ProviderCard(
+              label: 'vodacom M-Pesa',
+              assetPath: 'assets/images/providers/vodacom.png',
               selected: _provider == _Provider.vodacom,
               onTap: () => setState(() => _provider = _Provider.vodacom),
             ),
@@ -208,14 +213,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         SizedBox(height: 20.h),
         Row(
           children: [
-            _CurrencyCard(
+            CurrencyCard(
               amount: '\$ ${total.toStringAsFixed(2)}',
               code: 'USD',
               selected: _currency == _Currency.usd,
               onTap: () => setState(() => _currency = _Currency.usd),
             ),
             SizedBox(width: 12.w),
-            _CurrencyCard(
+            CurrencyCard(
               amount: 'Fr ${_formatCdf(total)}',
               code: 'CDF',
               selected: _currency == _Currency.cdf,
@@ -224,179 +229,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ],
         ),
       ],
-    );
-  }
-}
-
-class _MethodCard extends StatelessWidget {
-  const _MethodCard({
-    required this.title,
-    required this.selected,
-    required this.onTap,
-    this.child,
-  });
-
-  final String title;
-  final bool selected;
-  final VoidCallback onTap;
-  final Widget? child;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.neutralLight3),
-          borderRadius: BorderRadius.circular(16.r),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                _RadioDot(selected: selected),
-                SizedBox(width: 12.w),
-                Text(
-                  title,
-                  style: AppTypography.h4.copyWith(
-                    color: AppColors.neutralDark2,
-                  ),
-                ),
-              ],
-            ),
-            ?child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RadioDot extends StatelessWidget {
-  const _RadioDot({required this.selected});
-
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 20.w,
-      height: 20.w,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: selected ? AppColors.highlight1 : AppColors.neutralLight5,
-        border: Border.all(
-          color: selected ? AppColors.highlight1 : AppColors.neutralLight1,
-          width: 1.5,
-        ),
-      ),
-      child: selected
-          ? Center(
-              child: Container(
-                width: 7.w,
-                height: 7.w,
-                decoration: const BoxDecoration(
-                  color: AppColors.neutralLight5,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            )
-          : null,
-    );
-  }
-}
-
-class _ProviderCard extends StatelessWidget {
-  const _ProviderCard({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 76.h,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? AppColors.highlight4 : AppColors.highlight5,
-            borderRadius: BorderRadius.circular(14.r),
-            border: selected
-                ? Border.all(color: AppColors.highlight1, width: 1.5)
-                : null,
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: AppTypography.h5.copyWith(color: AppColors.neutralDark1),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CurrencyCard extends StatelessWidget {
-  const _CurrencyCard({
-    required this.amount,
-    required this.code,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String amount;
-  final String code;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 14.h),
-          decoration: BoxDecoration(
-            color: AppColors.highlight5,
-            borderRadius: BorderRadius.circular(14.r),
-          ),
-          child: Row(
-            children: [
-              _RadioDot(selected: selected),
-              SizedBox(width: 10.w),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      amount,
-                      style: AppTypography.h3.copyWith(
-                        color: AppColors.neutralDark1,
-                      ),
-                    ),
-                    Text(
-                      code,
-                      style: AppTypography.bodyS.copyWith(
-                        color: AppColors.neutralDark4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
