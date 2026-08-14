@@ -14,11 +14,11 @@ function buildStore(name) {
   });
 }
 
-function userOrIpKey(req) {
+function userOrIpKey(req, res) {
   if (req.user?.id) {
     return `user:${req.user.id}`;
   }
-  return `ip:${req.ip}`;
+  return `ip:${rateLimit.ipKeyGenerator(req, res)}`;
 }
 
 function createRateLimiter({ name, windowMs, max, message, keyGenerator }) {

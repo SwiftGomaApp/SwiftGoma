@@ -1,4 +1,3 @@
-// components/global/hearder.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -15,6 +14,7 @@ import {
   Menu,
   Heart,
   Package,
+  Loader,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +43,7 @@ import { useCart } from "@/providers/cart-provider";
 import { NotificationsModal } from "@/components/global/notifications-modal";
 import { notificationsApi } from "@/lib/api/routes/notifications";
 import Logo from "./logo";
+import { Spinner } from "../ui/spinner";
 
 const NAV_LINKS_BEFORE_CATEGORIES = [
   { href: "/", label: "Accueil" },
@@ -79,7 +80,7 @@ function categoryDescription(subcategories: Subcategory[]) {
 
 function UserAvatar({
   avatarUrl,
-  size = 20,
+  size = 30,
 }: {
   avatarUrl: string | null | undefined;
   size?: number;
@@ -87,7 +88,7 @@ function UserAvatar({
   if (avatarUrl) {
     return (
       <span
-        className="relative shrink-0 overflow-hidden rounded-full"
+        className="relative shrink-0 overflow-hidden rounded-full ring-1 ring-border"
         style={{ width: size, height: size }}
       >
         <Image
@@ -100,7 +101,17 @@ function UserAvatar({
       </span>
     );
   }
-  return <UserIcon className="h-5 w-5" />;
+  return (
+    <span
+      className="flex shrink-0 items-center justify-center rounded-full bg-muted ring-1 ring-border"
+      style={{ width: size, height: size }}
+    >
+      <UserIcon
+        className="text-muted-foreground"
+        style={{ width: size * 0.55, height: size * 0.55 }}
+      />
+    </span>
+  );
 }
 
 export function Header({ categories, compact = false }: HeaderProps) {
@@ -109,6 +120,7 @@ export function Header({ categories, compact = false }: HeaderProps) {
   const { totalItemCount, openCart } = useCart();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -133,6 +145,7 @@ export function Header({ categories, compact = false }: HeaderProps) {
   async function handleLogout() {
     if (isLoggingOut) return;
     await logout();
+    setAccountMenuOpen(false);
     setMobileMenuOpen(false);
     toast.success("Vous êtes déconnecté.");
     router.push("/");
@@ -213,34 +226,34 @@ export function Header({ categories, compact = false }: HeaderProps) {
         <div className="flex items-center justify-end gap-1 sm:gap-2">
           {!compact && (
             <>
-          {/* Filters — icon only on mobile, full "Filtrer ⌘K" on sm+ */}
-          <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <SheetTrigger
-              render={
-                <button
-                  type="button"
-                  className="hidden items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted sm:flex"
-                />
-              }
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              <span>Filtrer</span>
-              <Kbd className="ml-2">⌘K</Kbd>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-full sm:max-w-md">
-              <ProductFilters onApply={() => setFiltersOpen(false)} />
-            </SheetContent>
-          </Sheet>
+              {/* Filters — icon only on mobile, full "Filtrer ⌘K" on sm+ */}
+              <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+                <SheetTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="hidden items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted sm:flex"
+                    />
+                  }
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  <span>Filtrer</span>
+                  <Kbd className="ml-2">⌘K</Kbd>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-full sm:max-w-md">
+                  <ProductFilters onApply={() => setFiltersOpen(false)} />
+                </SheetContent>
+              </Sheet>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Filtrer les produits"
-            className="sm:hidden"
-            onClick={() => setFiltersOpen(true)}
-          >
-            <SlidersHorizontal className="h-5 w-5" />
-          </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Filtrer les produits"
+                className="sm:hidden"
+                onClick={() => setFiltersOpen(true)}
+              >
+                <SlidersHorizontal className="h-5 w-5" />
+              </Button>
             </>
           )}
 
@@ -249,7 +262,13 @@ export function Header({ categories, compact = false }: HeaderProps) {
             {isLoading ? (
               <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
             ) : user ? (
-              <DropdownMenu>
+              <DropdownMenu
+                open={accountMenuOpen}
+                onOpenChange={(open) => {
+                  if (isLoggingOut) return;
+                  setAccountMenuOpen(open);
+                }}
+              >
                 <DropdownMenuTrigger
                   render={
                     <Button
@@ -270,8 +289,11 @@ export function Header({ categories, compact = false }: HeaderProps) {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuGroup>
                     <DropdownMenuLabel className="flex items-center gap-2 truncate">
-                      <UserAvatar avatarUrl={user.avatarUrl} size={20} />
-                      <span className="truncate">{user.name}</span>
+                      <UserAvatar avatarUrl={user.avatarUrl} size={30} />
+                      <div className="flex flex-col">
+                        <span className="truncate font-bold">{user.name}</span>
+                        <span className="truncate">{user.email}</span>
+                      </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <NotificationsModal
@@ -316,7 +338,14 @@ export function Header({ categories, compact = false }: HeaderProps) {
                     disabled={isLoggingOut}
                   >
                     <LogOut className="mr-2 h-4 w-4" />
-                    {isLoggingOut ? "Déconnexion..." : "Déconnexion"}
+                    {isLoggingOut ? (
+                      <span className="flex items-center gap-2">
+                        <Spinner className="h-4 w-4" />
+                        Déconnexion...
+                      </span>
+                    ) : (
+                      "Déconnexion"
+                    )}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -486,7 +515,14 @@ export function Header({ categories, compact = false }: HeaderProps) {
                         className="flex items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-destructive hover:bg-destructive/10 disabled:pointer-events-none disabled:opacity-50"
                       >
                         <LogOut className="h-4 w-4" />
-                        {isLoggingOut ? "Déconnexion..." : "Déconnexion"}
+                        {isLoggingOut ? (
+                          <span className="flex items-center gap-2">
+                            <Spinner className="h-4 w-4" />
+                            Déconnexion...
+                          </span>
+                        ) : (
+                          "Déconnexion"
+                        )}
                       </button>
                     </div>
                   ) : (
