@@ -50,7 +50,7 @@ async function postResubmitKyc(req, res, next) {
   try {
     const { idDocumentFile, proofOfAddressFile, selfieFile, rccmDocumentFile } =
       extractKycFiles(req);
-    const kyc = await submitKyc({
+    const kyc = await resubmitKyc({
       userId: req.user.id,
       idDocumentType: req.body.idDocumentType,
       idDocumentFile,
@@ -85,11 +85,13 @@ async function getKycDetail(req, res, next) {
 
 async function postSupportReview(req, res, next) {
   try {
+    
     const kyc = await supportReviewKyc(
       req.user,
       req.params.id,
       req.body.callNotes,
     );
+
     res.status(200).json({ success: true, data: kyc });
   } catch (err) {
     next(err);

@@ -124,6 +124,27 @@ export async function createExpense(
   return unwrap(res);
 }
 
+export async function updateExpense(
+  id: string,
+  input: CreateExpenseInput,
+): Promise<ExpenseRecord> {
+  const form = new FormData();
+  Object.entries(input).forEach(([key, value]) => {
+    if (key === "receipt") return;
+    if (value !== undefined && value !== null && value !== "") {
+      form.append(key, String(value));
+    }
+  });
+  if (input.receipt) {
+    form.append("receipt", input.receipt);
+  }
+
+  const res = await apiClient.put(`/expenses/${id}`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return unwrap(res);
+}
+
 export async function rejectExpense(
   id: string,
   reason: string,
@@ -158,4 +179,22 @@ export async function confirmExpenseApproval(
 export async function getExpense(id: string): Promise<ExpenseRecord> {
   const res = await apiClient.get(`/expenses/${id}`);
   return unwrap(res);
+}
+
+export async function exportExpensesCsv(
+  params: {
+    status?: ExpenseStatus;
+    category?: ExpenseCategory;
+  } = {},
+): Promise<{ blob: Blob; filename: string }> {
+  const res = await apiClient.get("/expenses/export/csv", {
+    params,
+    responseType: "blob",
+  });
+
+  const disposition = res.headers["content-disposition"] as string | undefined;
+  const filenameMatch = disposition?.match(/filename="(.+?)"/);
+  const filename = filenameMatch?.[1] ?? "depenses.csv";
+
+  return { blob: res.data as Blob, filename };
 }

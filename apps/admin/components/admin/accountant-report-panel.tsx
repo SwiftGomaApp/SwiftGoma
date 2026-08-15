@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Mail, RefreshCw } from "lucide-react";
+import { Download, FileSpreadsheet, Mail, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  downloadAccountantReportCsv,
   downloadAccountantReportPdf,
   emailAccountantReportToAdmins,
   getAccountantReport,
@@ -40,6 +41,7 @@ export function AccountantReportPanel({
   const [isDownloading, setIsDownloading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDownloadingCsv, setIsDownloadingCsv] = useState(false);
 
   async function loadPreview() {
     setIsLoading(true);
@@ -47,10 +49,32 @@ export function AccountantReportPanel({
     try {
       setReport(await getAccountantReport({ from, to }));
     } catch (err) {
-      setError(getErrorMessage(err, "Impossible de charger l'aperçu du rapport."));
+      setError(
+        getErrorMessage(err, "Impossible de charger l'aperçu du rapport."),
+      );
       setReport(null);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleDownloadCsv() {
+    setIsDownloadingCsv(true);
+    try {
+      const { blob, filename } = await downloadAccountantReportCsv({
+        from,
+        to,
+      });
+      triggerBrowserDownload(blob, filename);
+      showSuccessToast("CSV téléchargé", filename);
+      onReportSaved?.();
+    } catch (err) {
+      showErrorToast(
+        "Échec du téléchargement",
+        getErrorMessage(err, "Impossible de générer le CSV."),
+      );
+    } finally {
+      setIsDownloadingCsv(false);
     }
   }
 
@@ -62,7 +86,10 @@ export function AccountantReportPanel({
   async function handleDownload() {
     setIsDownloading(true);
     try {
-      const { blob, filename } = await downloadAccountantReportPdf({ from, to });
+      const { blob, filename } = await downloadAccountantReportPdf({
+        from,
+        to,
+      });
       triggerBrowserDownload(blob, filename);
       showSuccessToast("PDF téléchargé", filename);
       onReportSaved?.();
@@ -123,6 +150,7 @@ export function AccountantReportPanel({
             <RefreshCw className="h-4 w-4" />
             Actualiser l&apos;aperçu
           </Button>
+
           <Button
             type="button"
             variant="outline"
@@ -131,6 +159,15 @@ export function AccountantReportPanel({
           >
             <Download className="h-4 w-4" />
             {isDownloading ? "Génération…" : "Télécharger le PDF"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleDownloadCsv}
+            disabled={isDownloadingCsv}
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            {isDownloadingCsv ? "Génération…" : "Télécharger le CSV"}
           </Button>
           <Button type="button" onClick={handleSendEmail} disabled={isSending}>
             <Mail className="h-4 w-4" />
@@ -154,13 +191,17 @@ export function AccountantReportPanel({
               <p className="font-medium">{report.reference}</p>
             </div>
             <div className="rounded-lg border p-3">
-              <p className="text-muted-foreground text-xs">Abonnements encaissés</p>
+              <p className="text-muted-foreground text-xs">
+                Abonnements encaissés
+              </p>
               <p className="text-sm">
                 {formatCurrencySummary(report.summary.subscriptionRevenue)}
               </p>
             </div>
             <div className="rounded-lg border p-3">
-              <p className="text-muted-foreground text-xs">Paiements commandes</p>
+              <p className="text-muted-foreground text-xs">
+                Paiements commandes
+              </p>
               <p className="text-sm">
                 {formatCurrencySummary(report.summary.orderPayments)}
               </p>
@@ -176,7 +217,9 @@ export function AccountantReportPanel({
               <p className="text-sm">{report.summary.invoices.total}</p>
             </div>
             <div className="rounded-lg border p-3">
-              <p className="text-muted-foreground text-xs">Paiements sortants admin</p>
+              <p className="text-muted-foreground text-xs">
+                Paiements sortants admin
+              </p>
               <p className="text-sm">
                 {report.summary.adminPayouts.count} ·{" "}
                 {formatCurrencySummary(report.summary.adminPayouts.totals)}
@@ -190,7 +233,9 @@ export function AccountantReportPanel({
               </p>
             </div>
             <div className="rounded-lg border p-3 md:col-span-2">
-              <p className="text-muted-foreground text-xs">Dépenses SwiftGoma</p>
+              <p className="text-muted-foreground text-xs">
+                Dépenses SwiftGoma
+              </p>
               <p className="text-sm">
                 {report.summary.companyExpenses.count} ·{" "}
                 {report.summary.companyExpenses.pending} en attente ·{" "}
@@ -199,8 +244,8 @@ export function AccountantReportPanel({
             </div>
             {report.truncated && (
               <p className="text-muted-foreground md:col-span-2 text-xs">
-                Le PDF inclut jusqu&apos;à 100 lignes par section pour la période
-                sélectionnée.
+                Le PDF inclut jusqu&apos;à 100 lignes par section pour la
+                période sélectionnée.
               </p>
             )}
           </div>

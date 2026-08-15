@@ -26,11 +26,11 @@ import {
 import {
   createExpense,
   getExpenseMeta,
+  updateExpense,
   type ExpenseCategory,
+  type ExpenseRecord,
 } from "@/lib/api/routes/expenses";
-import {
-  getPawaPayActiveConfiguration,
-} from "@/lib/api/routes/payments";
+import { getPawaPayActiveConfiguration } from "@/lib/api/routes/payments";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { showErrorToast, showSuccessToast } from "@/lib/admin-toast";
 import { ui } from "@/lib/i18n/common";
@@ -64,13 +64,16 @@ interface ExpenseFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  expense?: ExpenseRecord | null;
 }
 
 export function ExpenseFormDialog({
   open,
   onOpenChange,
   onSuccess,
+  expense = null,
 }: ExpenseFormDialogProps) {
+  const isEditMode = expense !== null;
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -115,9 +118,36 @@ export function ExpenseFormDialog({
         const options = parsePayoutOptions(config as PawaPayActiveConfig);
         const providers = getProvidersForCountry(options, DRC_PAWAPAY_COUNTRY);
         setCountryProviders(providers);
-        const defaults = getDefaultPayoutSelection(options);
-        setProvider(defaults.provider);
-        setCurrency(defaults.currency);
+
+        if (expense) {
+          setTitle(expense.title);
+          setDescription(expense.description ?? "");
+          setCategory(expense.category);
+          setAmount(String(expense.amount));
+          setCurrency(expense.currency);
+          setIncurredAt(toDateInputValue(new Date(expense.incurredAt)));
+          setVendorName(expense.vendorName);
+          setLocalPhone(
+            expense.vendorPhone.startsWith(DRC_DIAL_CODE)
+              ? expense.vendorPhone.slice(DRC_DIAL_CODE.length)
+              : expense.vendorPhone,
+          );
+          setProvider(expense.providerName);
+          setCustomerMessage(expense.customerMessage);
+        } else {
+          setTitle("");
+          setDescription("");
+          setCategory("OPERATIONS");
+          setAmount("");
+          setIncurredAt(toDateInputValue(new Date()));
+          setVendorName("");
+          setLocalPhone("");
+          setCustomerMessage("DepenseSwiftGoma");
+          setReceipt(null);
+          const defaults = getDefaultPayoutSelection(options);
+          setProvider(defaults.provider);
+          setCurrency(defaults.currency);
+        }
       } catch (err) {
         if (!cancelled) {
           showErrorToast(
@@ -134,7 +164,7 @@ export function ExpenseFormDialog({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, expense]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -144,7 +174,7 @@ export function ExpenseFormDialog({
 
     setIsSubmitting(true);
     try {
-      await createExpense({
+      const payload = {
         title,
         description: description || undefined,
         category,
@@ -157,13 +187,31 @@ export function ExpenseFormDialog({
         providerName: provider,
         customerMessage,
         receipt,
-      });
-      showSuccessToast("Dépense créée", "En attente d'approbation par un administrateur.");
+      };
+
+      if (isEditMode && expense) {
+        await updateExpense(expense.id, payload);
+        showSuccessToast(
+          "Dépense modifiée",
+          "Les changements ont été enregistrés.",
+        );
+      } else {
+        await createExpense(payload);
+        showSuccessToast(
+          "Dépense créée",
+          "En attente d'approbation par un administrateur.",
+        );
+      }
       onSuccess();
     } catch (err) {
       showErrorToast(
         "Échec",
-        getErrorMessage(err, "Impossible de créer la dépense."),
+        getErrorMessage(
+          err,
+          isEditMode
+            ? "Impossible de modifier la dépense."
+            : "Impossible de créer la dépense.",
+        ),
       );
     } finally {
       setIsSubmitting(false);
@@ -174,10 +222,13 @@ export function ExpenseFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nouvelle dépense</DialogTitle>
+          <DialogTitle>
+            {isEditMode ? "Modifier la dépense" : "Nouvelle dépense"}
+          </DialogTitle>
           <DialogDescription>
-            Saisissez les détails de la dépense. Le paiement PawaPay sera déclenché
-            après approbation OTP par un administrateur.
+            {isEditMode
+              ? "Seules les dépenses en attente ou en échec peuvent être modifiées."
+              : "Saisissez les détails de la dépense. Le paiement PawaPay sera déclenché après approbation OTP par un administrateur."}
           </DialogDescription>
         </DialogHeader>
 
@@ -192,7 +243,11 @@ export function ExpenseFormDialog({
             <FieldGroup className="gap-4 py-2">
               <Field>
                 <FieldLabel>Titre</FieldLabel>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                />
               </Field>
 
               <Field>
@@ -208,7 +263,9 @@ export function ExpenseFormDialog({
                 <FieldLabel>Catégorie</FieldLabel>
                 <NativeSelect
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
+                  onChange={(e) =>
+                    setCategory(e.target.value as ExpenseCategory)
+                  }
                   required
                 >
                   {categories.map((cat) => (
@@ -272,7 +329,10 @@ export function ExpenseFormDialog({
                   onChange={(e) => {
                     const next = e.target.value;
                     setProvider(next);
-                    const currencies = getCurrenciesForProvider(countryProviders, next);
+                    const currencies = getCurrenciesForProvider(
+                      countryProviders,
+                      next,
+                    );
                     if (currencies[0]) setCurrency(currencies[0]);
                   }}
                   required
@@ -311,11 +371,17 @@ export function ExpenseFormDialog({
                   maxLength={22}
                   required
                 />
-                <FieldDescription>4 à 22 caractères alphanumériques.</FieldDescription>
+                <FieldDescription>
+                  4 à 22 caractères alphanumériques.
+                </FieldDescription>
               </Field>
 
               <Field>
-                <FieldLabel>Justificatif (optionnel)</FieldLabel>
+                <FieldLabel>
+                  {isEditMode
+                    ? "Remplacer le justificatif (optionnel)"
+                    : "Justificatif (optionnel)"}
+                </FieldLabel>
                 <Input
                   type="file"
                   accept="image/jpeg,image/png,image/webp,application/pdf"
@@ -325,11 +391,19 @@ export function ExpenseFormDialog({
             </FieldGroup>
 
             <DialogFooter className="mt-4">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
                 {ui.cancel}
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Enregistrement…" : "Soumettre la dépense"}
+                {isSubmitting
+                  ? "Enregistrement…"
+                  : isEditMode
+                    ? "Enregistrer les modifications"
+                    : "Soumettre la dépense"}
               </Button>
             </DialogFooter>
           </form>

@@ -18,7 +18,9 @@ export async function initiatePawaPayDeposit(input: {
   return unwrap(res);
 }
 
-export async function getPawaPayDepositStatus(depositId: string): Promise<unknown> {
+export async function getPawaPayDepositStatus(
+  depositId: string,
+): Promise<unknown> {
   const res = await apiClient.get(`/pawapay/deposits/${depositId}`);
   return unwrap(res);
 }
@@ -57,10 +59,12 @@ export async function confirmPawaPayPayout(input: {
   return unwrap(res);
 }
 
-export async function getPawaPayPayoutHistory(params: {
-  page?: number;
-  limit?: number;
-} = {}): Promise<AdminPayoutHistoryResponse> {
+export async function getPawaPayPayoutHistory(
+  params: {
+    page?: number;
+    limit?: number;
+  } = {},
+): Promise<AdminPayoutHistoryResponse> {
   const res = await apiClient.get("/pawapay/payouts/history", { params });
   return unwrap(res);
 }
@@ -91,7 +95,9 @@ export interface AdminPayoutHistoryResponse {
   totalPages: number;
 }
 
-export async function getPawaPayPayoutStatus(payoutId: string): Promise<unknown> {
+export async function getPawaPayPayoutStatus(
+  payoutId: string,
+): Promise<unknown> {
   const res = await apiClient.get(`/pawapay/payouts/${payoutId}`);
   return unwrap(res);
 }
@@ -138,7 +144,9 @@ export async function initiatePawaPayRefund(input: {
   return unwrap(res);
 }
 
-export async function getPawaPayRefundStatus(refundId: string): Promise<unknown> {
+export async function getPawaPayRefundStatus(
+  refundId: string,
+): Promise<unknown> {
   const res = await apiClient.get(`/pawapay/refunds/${refundId}`);
   return unwrap(res);
 }
@@ -155,11 +163,13 @@ export async function getPawaPayBalances(): Promise<{
   return unwrap(res);
 }
 
-export async function getPawaPayActiveConfiguration(params: {
-  country?: string;
-  operationType?: string;
-  currency?: string;
-} = {}): Promise<unknown> {
+export async function getPawaPayActiveConfiguration(
+  params: {
+    country?: string;
+    operationType?: string;
+    currency?: string;
+  } = {},
+): Promise<unknown> {
   const res = await apiClient.get("/pawapay/active-configuration", { params });
   return unwrap(res);
 }
@@ -214,10 +224,12 @@ export async function confirmMbiyoPayPayout(input: {
   return unwrap(res);
 }
 
-export async function getMbiyoPayPayoutHistory(params: {
-  page?: number;
-  limit?: number;
-} = {}): Promise<AdminPayoutHistoryResponse> {
+export async function getMbiyoPayPayoutHistory(
+  params: {
+    page?: number;
+    limit?: number;
+  } = {},
+): Promise<AdminPayoutHistoryResponse> {
   const res = await apiClient.get("/mbiyopay/payout/history", { params });
   return unwrap(res);
 }
@@ -236,10 +248,12 @@ export async function getMbiyoPayBalances(currency?: string): Promise<unknown> {
   return unwrap(res);
 }
 
-export async function getMbiyoPayNetworkBalances(params: {
-  currency?: string;
-  countryCode?: string;
-} = {}): Promise<unknown> {
+export async function getMbiyoPayNetworkBalances(
+  params: {
+    currency?: string;
+    countryCode?: string;
+  } = {},
+): Promise<unknown> {
   const res = await apiClient.get("/mbiyopay/balances/networks", { params });
   return unwrap(res);
 }
@@ -251,13 +265,15 @@ export async function getMbiyoPayCountries(all = true): Promise<unknown> {
   return unwrap(res);
 }
 
-export async function getAdminTransactions(params: {
-  page?: number;
-  limit?: number;
-  provider?: "PAWAPAY" | "MBIYOPAY" | "";
-  status?: AdminPayoutRecord["status"] | "";
-  search?: string;
-} = {}): Promise<AdminPayoutHistoryResponse> {
+export async function getAdminTransactions(
+  params: {
+    page?: number;
+    limit?: number;
+    provider?: "PAWAPAY" | "MBIYOPAY" | "";
+    status?: AdminPayoutRecord["status"] | "";
+    search?: string;
+  } = {},
+): Promise<AdminPayoutHistoryResponse> {
   const res = await apiClient.get("/payments/transactions", {
     params: {
       page: params.page,
@@ -298,14 +314,16 @@ export interface PaymentLedgerResponse {
   totalPages: number;
 }
 
-export async function getPaymentLedger(params: {
-  page?: number;
-  limit?: number;
-  source?: PaymentLedgerSource | "";
-  direction?: "IN" | "OUT" | "";
-  status?: string;
-  search?: string;
-} = {}): Promise<PaymentLedgerResponse> {
+export async function getPaymentLedger(
+  params: {
+    page?: number;
+    limit?: number;
+    source?: PaymentLedgerSource | "";
+    direction?: "IN" | "OUT" | "";
+    status?: string;
+    search?: string;
+  } = {},
+): Promise<PaymentLedgerResponse> {
   const res = await apiClient.get("/payments/ledger", {
     params: {
       page: params.page,
@@ -317,4 +335,29 @@ export async function getPaymentLedger(params: {
     },
   });
   return unwrap(res);
+}
+
+export async function exportPaymentLedgerCsv(
+  params: {
+    source?: PaymentLedgerSource | "";
+    direction?: "IN" | "OUT" | "";
+    status?: string;
+    search?: string;
+  } = {},
+): Promise<{ blob: Blob; filename: string }> {
+  const res = await apiClient.get("/payments/ledger/export/csv", {
+    params: {
+      source: params.source || undefined,
+      direction: params.direction || undefined,
+      status: params.status || undefined,
+      search: params.search?.trim() || undefined,
+    },
+    responseType: "blob",
+  });
+
+  const disposition = res.headers["content-disposition"] as string | undefined;
+  const filenameMatch = disposition?.match(/filename="(.+?)"/);
+  const filename = filenameMatch?.[1] ?? "grand-livre.csv";
+
+  return { blob: res.data as Blob, filename };
 }
