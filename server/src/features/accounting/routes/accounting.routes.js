@@ -2,6 +2,7 @@ const express = require("express");
 const {
   getReportPreview,
   downloadReportPdf,
+  downloadReportCsv,
   sendReportEmail,
   getReportHistory,
   downloadStoredReportPdf,
@@ -18,5 +19,6 @@ AccountingRouter.get("/report/pdf", downloadReportPdf);
 AccountingRouter.post("/report/email", sendReportEmail);
 AccountingRouter.get("/reports", getReportHistory);
 AccountingRouter.get("/reports/:id/pdf", downloadStoredReportPdf);
+AccountingRouter.get("/report/csv", downloadReportCsv);
 
 module.exports = AccountingRouter;

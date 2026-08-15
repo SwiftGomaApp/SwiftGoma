@@ -1,17 +1,27 @@
 const { getPrismaClient } = require("../../../config/prisma");
-const { NotFoundError, ValidationError, ConflictError } = require("../../../common/errors");
+const {
+  NotFoundError,
+  ValidationError,
+  ConflictError,
+} = require("../../../common/errors");
 const {
   uploadPdf,
   uploadImage,
 } = require("../../../common/services/cloudinaryUpload");
-const { CLOUDINARY_FOLDERS } = require("../../../common/constants/cloudinaryFolders");
+const {
+  CLOUDINARY_FOLDERS,
+} = require("../../../common/constants/cloudinaryFolders");
 const {
   isValidAmount,
   isValidMsisdn,
   isValidStatementDescription,
 } = require("../../payments/utils/pawapay.utils");
-const { createNotification } = require("../../notification/services/notification.service");
-const { NOTIFICATION_TYPES } = require("../../notification/config/notificationTypes");
+const {
+  createNotification,
+} = require("../../notification/services/notification.service");
+const {
+  NOTIFICATION_TYPES,
+} = require("../../notification/config/notificationTypes");
 
 const prisma = getPrismaClient();
 
@@ -152,10 +162,16 @@ function buildPayoutInputFromExpense(expense) {
 async function uploadReceipt(file) {
   if (!file) return null;
   if (file.mimetype === "application/pdf") {
-    const result = await uploadPdf(file.buffer, CLOUDINARY_FOLDERS.EXPENSE_RECEIPTS);
+    const result = await uploadPdf(
+      file.buffer,
+      CLOUDINARY_FOLDERS.EXPENSE_RECEIPTS,
+    );
     return { url: result.url, publicId: result.publicId };
   }
-  const result = await uploadImage(file.buffer, CLOUDINARY_FOLDERS.EXPENSE_RECEIPTS);
+  const result = await uploadImage(
+    file.buffer,
+    CLOUDINARY_FOLDERS.EXPENSE_RECEIPTS,
+  );
   return { url: result.url, publicId: result.publicId };
 }
 
@@ -217,7 +233,10 @@ async function createExpense(userId, input, receiptFile = null) {
       record.createdBy?.name ?? "Comptable",
     );
   } catch (err) {
-    console.error("[expense] Failed to notify admins of new expense:", err.message);
+    console.error(
+      "[expense] Failed to notify admins of new expense:",
+      err.message,
+    );
   }
 
   return mapExpense(record);
@@ -326,7 +345,9 @@ async function rejectExpense(adminId, id, reason) {
     if (!record) {
       throw new NotFoundError("Dépense introuvable.");
     }
-    throw new ValidationError("Seules les dépenses en attente peuvent être rejetées.");
+    throw new ValidationError(
+      "Seules les dépenses en attente peuvent être rejetées.",
+    );
   }
 
   const updated = await prisma.expense.findUnique({
@@ -348,7 +369,10 @@ async function rejectExpense(adminId, id, reason) {
       },
     });
   } catch (err) {
-    console.error("[expense] Failed to notify accountant of rejection:", err.message);
+    console.error(
+      "[expense] Failed to notify accountant of rejection:",
+      err.message,
+    );
   }
 
   return mapExpense(updated);
@@ -364,9 +388,7 @@ async function claimExpenseForPayout(adminId, expenseId) {
     },
   });
   if (claimed.count !== 1) {
-    throw new ConflictError(
-      "Cette dépense a déjà été traitée ou rejetée.",
-    );
+    throw new ConflictError("Cette dépense a déjà été traitée ou rejetée.");
   }
 
   return prisma.expense.findUnique({ where: { id: expenseId } });
@@ -411,6 +433,73 @@ async function markExpenseFailed(expenseId, failureReason) {
   });
 }
 
+async function updateExpense(id, input, receiptFile = null) {
+  const existing = await prisma.expense.findUnique({ where: { id } });
+  if (!existing) {
+    throw new NotFoundError("Dépense introuvable.");
+  }
+  if (!["PENDING", "FAILED"].includes(existing.status)) {
+    throw new ValidationError(
+      "Seules les dépenses en attente ou en échec peuvent être modifiées.",
+    );
+  }
+
+  validateExpenseInput(input);
+
+  const receipt = receiptFile ? await uploadReceipt(receiptFile) : null;
+
+  const updated = await prisma.expense.update({
+    where: { id },
+    data: {
+      title: input.title.trim(),
+      description: input.description?.trim() || null,
+      category: input.category,
+      amount: input.amount,
+      currency: input.currency.trim().toUpperCase(),
+      incurredAt: new Date(input.incurredAt),
+      vendorName: input.vendorName.trim(),
+      vendorPhone: input.vendorPhone.trim(),
+      countryCode: (input.countryCode || "COD").trim().toUpperCase(),
+      providerName: input.providerName.trim(),
+      customerMessage: input.customerMessage.trim(),
+      ...(receipt && {
+        receiptUrl: receipt.url,
+        receiptPublicId: receipt.publicId,
+      }),
+    },
+    include: expenseInclude,
+  });
+
+  return mapExpense(updated);
+}
+
+async function listExpensesForExport(query = {}) {
+  const where = {};
+  if (query.status) {
+    const status = String(query.status).toUpperCase();
+    if (!EXPENSE_STATUSES.includes(status)) {
+      throw new ValidationError("Statut de dépense invalide.");
+    }
+    where.status = status;
+  }
+  if (query.category) {
+    const category = String(query.category).toUpperCase();
+    if (!EXPENSE_CATEGORIES.includes(category)) {
+      throw new ValidationError("Catégorie de dépense invalide.");
+    }
+    where.category = category;
+  }
+
+  const items = await prisma.expense.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take: 5000,
+    include: expenseInclude,
+  });
+
+  return items.map(mapExpense);
+}
+
 module.exports = {
   EXPENSE_CATEGORIES,
   createExpense,
@@ -425,4 +514,5 @@ module.exports = {
   markExpenseFailed,
   buildPayoutInputFromExpense,
   validateExpenseInput,
+  updateExpense,
 };

@@ -17,8 +17,16 @@ const {
 const AdminOrderRouter = express.Router();
 
 AdminOrderRouter.use(authenticate);
-AdminOrderRouter.get("/", authorize("ADMIN", "SUPPORT"), getAdminOrders);
-AdminOrderRouter.get("/:id", authorize("ADMIN", "SUPPORT"), getAdminOrder);
+AdminOrderRouter.get(
+  "/",
+  authorize("ADMIN", "SUPPORT", "ACCOUNTANT"),
+  getAdminOrders,
+);
+AdminOrderRouter.get(
+  "/:id",
+  authorize("ADMIN", "SUPPORT", "ACCOUNTANT"),
+  getAdminOrder,
+);
 AdminOrderRouter.post(
   "/:id/cancel",
   authorize("ADMIN", "SUPPORT"),

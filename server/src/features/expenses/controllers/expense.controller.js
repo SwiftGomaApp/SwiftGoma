@@ -1,5 +1,6 @@
 const {
   createExpense,
+  updateExpense,
   listExpenses,
   getExpenseById,
   rejectExpense,
@@ -10,6 +11,7 @@ const {
   resendExpenseApproval,
   confirmExpenseApproval,
 } = require("../services/expenseApproval.service");
+const { toCsv } = require("../../../common/utils/csv");
 
 function parseExpenseBody(body = {}) {
   return {
@@ -82,7 +84,11 @@ async function requestExpenseApprovalHandler(req, res, next) {
 
 async function confirmExpenseApprovalHandler(req, res, next) {
   try {
-    const result = await confirmExpenseApproval(req.user.id, req.params.id, req.body);
+    const result = await confirmExpenseApproval(
+      req.user.id,
+      req.params.id,
+      req.body,
+    );
     res.status(200).json({ success: true, data: result });
   } catch (err) {
     next(err);
@@ -91,7 +97,11 @@ async function confirmExpenseApprovalHandler(req, res, next) {
 
 async function resendExpenseApprovalHandler(req, res, next) {
   try {
-    const result = await resendExpenseApproval(req.user.id, req.params.id, req.body);
+    const result = await resendExpenseApproval(
+      req.user.id,
+      req.params.id,
+      req.body,
+    );
     res.status(200).json({ success: true, data: result });
   } catch (err) {
     next(err);
@@ -105,6 +115,48 @@ async function getExpenseMetaHandler(_req, res) {
   });
 }
 
+async function updateExpenseHandler(req, res, next) {
+  try {
+    const expense = await updateExpense(
+      req.params.id,
+      parseExpenseBody(req.body),
+      req.file,
+    );
+    res.status(200).json({ success: true, data: expense });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function exportExpensesCsvHandler(req, res, next) {
+  try {
+    const items = await listExpensesForExport(req.query);
+    const csv = toCsv(items, [
+      { label: "Référence", value: "reference" },
+      { label: "Titre", value: "title" },
+      { label: "Catégorie", value: "category" },
+      { label: "Statut", value: "status" },
+      { label: "Montant", value: "amount" },
+      { label: "Devise", value: "currency" },
+      { label: "Date de dépense", value: "incurredAt" },
+      { label: "Bénéficiaire", value: "vendorName" },
+      { label: "Téléphone", value: "vendorPhone" },
+      { label: "Fournisseur mobile money", value: "providerName" },
+      { label: "Créé par", value: (r) => r.createdBy?.name ?? "" },
+      { label: "Approuvé par", value: (r) => r.approvedBy?.name ?? "" },
+      { label: "Créé le", value: "createdAt" },
+    ]);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="depenses-${Date.now()}.csv"`,
+    );
+    res.status(200).send(csv);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   createExpenseHandler,
   listExpensesHandler,
@@ -114,4 +166,6 @@ module.exports = {
   resendExpenseApprovalHandler,
   confirmExpenseApprovalHandler,
   getExpenseMetaHandler,
+  updateExpenseHandler,
+  exportExpensesCsvHandler,
 };

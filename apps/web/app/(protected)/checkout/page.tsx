@@ -4,24 +4,32 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import * as BasePhoneInput from "react-phone-number-input";
+import en from "react-phone-number-input/locale/en.json";
 import {
   MapPin,
   Loader2,
   ShoppingBag,
   CheckCircle2,
   XCircle,
+  Smartphone,
+  Truck,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { CountrySelect, DEFAULT_COUNTRY } from "@/components/ui/country-select";
+import { StateSelect } from "@/components/ui/state-select";
+import { CitySelect } from "@/components/ui/city-select";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { useCart } from "@/providers/cart-provider";
 import { useAuth } from "@/providers/auth-provider";
 import { useSocket } from "@/providers/socket-provider";
@@ -33,6 +41,15 @@ import {
 } from "@/lib/api/routes/orders";
 import { ApiException } from "@/lib/api";
 import { toast } from "@/lib/toast";
+
+const BRAND_NAVY = "#FF4F00";
+const BRAND_NAVY_HOVER = "#243350";
+const BRAND_NAVY_SOFT = "#1C2742";
+
+const NAVY_ACCENT_VARS = {
+  "--primary": BRAND_NAVY,
+  "--ring": BRAND_NAVY,
+} as React.CSSProperties;
 
 const NETWORKS = [
   { value: "vodacom", label: "Vodacom M-Pesa" },
@@ -63,6 +80,21 @@ function formatPrice(price: number, currency: string) {
     minimumFractionDigits: currency === "CDF" ? 0 : 2,
     maximumFractionDigits: currency === "CDF" ? 0 : 2,
   }).format(price);
+}
+
+function FieldLabel({
+  children,
+  required,
+}: {
+  children: React.ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <label className="text-xs font-medium text-foreground">
+      {children}
+      {required && <span className="ml-0.5 text-destructive">*</span>}
+    </label>
+  );
 }
 
 function PollingView({
@@ -196,9 +228,9 @@ function CheckoutForm() {
 
   const [checkoutCurrency, setCheckoutCurrency] = useState<"USD" | "CDF">(
     () =>
-      (user?.preferredCurrency ??
-        contextCart?.cartCurrency ??
-        "USD") as "USD" | "CDF",
+      (user?.preferredCurrency ?? contextCart?.cartCurrency ?? "USD") as
+        | "USD"
+        | "CDF",
   );
   const [hasAppliedPreferredCurrency, setHasAppliedPreferredCurrency] =
     useState(Boolean(user?.preferredCurrency));
@@ -209,22 +241,58 @@ function CheckoutForm() {
   const [fulfillmentMethod, setFulfillmentMethod] = useState<
     "DELIVERY" | "PICKUP"
   >("DELIVERY");
-  const [deliveryAddress, setDeliveryAddress] = useState("");
+
+  // Address fields — laid out like the billing-details mock. These are only
+  // ever combined into the single `deliveryAddress` string the API already
+  // expects, so the checkout payload shape hasn't changed.
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [company, setCompany] = useState("");
+  const [country, setCountry] =
+    useState<BasePhoneInput.Country>(DEFAULT_COUNTRY);
+  const [streetAddress, setStreetAddress] = useState("");
+  const [apartment, setApartment] = useState("");
+  const [stateCode, setStateCode] = useState("");
+  const [stateName, setStateName] = useState("");
+  const [city, setCity] = useState("");
+  const [zipCode, setZipCode] = useState("");
+  const [phone, setPhone] = useState(user?.phone ?? "");
+
+  // Country changed → the previously selected province/city no longer
+  // apply. Province changed → the previously selected city no longer
+  // applies either (it was scoped to the old province's city list).
+  useEffect(() => {
+    setStateCode("");
+    setStateName("");
+    setCity("");
+  }, [country]);
+  useEffect(() => {
+    setCity("");
+  }, [stateCode]);
+
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
     null,
   );
   const [isLocating, setIsLocating] = useState(false);
+
   const [paymentMethod, setPaymentMethod] = useState<
     "CASH_ON_DELIVERY" | "ONLINE_PAYMENT"
   >("CASH_ON_DELIVERY");
   const [payerPhoneNumber, setPayerPhoneNumber] = useState(user?.phone ?? "");
-  const [network, setNetwork] = useState<string | null>(null);
+  const [network, setNetwork] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [step, setStep] = useState<Step>("form");
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
   const [canCancel, setCanCancel] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (user?.preferredCurrency && !hasAppliedPreferredCurrency) {
@@ -244,7 +312,9 @@ function CheckoutForm() {
       .then((fresh) => {
         if (cancelled) return;
         setCart(fresh);
-        const unavailable = fresh.items.filter((item) => item.conversionUnavailable);
+        const unavailable = fresh.items.filter(
+          (item) => item.conversionUnavailable,
+        );
         if (unavailable.length > 0) {
           setConversionError(
             `Taux de change indisponible pour convertir certains articles en ${checkoutCurrency}.`,
@@ -366,6 +436,14 @@ function CheckoutForm() {
     return <FailedView order={placedOrder} />;
   }
 
+  if (!isMounted) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center justify-center gap-3 px-6 py-24 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   if (!shopId || !cart || cart.items.length === 0) {
     return (
       <div className="mx-auto flex max-w-lg flex-col items-center gap-4 px-6 py-24 text-center">
@@ -397,8 +475,7 @@ function CheckoutForm() {
       : 0;
   const grandTotal = itemsTotal + deliveryFee;
   const hasConversionIssues =
-    !!conversionError ||
-    cart.items.some((item) => item.conversionUnavailable);
+    !!conversionError || cart.items.some((item) => item.conversionUnavailable);
 
   function handleUseLocation() {
     if (!navigator.geolocation) {
@@ -431,24 +508,63 @@ function CheckoutForm() {
     );
   }
 
-  const deliveryAddressLength = deliveryAddress.trim().length;
+  // Combines the billing-details-style fields into the single address
+  // string the checkout API accepts, so nothing downstream of submit
+  // needs to change.
+  function buildDeliveryAddress() {
+    const recipient = `${firstName.trim()} ${lastName.trim()}`.trim();
+    const line1 = apartment.trim()
+      ? `${streetAddress.trim()}, ${apartment.trim()}`
+      : streetAddress.trim();
+    const cityLine = [city.trim(), stateName.trim(), zipCode.trim()]
+      .filter(Boolean)
+      .join(", ");
+    const countryLabel = (en as Record<string, string>)[country] ?? country;
+
+    return [
+      recipient,
+      line1,
+      cityLine,
+      countryLabel,
+      phone.trim() && `Tél: ${phone.trim()}`,
+    ]
+      .filter(Boolean)
+      .join(" — ");
+  }
+
+  const requiredDeliveryFieldsFilled =
+    firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
+    email.trim().length > 0 &&
+    BasePhoneInput.isValidPhoneNumber(phone || "") &&
+    streetAddress.trim().length > 0 &&
+    city.trim().length > 0 &&
+    zipCode.trim().length > 0 &&
+    !!country;
+
   const isDeliveryValid =
     fulfillmentMethod === "PICKUP" ||
-    (deliveryAddressLength >= 10 && coords !== null);
+    (requiredDeliveryFieldsFilled && coords !== null);
   const isPaymentValid =
     paymentMethod === "CASH_ON_DELIVERY" ||
-    (payerPhoneNumber.trim().length >= 9 && !!network);
+    (BasePhoneInput.isValidPhoneNumber(payerPhoneNumber || "") && !!network);
   const canSubmit =
-    isDeliveryValid && isPaymentValid && !isSubmitting && !hasConversionIssues && !isLoadingCart;
+    isDeliveryValid &&
+    isPaymentValid &&
+    !isSubmitting &&
+    !hasConversionIssues &&
+    !isLoadingCart;
 
   const submitBlockers: string[] = [];
   if (fulfillmentMethod === "DELIVERY") {
-    if (deliveryAddressLength < 10) {
-      submitBlockers.push("Adresse de livraison (minimum 10 caractères)");
+    if (!requiredDeliveryFieldsFilled) {
+      submitBlockers.push(
+        "Coordonnées de livraison (nom, email, téléphone, adresse, ville, code postal, pays)",
+      );
     }
     if (!coords) {
       submitBlockers.push(
-        'Position GPS — cliquez sur « Utiliser ma position »',
+        "Position GPS — cliquez sur « Utiliser ma position »",
       );
     }
   }
@@ -460,8 +576,8 @@ function CheckoutForm() {
     );
   }
   if (paymentMethod === "ONLINE_PAYMENT") {
-    if (payerPhoneNumber.trim().length < 9) {
-      submitBlockers.push("Numéro Mobile Money");
+    if (!BasePhoneInput.isValidPhoneNumber(payerPhoneNumber || "")) {
+      submitBlockers.push("Numéro Mobile Money valide");
     }
     if (!network) {
       submitBlockers.push("Opérateur Mobile Money");
@@ -479,13 +595,13 @@ function CheckoutForm() {
         fulfillmentMethod,
         currency: checkoutCurrency,
         ...(fulfillmentMethod === "DELIVERY" && {
-          deliveryAddress: deliveryAddress.trim(),
+          deliveryAddress: buildDeliveryAddress(),
           deliveryLatitude: coords!.lat,
           deliveryLongitude: coords!.lng,
         }),
         ...(paymentMethod === "ONLINE_PAYMENT" && {
           payerPhoneNumber: payerPhoneNumber.trim(),
-          network: network!,
+          network: network,
           countryCode: "CD",
         }),
       });
@@ -520,7 +636,7 @@ function CheckoutForm() {
         onSubmit={handleSubmit}
         className="mt-8 grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_380px]"
       >
-        {/* Left column — order summary + fulfillment */}
+        {/* Left column — order summary + fulfillment + address */}
         <div className="flex flex-col gap-8">
           <div className="flex flex-col gap-3 rounded-xl border border-border p-5">
             <h2 className="text-sm font-semibold text-foreground">Articles</h2>
@@ -570,7 +686,7 @@ function CheckoutForm() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-xl border border-border p-5">
+          <div className="flex flex-col gap-4 rounded-xl border border-border p-5">
             <h2 className="text-sm font-semibold text-foreground">
               Mode de réception
             </h2>
@@ -580,41 +696,168 @@ function CheckoutForm() {
                 setFulfillmentMethod(v as "DELIVERY" | "PICKUP")
               }
               className="grid-cols-1 sm:grid-cols-2"
+              style={NAVY_ACCENT_VARS}
             >
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border p-3 text-sm text-foreground">
+              <label
+                className="flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm text-foreground transition-colors"
+                style={
+                  fulfillmentMethod === "DELIVERY"
+                    ? {
+                        borderColor: BRAND_NAVY,
+                        backgroundColor: `${BRAND_NAVY_SOFT}0D`,
+                      }
+                    : undefined
+                }
+              >
                 <RadioGroupItem value="DELIVERY" />
+                <Truck className="h-4 w-4 text-muted-foreground" />
                 Livraison
               </label>
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border p-3 text-sm text-foreground">
+              <label
+                className="flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm text-foreground transition-colors"
+                style={
+                  fulfillmentMethod === "PICKUP"
+                    ? {
+                        borderColor: BRAND_NAVY,
+                        backgroundColor: `${BRAND_NAVY_SOFT}0D`,
+                      }
+                    : undefined
+                }
+              >
                 <RadioGroupItem value="PICKUP" />
+                <ShoppingBag className="h-4 w-4 text-muted-foreground" />
                 Retrait en boutique
               </label>
             </RadioGroup>
 
             {fulfillmentMethod === "DELIVERY" && (
-              <div className="mt-2 flex flex-col gap-3">
-                <Textarea
-                  value={deliveryAddress}
-                  onChange={(e) => setDeliveryAddress(e.target.value)}
-                  placeholder="Adresse de livraison complète (quartier, avenue, référence...)"
-                  rows={3}
-                  required
-                  aria-invalid={
-                    deliveryAddressLength > 0 && deliveryAddressLength < 10
-                  }
-                />
-                {deliveryAddressLength > 0 && deliveryAddressLength < 10 && (
-                  <p className="text-xs text-destructive">
-                    L&apos;adresse doit contenir au moins 10 caractères (
-                    {deliveryAddressLength}/10).
-                  </p>
-                )}
+              <div className="mt-1 flex flex-col gap-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Coordonnées de livraison
+                </p>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <FieldLabel required>Prénom</FieldLabel>
+                    <Input
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Prénom"
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <FieldLabel required>Nom</FieldLabel>
+                    <Input
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Nom"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <FieldLabel required>Email</FieldLabel>
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="vous@exemple.com"
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <FieldLabel>Entreprise (facultatif)</FieldLabel>
+                    <Input
+                      value={company}
+                      onChange={(e) => setCompany(e.target.value)}
+                      placeholder="Nom de l'entreprise"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <FieldLabel required>Pays / Région</FieldLabel>
+                  <CountrySelect value={country} onChange={setCountry} />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <FieldLabel required>Adresse</FieldLabel>
+                  <Input
+                    value={streetAddress}
+                    onChange={(e) => setStreetAddress(e.target.value)}
+                    placeholder="Numéro et nom de l'avenue"
+                    required
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <FieldLabel>
+                    Appartement, quartier, référence (facultatif)
+                  </FieldLabel>
+                  <Input
+                    value={apartment}
+                    onChange={(e) => setApartment(e.target.value)}
+                    placeholder="Appartement, quartier, point de repère…"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <FieldLabel>Province / État</FieldLabel>
+                    <StateSelect
+                      countryCode={country}
+                      value={stateCode}
+                      onChange={(state) => {
+                        setStateCode(state?.isoCode ?? "");
+                        setStateName(state?.name ?? "");
+                      }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <FieldLabel required>Ville</FieldLabel>
+                    <CitySelect
+                      countryCode={country}
+                      stateCode={stateCode}
+                      value={city}
+                      onChange={(cityName) => setCity(cityName ?? "")}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <FieldLabel required>Code postal</FieldLabel>
+                    <Input
+                      value={zipCode}
+                      onChange={(e) => setZipCode(e.target.value)}
+                      placeholder="Code postal"
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <FieldLabel required>Téléphone</FieldLabel>
+                    <PhoneInput
+                      value={phone as BasePhoneInput.Value}
+                      onChange={(value) => setPhone(value)}
+                      defaultCountry={DEFAULT_COUNTRY}
+                      placeholder="Numéro de téléphone"
+                    />
+                  </div>
+                </div>
+
                 <Button
                   type="button"
                   variant={coords ? "outline" : "default"}
                   onClick={handleUseLocation}
                   disabled={isLocating}
                   className="w-fit gap-2"
+                  style={
+                    coords
+                      ? undefined
+                      : { backgroundColor: BRAND_NAVY, color: "white" }
+                  }
                 >
                   {isLocating ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -629,9 +872,9 @@ function CheckoutForm() {
                 </Button>
                 {!coords && !isLocating && (
                   <p className="text-xs text-amber-600 dark:text-amber-500">
-                    Étape obligatoire : autorisez la géolocalisation pour que
-                    le livreur puisse vous trouver. Sans position GPS, le
-                    bouton « Commander » reste désactivé.
+                    Étape obligatoire : autorisez la géolocalisation pour que le
+                    livreur puisse vous trouver. Sans position GPS, le bouton «
+                    Commander » reste désactivé.
                   </p>
                 )}
               </div>
@@ -648,6 +891,7 @@ function CheckoutForm() {
               onValueChange={(v) => setCheckoutCurrency(v as "USD" | "CDF")}
               className="grid-cols-2"
               disabled={isLoadingCart}
+              style={NAVY_ACCENT_VARS}
             >
               {CHECKOUT_CURRENCIES.map((c) => (
                 <label
@@ -678,40 +922,82 @@ function CheckoutForm() {
                 setPaymentMethod(v as "CASH_ON_DELIVERY" | "ONLINE_PAYMENT")
               }
               className="grid-cols-1"
+              style={NAVY_ACCENT_VARS}
             >
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border p-3 text-sm text-foreground">
+              <label
+                className="flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm text-foreground transition-colors"
+                style={
+                  paymentMethod === "CASH_ON_DELIVERY"
+                    ? {
+                        borderColor: BRAND_NAVY,
+                        backgroundColor: `${BRAND_NAVY_SOFT}0D`,
+                      }
+                    : undefined
+                }
+              >
                 <RadioGroupItem value="CASH_ON_DELIVERY" />
                 Paiement à la livraison
               </label>
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-border p-3 text-sm text-foreground">
+              <label
+                className="flex cursor-pointer items-center gap-2 rounded-lg border p-3 text-sm text-foreground transition-colors"
+                style={
+                  paymentMethod === "ONLINE_PAYMENT"
+                    ? {
+                        borderColor: BRAND_NAVY,
+                        backgroundColor: `${BRAND_NAVY_SOFT}0D`,
+                      }
+                    : undefined
+                }
+              >
                 <RadioGroupItem value="ONLINE_PAYMENT" />
+                <Smartphone className="h-4 w-4 text-muted-foreground" />
                 Paiement en ligne (Mobile Money)
               </label>
             </RadioGroup>
 
             {paymentMethod === "ONLINE_PAYMENT" && (
               <div className="mt-2 flex flex-col gap-3">
-                <Input
-                  value={payerPhoneNumber}
-                  onChange={(e) => setPayerPhoneNumber(e.target.value)}
+                <PhoneInput
+                  value={payerPhoneNumber as BasePhoneInput.Value}
+                  onChange={(value) => setPayerPhoneNumber(value)}
+                  defaultCountry={DEFAULT_COUNTRY}
                   placeholder="Numéro Mobile Money"
-                  required
                 />
-                <Select
-                  value={network ?? undefined}
-                  onValueChange={setNetwork}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Opérateur" />
-                  </SelectTrigger>
-                  <SelectContent>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-between font-normal"
+                      >
+                        <span
+                          className={
+                            network
+                              ? "text-foreground"
+                              : "text-muted-foreground"
+                          }
+                        >
+                          {network
+                            ? NETWORKS.find((n) => n.value === network)?.label
+                            : "Opérateur"}
+                        </span>
+                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      </Button>
+                    }
+                    nativeButton={false}
+                  />
+                  <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
                     {NETWORKS.map((n) => (
-                      <SelectItem key={n.value} value={n.value}>
+                      <DropdownMenuItem
+                        key={n.value}
+                        onClick={() => setNetwork(n.value)}
+                      >
                         {n.label}
-                      </SelectItem>
+                      </DropdownMenuItem>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 {!isPaymentValid && (
                   <p className="text-xs text-muted-foreground">
                     Saisissez votre numéro et choisissez un opérateur pour
@@ -756,7 +1042,20 @@ function CheckoutForm() {
             </div>
           )}
 
-          <Button type="submit" disabled={!canSubmit} size="lg">
+          <Button
+            type="submit"
+            disabled={!canSubmit}
+            size="lg"
+            style={canSubmit ? { backgroundColor: BRAND_NAVY } : undefined}
+            className={canSubmit ? "text-white hover:opacity-90" : undefined}
+            onMouseEnter={(e) => {
+              if (canSubmit)
+                e.currentTarget.style.backgroundColor = BRAND_NAVY_HOVER;
+            }}
+            onMouseLeave={(e) => {
+              if (canSubmit) e.currentTarget.style.backgroundColor = BRAND_NAVY;
+            }}
+          >
             {isSubmitting
               ? "Envoi de la commande..."
               : isLoadingCart

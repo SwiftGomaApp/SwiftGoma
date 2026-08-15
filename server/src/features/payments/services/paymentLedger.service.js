@@ -229,7 +229,9 @@ function buildWhereForSource(source, { status, search }) {
           ? {
               OR: [
                 { payinOrderId: { contains: search, mode: "insensitive" } },
-                { payinTransactionId: { contains: search, mode: "insensitive" } },
+                {
+                  payinTransactionId: { contains: search, mode: "insensitive" },
+                },
                 { orderId: { contains: search, mode: "insensitive" } },
               ],
             }
@@ -285,7 +287,9 @@ async function listPaymentLedger(query = {}) {
   const [counts, entryGroups] = await Promise.all([
     Promise.all(sources.map((source, i) => countSource(source, wheres[i]))),
     Promise.all(
-      sources.map((source, i) => fetchSourceEntries(source, wheres[i], fetchTake)),
+      sources.map((source, i) =>
+        fetchSourceEntries(source, wheres[i], fetchTake),
+      ),
     ),
   ]);
 
@@ -305,6 +309,39 @@ async function listPaymentLedger(query = {}) {
   };
 }
 
+async function exportPaymentLedger(query = {}) {
+  const cap = 5000;
+  const sourceFilter = query.source?.trim() || "";
+  const directionFilter = query.direction?.trim() || "";
+  const status = query.status?.trim() || "";
+  const search = typeof query.search === "string" ? query.search.trim() : "";
+
+  let sources = ALL_SOURCES;
+  if (sourceFilter && ALL_SOURCES.includes(sourceFilter)) {
+    sources = [sourceFilter];
+  }
+  if (directionFilter === "IN") {
+    sources = sources.filter((s) =>
+      ["SUBSCRIPTION_PAYMENT", "ORDER_PAYMENT"].includes(s),
+    );
+  } else if (directionFilter === "OUT") {
+    sources = sources.filter((s) => ["ADMIN_PAYOUT", "EXPENSE"].includes(s));
+  }
+
+  const wheres = sources.map((source) =>
+    buildWhereForSource(source, { status, search }),
+  );
+  const entryGroups = await Promise.all(
+    sources.map((source, i) => fetchSourceEntries(source, wheres[i], cap)),
+  );
+
+  return entryGroups
+    .flat()
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, cap);
+}
+
 module.exports = {
   listPaymentLedger,
+  exportPaymentLedger,
 };
