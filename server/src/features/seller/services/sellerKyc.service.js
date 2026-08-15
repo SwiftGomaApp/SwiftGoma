@@ -6,14 +6,17 @@ const {
   ForbiddenError,
   BadRequestError,
 } = require("../../../common/errors");
+
 const {
   uploadImage,
   uploadPdf,
   deleteAsset,
 } = require("../../../common/services/cloudinaryUpload");
+
 const {
   CLOUDINARY_FOLDERS,
 } = require("../../../common/constants/cloudinaryFolders");
+
 const {
   assertValidKycInput,
   assertValidStatusTransition,
@@ -40,6 +43,16 @@ async function uploadKycDocument(file, folder) {
   return { ...result, resourceType: isPdf ? "raw" : "image" };
 }
 
+async function uploadKycSelfie(file, folder) {
+  if (file.mimetype === "application/pdf") {
+    throw new BadRequestError(
+      "Le selfie doit être une image (JPEG, PNG ou WEBP), pas un PDF.",
+    );
+  }
+  const result = await uploadImage(file.buffer, folder);
+  return { ...result, resourceType: "image" };
+}
+
 const SENSITIVE_USER_FIELDS = [
   "password",
   "phoneVerificationCode",
@@ -63,6 +76,30 @@ async function getSellerProfileOrThrow(userId) {
   return profile;
 }
 
+async function assertUserVerifiedForKyc(userId) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      isPhoneVerified: true,
+      emails: { where: { isVerified: true }, select: { id: true }, take: 1 },
+    },
+  });
+
+  if (!user) {
+    throw new NotFoundError("Utilisateur introuvable.");
+  }
+  if (!user.isPhoneVerified) {
+    throw new ForbiddenError(
+      "Votre numéro de téléphone doit être vérifié avant de soumettre un dossier KYC.",
+    );
+  }
+  if (user.emails.length === 0) {
+    throw new ForbiddenError(
+      "Vous devez avoir au moins une adresse e-mail vérifiée avant de soumettre un dossier KYC.",
+    );
+  }
+}
+
 function parsePagination(query) {
   const page = Math.max(parseInt(query.page, 10) || 1, 1);
   const limit = Math.min(
@@ -77,10 +114,12 @@ async function submitKyc({
   idDocumentType,
   idDocumentFile,
   proofOfAddressFile,
+  selfieFile,
   rccmNumber,
   rccmDocumentFile,
 }) {
   const profile = await getSellerProfileOrThrow(userId);
+  await assertUserVerifiedForKyc(userId);
 
   const existing = await prisma.sellerKyc.findUnique({
     where: { sellerProfileId: profile.id },
@@ -91,11 +130,12 @@ async function submitKyc({
     );
   }
 
-  if (!idDocumentFile || !proofOfAddressFile) {
+  if (!idDocumentFile || !proofOfAddressFile || !selfieFile) {
     throw new ConflictError(
-      "La pièce d'identité et la preuve d'adresse sont requises.",
+      "La pièce d'identité, la preuve d'adresse et le selfie sont requis.",
     );
   }
+
   if (Boolean(rccmNumber) !== Boolean(rccmDocumentFile)) {
     throw new ConflictError(
       "Le numéro RCCM et le document RCCM doivent être fournis ensemble, ou ni l'un ni l'autre.",
@@ -108,6 +148,7 @@ async function submitKyc({
       proofOfAddressFile,
       CLOUDINARY_FOLDERS.SELLER_KYC_ADDRESS,
     ),
+    uploadKycSelfie(selfieFile, CLOUDINARY_FOLDERS.SELLER_KYC_SELFIE),
   ];
   if (rccmDocumentFile) {
     uploads.push(
@@ -115,12 +156,13 @@ async function submitKyc({
     );
   }
 
-  const [idDoc, addressDoc, rccmDoc] = await Promise.all(uploads);
+  const [idDoc, addressDoc, selfie, rccmDoc] = await Promise.all(uploads);
 
   const input = {
     idDocumentType,
     idDocumentUrl: idDoc.url,
     proofOfAddressUrl: addressDoc.url,
+    selfieUrl: selfie.url,
     rccmNumber: rccmNumber || undefined,
     rccmDocumentUrl: rccmDoc ? rccmDoc.url : undefined,
   };
@@ -131,6 +173,7 @@ async function submitKyc({
     const rollback = [
       deleteAsset(idDoc.publicId, idDoc.resourceType),
       deleteAsset(addressDoc.publicId, addressDoc.resourceType),
+      deleteAsset(selfie.publicId, selfie.resourceType),
     ];
     if (rccmDoc)
       rollback.push(deleteAsset(rccmDoc.publicId, rccmDoc.resourceType));
@@ -146,6 +189,8 @@ async function submitKyc({
       idDocumentPublicId: idDoc.publicId,
       proofOfAddressUrl: addressDoc.url,
       proofOfAddressPublicId: addressDoc.publicId,
+      selfieUrl: selfie.url,
+      selfiePublicId: selfie.publicId,
       rccmNumber: rccmNumber || null,
       rccmDocumentUrl: rccmDoc ? rccmDoc.url : null,
       rccmDocumentPublicId: rccmDoc ? rccmDoc.publicId : null,
@@ -217,12 +262,20 @@ async function supportReviewKyc(actor, kycId) {
   const kyc = await getKycById(kycId);
   assertValidStatusTransition(kyc.status, "SUPPORT_REVIEWED");
 
+  const trimmedNotes = typeof callNotes === "string" ? callNotes.trim() : "";
+  if (!trimmedNotes) {
+    throw new BadRequestError(
+      "Les notes d'appel sont obligatoires pour marquer ce dossier comme revu.",
+    );
+  }
+
   const updated = await prisma.sellerKyc.update({
     where: { id: kycId },
     data: {
       status: "SUPPORT_REVIEWED",
       supportReviewedBy: actor.id,
       supportReviewedAt: new Date(),
+      callNotes: trimmedNotes,
     },
   });
 
@@ -304,13 +357,20 @@ async function rejectKyc(actor, kycId, reason) {
   const kyc = await getKycById(kycId);
   assertValidStatusTransition(kyc.status, "REJECTED");
 
+  const trimmedReason = typeof reason === "string" ? reason.trim() : "";
+  if (!trimmedReason) {
+    throw new BadRequestError(
+      "Un motif de rejet clair est obligatoire pour informer le vendeur.",
+    );
+  }
+
   const updated = await prisma.sellerKyc.update({
     where: { id: kycId },
     data: {
       status: "REJECTED",
       rejectedBy: actor.id,
       rejectedAt: new Date(),
-      rejectionReason: reason || null,
+      rejectionReason: trimmedReason,
     },
   });
 
@@ -345,10 +405,13 @@ async function resubmitKyc({
   idDocumentType,
   idDocumentFile,
   proofOfAddressFile,
+  selfieFile,
   rccmNumber,
   rccmDocumentFile,
 }) {
   const profile = await getSellerProfileOrThrow(userId);
+  await assertUserVerifiedForKyc(userId);
+
   const kyc = await prisma.sellerKyc.findUnique({
     where: { sellerProfileId: profile.id },
   });
@@ -387,6 +450,17 @@ async function resubmitKyc({
       }),
     );
   }
+  if (selfieFile) {
+    uploads.push(
+      uploadKycSelfie(selfieFile, CLOUDINARY_FOLDERS.SELLER_KYC_SELFIE).then(
+        (r) => {
+          data.selfieUrl = r.url;
+          data.selfiePublicId = r.publicId;
+          newlyUploaded.push(r);
+        },
+      ),
+    );
+  }
   if (rccmDocumentFile) {
     uploads.push(
       uploadKycDocument(
@@ -408,6 +482,7 @@ async function resubmitKyc({
     idDocumentType: data.idDocumentType ?? kyc.idDocumentType,
     idDocumentUrl: data.idDocumentUrl ?? kyc.idDocumentUrl,
     proofOfAddressUrl: data.proofOfAddressUrl ?? kyc.proofOfAddressUrl,
+    selfieUrl: data.selfieUrl ?? kyc.selfieUrl,
     rccmNumber:
       data.rccmNumber !== undefined ? data.rccmNumber : kyc.rccmNumber,
     rccmDocumentUrl: data.rccmDocumentUrl ?? kyc.rccmDocumentUrl,

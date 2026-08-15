@@ -1,7 +1,12 @@
 const SELLER_KYC_CONFIG = {
   ID_DOCUMENT_TYPES: ["NATIONAL_ID", "VOTER_CARD", "PASSPORT"],
 
-  REQUIRED_FIELDS: ["idDocumentType", "idDocumentUrl", "proofOfAddressUrl"],
+  REQUIRED_FIELDS: [
+    "idDocumentType",
+    "idDocumentUrl",
+    "proofOfAddressUrl",
+    "selfieUrl",
+  ],
 
   RCCM_PAIRED_FIELDS: ["rccmNumber", "rccmDocumentUrl"],
 
