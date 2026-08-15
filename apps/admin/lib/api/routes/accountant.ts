@@ -176,3 +176,19 @@ export function triggerBrowserDownload(blob: Blob, filename: string) {
   link.click();
   URL.revokeObjectURL(url);
 }
+
+export async function downloadAccountantReportCsv(params: {
+  from?: string;
+  to?: string;
+}): Promise<{ blob: Blob; filename: string }> {
+  const res = await apiClient.get("/accounting/report/csv", {
+    params,
+    responseType: "blob",
+  });
+
+  const disposition = res.headers["content-disposition"] as string | undefined;
+  const filenameMatch = disposition?.match(/filename="(.+?)"/);
+  const filename = filenameMatch?.[1] ?? "rapport-comptable.csv";
+
+  return { blob: res.data as Blob, filename };
+}

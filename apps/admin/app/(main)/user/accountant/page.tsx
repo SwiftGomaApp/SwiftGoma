@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CreditCard, History, Receipt, TrendingUp, Wallet } from "lucide-react";
+import {
+  ArrowRight,
+  CreditCard,
+  History,
+  Receipt,
+  ShoppingBag,
+  TrendingUp,
+  Wallet,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -51,9 +59,18 @@ function StatCard({
 
 const QUICK_LINKS = [
   { title: "Dépenses SwiftGoma", href: "/expenses", icon: Receipt },
-  { title: "Statistiques de facturation", href: "/billing/stats", icon: Receipt },
+  {
+    title: "Statistiques de facturation",
+    href: "/billing/stats",
+    icon: Receipt,
+  },
+  { title: "Commandes", href: "/orders", icon: ShoppingBag },
   { title: "Abonnements", href: "/subscriptions", icon: TrendingUp },
-  { title: "Historique des transactions", href: "/payments/transactions", icon: History },
+  {
+    title: "Historique des transactions",
+    href: "/payments/transactions",
+    icon: History,
+  },
   { title: "PawaPay", href: "/payments/pawapay", icon: CreditCard },
   { title: "MbiyoPay", href: "/payments/mbiyopay", icon: Wallet },
 ] as const;
@@ -78,7 +95,10 @@ export default function AccountantDashboardPage() {
       setOverview(await getAccountantOverview());
     } catch (err) {
       setError(
-        getErrorMessage(err, "Impossible de charger le tableau de bord comptable."),
+        getErrorMessage(
+          err,
+          "Impossible de charger le tableau de bord comptable.",
+        ),
       );
     } finally {
       setIsLoading(false);
@@ -103,7 +123,12 @@ export default function AccountantDashboardPage() {
         <Card className="border-destructive">
           <CardContent className="flex items-center justify-between pt-6">
             <p className="text-destructive text-sm">{error}</p>
-            <Button type="button" variant="outline" size="sm" onClick={loadOverview}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={loadOverview}
+            >
               {ui.retry}
             </Button>
           </CardContent>

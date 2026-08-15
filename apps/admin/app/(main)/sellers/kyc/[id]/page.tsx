@@ -18,7 +18,7 @@ import {
 } from "@/lib/api/routes/sellers";
 import { ApiError } from "@/lib/api/client";
 import { useAuth } from "@/providers/auth-provider";
-import { formatDateTime } from "@/lib/i18n/format";
+import { formatDateTime } from "@/lib/i18n/format";x
 import {
   labelOf,
   kycStatusLabels,
@@ -31,7 +31,9 @@ function getErrorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
-function statusVariant(status: KycStatus): "default" | "secondary" | "destructive" {
+function statusVariant(
+  status: KycStatus,
+): "default" | "secondary" | "destructive" {
   if (status === "APPROVED") return "default";
   if (status === "REJECTED") return "destructive";
   return "secondary";
@@ -53,6 +55,36 @@ function DocLink({ label, url }: { label: string; url: string | null }) {
   );
 }
 
+function ImagePreviewLink({
+  label,
+  url,
+}: {
+  label: string;
+  url: string | null;
+}) {
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="flex flex-col gap-2 rounded-md border p-3 text-sm hover:bg-muted"
+    >
+      <div className="flex items-center gap-2">
+        <FileText className="text-muted-foreground h-4 w-4 shrink-0" />
+        <span className="flex-1">{label}</span>
+        <ExternalLink className="text-muted-foreground h-3.5 w-3.5" />
+      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt={label}
+        className="h-40 w-full rounded-md border object-cover"
+      />
+    </a>
+  );
+}
+
 export default function KycDetailPage() {
   const params = useParams<{ id: string }>();
   const { user: currentUser } = useAuth();
@@ -64,6 +96,8 @@ export default function KycDetailPage() {
   const [isActing, setIsActing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [callNotes, setCallNotes] = useState("");
+  const [showCallNotesForm, setShowCallNotesForm] = useState(false);
 
   async function load() {
     setIsLoading(true);
@@ -72,7 +106,9 @@ export default function KycDetailPage() {
       const result = await getKyc(params.id);
       setKyc(result);
     } catch (err) {
-      setError(getErrorMessage(err, "Impossible de charger cette soumission KYC."));
+      setError(
+        getErrorMessage(err, "Impossible de charger cette soumission KYC."),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -92,6 +128,8 @@ export default function KycDetailPage() {
       await load();
       setShowRejectForm(false);
       setRejectReason("");
+      setShowCallNotesForm(false);
+      setCallNotes("");
     } catch (err) {
       setActionError(getErrorMessage(err, "Cette action a échoué."));
     } finally {
@@ -111,7 +149,10 @@ export default function KycDetailPage() {
   if (error || !kyc) {
     return (
       <div className="flex flex-col gap-3">
-        <Link href="/sellers/kyc" className="text-muted-foreground text-sm hover:underline">
+        <Link
+          href="/sellers/kyc"
+          className="text-muted-foreground text-sm hover:underline"
+        >
           <ArrowLeft className="mr-1 inline h-3.5 w-3.5" />
           Retour à la revue KYC
         </Link>
@@ -190,7 +231,11 @@ export default function KycDetailPage() {
               label={`Pièce d'identité (${labelOf(idDocumentTypeLabels, kyc.idDocumentType)})`}
               url={kyc.idDocumentUrl}
             />
-            <DocLink label="Justificatif de domicile" url={kyc.proofOfAddressUrl} />
+            <DocLink
+              label="Justificatif de domicile"
+              url={kyc.proofOfAddressUrl}
+            />
+            <ImagePreviewLink label="Selfie" url={kyc.selfieUrl} />
             {kyc.rccmNumber && (
               <DocLink
                 label={`Document RCCM (${kyc.rccmNumber})`}
@@ -224,7 +269,7 @@ export default function KycDetailPage() {
                   variant="outline"
                   size="sm"
                   disabled={isActing}
-                  onClick={() => runAction(() => supportReviewKyc(kyc.id))}
+                  onClick={() => setShowCallNotesForm((v) => !v)}
                 >
                   Marquer revu par le support
                 </Button>
@@ -232,9 +277,17 @@ export default function KycDetailPage() {
               <Button
                 size="sm"
                 disabled={isActing || !canApprove}
-                title={canApprove ? undefined : "Seul un ADMIN peut approuver définitivement"}
+                title={
+                  canApprove
+                    ? undefined
+                    : "Seul un ADMIN peut approuver définitivement"
+                }
                 onClick={() => {
-                  if (!confirm(`Approuver le KYC de ${kyc.sellerProfile.businessName} ?`))
+                  if (
+                    !confirm(
+                      `Approuver le KYC de ${kyc.sellerProfile.businessName} ?`,
+                    )
+                  )
                     return;
                   runAction(() => approveKyc(kyc.id));
                 }}
@@ -251,6 +304,27 @@ export default function KycDetailPage() {
               </Button>
             </div>
 
+            {showCallNotesForm && (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  value={callNotes}
+                  onChange={(e) => setCallNotes(e.target.value)}
+                  placeholder="Notes d'appel (obligatoire pour marquer ce dossier comme revu)"
+                  className="border-input min-h-20 rounded-md border bg-transparent p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                />
+                <Button
+                  size="sm"
+                  className="w-fit"
+                  disabled={isActing || !callNotes.trim()}
+                  onClick={() =>
+                    runAction(() => supportReviewKyc(kyc.id, callNotes.trim()))
+                  }
+                >
+                  Confirmer la revue
+                </Button>
+              </div>
+            )}
+
             {showRejectForm && (
               <div className="flex flex-col gap-2">
                 <textarea
@@ -264,7 +338,9 @@ export default function KycDetailPage() {
                   size="sm"
                   className="w-fit"
                   disabled={isActing || !rejectReason.trim()}
-                  onClick={() => runAction(() => rejectKyc(kyc.id, rejectReason.trim()))}
+                  onClick={() =>
+                    runAction(() => rejectKyc(kyc.id, rejectReason.trim()))
+                  }
                 >
                   Confirmer le rejet
                 </Button>
@@ -281,12 +357,19 @@ export default function KycDetailPage() {
         <CardContent className="flex flex-col gap-1 text-xs text-muted-foreground">
           <p>Soumise le : {formatDateTime(kyc.createdAt)}</p>
           {kyc.supportReviewedAt && (
-            <p>Revu par le support le : {formatDateTime(kyc.supportReviewedAt)}</p>
+            <p>
+              Revu par le support le : {formatDateTime(kyc.supportReviewedAt)}
+            </p>
           )}
+          {kyc.callNotes && <p>Notes d&apos;appel : {kyc.callNotes}</p>}
           {kyc.adminReviewedAt && (
-            <p>Approuvé par l'admin le : {formatDateTime(kyc.adminReviewedAt)}</p>
+            <p>
+              Approuvé par l'admin le : {formatDateTime(kyc.adminReviewedAt)}
+            </p>
           )}
-          {kyc.rejectedAt && <p>Rejeté le : {formatDateTime(kyc.rejectedAt)}</p>}
+          {kyc.rejectedAt && (
+            <p>Rejeté le : {formatDateTime(kyc.rejectedAt)}</p>
+          )}
         </CardContent>
       </Card>
     </div>

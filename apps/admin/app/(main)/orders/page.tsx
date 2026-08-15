@@ -72,12 +72,18 @@ const CANCELLABLE: OrderStatus[] = [
   "RIDER_ASSIGNED",
 ];
 
-const REFUNDABLE: OrderStatus[] = ["CANCELLED", "REJECTED", "EXPIRED", "FAILED"];
+const REFUNDABLE: OrderStatus[] = [
+  "CANCELLED",
+  "REJECTED",
+  "EXPIRED",
+  "FAILED",
+];
 
 export default function OrdersPage() {
   const confirm = useConfirm();
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
+  const isSupport = user?.role === "SUPPORT";
 
   const [items, setItems] = useState<AdminOrderSummary[]>([]);
   const [page, setPage] = useState(1);
@@ -140,7 +146,9 @@ export default function OrdersPage() {
     try {
       setDetail(await getAdminOrder(id));
     } catch (err) {
-      setDetailError(getErrorMessage(err, "Impossible de charger la commande."));
+      setDetailError(
+        getErrorMessage(err, "Impossible de charger la commande."),
+      );
     } finally {
       setDetailLoading(false);
     }
@@ -196,7 +204,10 @@ export default function OrdersPage() {
     } catch (err) {
       showErrorToast(
         "Échec de la demande d'approbation",
-        getErrorMessage(err, "Impossible de demander l'approbation du remboursement."),
+        getErrorMessage(
+          err,
+          "Impossible de demander l'approbation du remboursement.",
+        ),
       );
     } finally {
       setIsActing(false);
@@ -233,7 +244,8 @@ export default function OrdersPage() {
     setSearch(searchInput.trim());
   }
 
-  const canCancel = detail && CANCELLABLE.includes(detail.status);
+  const canCancel =
+    (isAdmin || isSupport) && detail && CANCELLABLE.includes(detail.status);
   const canRefund =
     isAdmin &&
     detail &&
@@ -252,7 +264,10 @@ export default function OrdersPage() {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <form onSubmit={handleSearchSubmit} className="relative w-full max-w-xs">
+        <form
+          onSubmit={handleSearchSubmit}
+          className="relative w-full max-w-xs"
+        >
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
           <Input
             value={searchInput}
@@ -508,7 +523,11 @@ export default function OrdersPage() {
           ) : null}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDetailId(null)}
+            >
               {ui.cancel}
             </Button>
           </DialogFooter>

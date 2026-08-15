@@ -258,7 +258,7 @@ async function getKycById(kycId) {
   };
 }
 
-async function supportReviewKyc(actor, kycId) {
+async function supportReviewKyc(actor, kycId, callNotes) {
   const kyc = await getKycById(kycId);
   assertValidStatusTransition(kyc.status, "SUPPORT_REVIEWED");
 

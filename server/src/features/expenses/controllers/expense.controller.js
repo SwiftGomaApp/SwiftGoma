@@ -5,6 +5,7 @@ const {
   getExpenseById,
   rejectExpense,
   EXPENSE_CATEGORIES,
+  listExpensesForExport,
 } = require("../services/expense.service");
 const {
   requestExpenseApproval,

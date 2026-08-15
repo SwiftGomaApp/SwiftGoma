@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Download, Plus } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -19,16 +19,21 @@ import {
   NativeSelectOption,
 } from "@/components/ui/native-select";
 import { useAuth } from "@/providers/auth-provider";
-import {
-  listExpenses,
-  type ExpenseRecord,
-  type ExpenseStatus,
-} from "@/lib/api/routes/expenses";
 import { formatDate, formatDateTime } from "@/lib/i18n/format";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { ExpenseFormDialog } from "@/components/admin/expense-form-dialog";
 import { ExpenseApprovalActions } from "@/components/admin/expense-approval-actions";
 import { ExpenseDetailDialog } from "@/components/admin/expense-detail-dialog";
+
+import { triggerBrowserDownload } from "@/lib/api/routes/accountant";
+import { showErrorToast, showSuccessToast } from "@/lib/admin-toast";
+
+import {
+  exportExpensesCsv,
+  listExpenses,
+  type ExpenseRecord,
+  type ExpenseStatus,
+} from "@/lib/api/routes/expenses";
 
 const STATUS_LABELS: Record<ExpenseStatus, string> = {
   PENDING: "En attente",
@@ -68,9 +73,13 @@ export default function ExpensesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<ExpenseRecord | null>(
+    null,
+  );
 
   const isAccountant = user?.role === "ACCOUNTANT";
   const isAdmin = user?.role === "ADMIN";
@@ -98,6 +107,24 @@ export default function ExpensesPage() {
     }
   }
 
+  async function handleExportCsv() {
+    setIsExporting(true);
+    try {
+      const { blob, filename } = await exportExpensesCsv({
+        status: statusFilter ? (statusFilter as ExpenseStatus) : undefined,
+      });
+      triggerBrowserDownload(blob, filename);
+      showSuccessToast("CSV téléchargé", filename);
+    } catch (err) {
+      showErrorToast(
+        "Échec du téléchargement",
+        getErrorMessage(err, "Impossible de générer le CSV."),
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   useEffect(() => {
     loadExpenses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,10 +142,29 @@ export default function ExpensesPage() {
           </p>
         </div>
         {isAccountant && (
-          <Button type="button" onClick={() => setFormOpen(true)}>
-            <Plus className="h-4 w-4" />
-            Nouvelle dépense
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleExportCsv}
+              disabled={isExporting}
+            >
+              <Download className="h-4 w-4" />
+              {isExporting ? "Génération…" : "Exporter en CSV"}
+            </Button>
+            {isAccountant && (
+              <Button
+                type="button"
+                onClick={() => {
+                  setEditingExpense(null);
+                  setFormOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Nouvelle dépense
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -177,7 +223,7 @@ export default function ExpensesPage() {
                     <TableHead>Bénéficiaire</TableHead>
                     <TableHead>Montant</TableHead>
                     <TableHead>Statut</TableHead>
-                    <TableHead className="w-24" />
+                    <TableHead className="w-40" />
                     <TableHead>Créée par</TableHead>
                     {isAdmin && (
                       <TableHead className="text-right">Actions</TableHead>
@@ -217,14 +263,31 @@ export default function ExpensesPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setDetailId(item.id)}
-                        >
-                          Voir
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setDetailId(item.id)}
+                          >
+                            Voir
+                          </Button>
+                          {isAccountant &&
+                            (item.status === "PENDING" ||
+                              item.status === "FAILED") && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingExpense(item);
+                                  setFormOpen(true);
+                                }}
+                              >
+                                Modifier
+                              </Button>
+                            )}
+                        </div>
                       </TableCell>
                       {isAdmin && (
                         <TableCell className="text-right">
@@ -273,9 +336,14 @@ export default function ExpensesPage() {
 
       <ExpenseFormDialog
         open={formOpen}
-        onOpenChange={setFormOpen}
+        expense={editingExpense}
+        onOpenChange={(open) => {
+          setFormOpen(open);
+          if (!open) setEditingExpense(null);
+        }}
         onSuccess={() => {
           setFormOpen(false);
+          setEditingExpense(null);
           setRefreshKey((k) => k + 1);
         }}
       />

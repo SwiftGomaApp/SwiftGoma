@@ -29,12 +29,6 @@ DashboardRouter.get(
   getAccountantOverviewHandler,
 );
 
-DashboardRouter.get(
-  "/accountant-overview",
-  authorize("ADMIN", "ACCOUNTANT"),
-  getAccountantOverviewHandler,
-);
-
 DashboardRouter.use(authorize("ADMIN"));
 DashboardRouter.get("/overview", getOverview);
 DashboardRouter.get("/metrics", getMetrics);

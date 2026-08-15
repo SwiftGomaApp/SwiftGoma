@@ -41,8 +41,10 @@ const {
 } = require("./features/payments/config/mbiopay.config");
 const MbiyoPayCallbackRouter = require("./features/payments/routes/mbiyopayCallback.routes");
 const MbiyoPayRouter = require("./features/payments/routes/mbiopay.routes");
-const AdminTransactionsRouter = require("./features/payments/routes/adminTransactions.routes");
-const PaymentLedgerRouter = require("./features/payments/routes/adminTransactions.routes");
+const {
+  AdminTransactionsRouter,
+  PaymentLedgerRouter,
+} = require("./features/payments/routes/adminTransactions.routes");
 const CartRouter = require("./features/orders/routes/cart.routes");
 const OrderRouter = require("./features/orders/routes/order.routes");
 const FavoriteRouter = require("./features/favorites/routes/favorite.routes");

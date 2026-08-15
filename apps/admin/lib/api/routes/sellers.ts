@@ -36,11 +36,13 @@ export interface KycDetail {
   idDocumentType: IdDocumentType;
   idDocumentUrl: string;
   proofOfAddressUrl: string;
+  selfieUrl: string;
   rccmNumber: string | null;
   rccmDocumentUrl: string | null;
   status: KycStatus;
   supportReviewedBy: string | null;
   supportReviewedAt: string | null;
+  callNotes: string | null;
   adminReviewedBy: string | null;
   adminReviewedAt: string | null;
   rejectedBy: string | null;
@@ -67,7 +69,12 @@ export interface KycDetail {
 }
 
 export async function listKyc(
-  params: { page?: number; limit?: number; status?: KycStatus; search?: string } = {},
+  params: {
+    page?: number;
+    limit?: number;
+    status?: KycStatus;
+    search?: string;
+  } = {},
 ): Promise<KycListResponse> {
   const res = await apiClient.get(`/seller/kyc${toQueryString(params)}`);
   return unwrap(res);
@@ -78,8 +85,13 @@ export async function getKyc(id: string): Promise<KycDetail> {
   return unwrap(res);
 }
 
-export async function supportReviewKyc(id: string): Promise<KycDetail> {
-  const res = await apiClient.post(`/seller/kyc/${id}/support-review`);
+export async function supportReviewKyc(
+  id: string,
+  callNotes: string,
+): Promise<KycDetail> {
+  const res = await apiClient.post(`/seller/kyc/${id}/support-review`, {
+    callNotes,
+  });
   return unwrap(res);
 }
 
@@ -140,7 +152,9 @@ export async function listShopsAdmin(
     search?: string;
   } = {},
 ): Promise<ShopListResponse> {
-  const res = await apiClient.get(`/seller/shops/admin${toQueryString(params)}`);
+  const res = await apiClient.get(
+    `/seller/shops/admin${toQueryString(params)}`,
+  );
   return unwrap(res);
 }
 

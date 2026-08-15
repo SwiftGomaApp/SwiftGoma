@@ -8,38 +8,16 @@ const ALLOWED_DOCUMENT_TYPES = [...ALLOWED_IMAGE_TYPES, "application/pdf"];
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
-      return cb(
-        new BadRequestError("Only JPEG, PNG, or WEBP images are allowed."),
-      );
-    }
-    cb(null, true);
-  },
 });
 
 const pdfUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype !== "application/pdf") {
-      return cb(new BadRequestError("Only PDF files are allowed."));
-    }
-    cb(null, true);
-  },
 });
 
 const documentUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (!ALLOWED_DOCUMENT_TYPES.includes(file.mimetype)) {
-      return cb(
-        new BadRequestError("Only JPEG, PNG, WEBP, or PDF files are allowed."),
-      );
-    }
-    cb(null, true);
-  },
 });
 
 function detectRealMimeType(buffer) {
@@ -53,23 +31,30 @@ function detectRealMimeType(buffer) {
     buffer[0] === 0x89 &&
     buffer[1] === 0x50 &&
     buffer[2] === 0x4e &&
-    buffer[3] === 0x47 &&
-    buffer[4] === 0x0d &&
-    buffer[5] === 0x0a &&
-    buffer[6] === 0x1a &&
-    buffer[7] === 0x0a
+    buffer[3] === 0x47
   ) {
     return "image/png";
   }
 
   if (
-    buffer.toString("ascii", 0, 4) === "RIFF" &&
-    buffer.toString("ascii", 8, 12) === "WEBP"
+    buffer[0] === 0x52 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x46 &&
+    buffer[8] === 0x57 &&
+    buffer[9] === 0x45 &&
+    buffer[10] === 0x42 &&
+    buffer[11] === 0x50
   ) {
     return "image/webp";
   }
 
-  if (buffer.toString("ascii", 0, 5) === "%PDF-") {
+  if (
+    buffer[0] === 0x25 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x44 &&
+    buffer[3] === 0x46
+  ) {
     return "application/pdf";
   }
 
@@ -78,12 +63,12 @@ function detectRealMimeType(buffer) {
 
 function verifyFileContents(allowedTypes) {
   return (req, res, next) => {
-    const files = req.file
-      ? [req.file]
-      : req.files
-        ? Array.isArray(req.files)
-          ? req.files
-          : Object.values(req.files).flat()
+    const files = req.files
+      ? Array.isArray(req.files)
+        ? req.files
+        : Object.values(req.files).flat()
+      : req.file
+        ? [req.file]
         : [];
 
     for (const file of files) {
@@ -91,7 +76,7 @@ function verifyFileContents(allowedTypes) {
       if (!realType || !allowedTypes.includes(realType)) {
         return next(
           new BadRequestError(
-            `Le fichier "${file.originalname}" ne correspond à aucun format autorisé (contenu réel non reconnu ou non permis).`,
+            "Le contenu du fichier ne correspond à aucun format autorisé (contenu réel non reconnu ou non permis).",
           ),
         );
       }
@@ -106,7 +91,7 @@ const verifyImageContents = verifyFileContents(ALLOWED_IMAGE_TYPES);
 const verifyDocumentContents = verifyFileContents(ALLOWED_DOCUMENT_TYPES);
 const verifyPdfContents = verifyFileContents(["application/pdf"]);
 
-function verifyFieldContents(fieldRutes) {
+function verifyFieldContents(fieldRules) {
   return (req, res, next) => {
     const fileGroups = req.files
       ? Array.isArray(req.files)
@@ -117,7 +102,7 @@ function verifyFieldContents(fieldRutes) {
         : {};
 
     for (const [fieldName, files] of Object.entries(fileGroups)) {
-      const allowedTypes = fieldRutes[fieldName];
+      const allowedTypes = fieldRules[fieldName];
       if (!allowedTypes) continue;
 
       for (const file of files) {
@@ -132,6 +117,7 @@ function verifyFieldContents(fieldRutes) {
         file.mimetype = realType;
       }
     }
+
     next();
   };
 }

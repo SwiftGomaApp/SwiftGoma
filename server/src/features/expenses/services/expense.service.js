@@ -515,4 +515,5 @@ module.exports = {
   buildPayoutInputFromExpense,
   validateExpenseInput,
   updateExpense,
+  listExpensesForExport,
 };

@@ -88,7 +88,7 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Configuration active",
         href: "/payments/active-configuration",
         icon: SlidersHorizontal,
-        roles: ["ADMIN", "SUPPORT"],
+        roles: ["ADMIN", "ACCOUNTANT"],
       },
       {
         title: "Statistiques de facturation",
@@ -123,7 +123,7 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Commandes",
         href: "/orders",
         icon: ShoppingBag,
-        roles: ["ADMIN", "SUPPORT"],
+        roles: ["ADMIN", "SUPPORT", "ACCOUNTANT"],
       },
       {
         title: "Abonnements",

@@ -31,4 +31,4 @@ PaymentLedgerRouter.get(
   exportPaymentLedgerCsvHandler,
 );
 
-module.exports = AdminTransactionsRouter;
+module.exports = { AdminTransactionsRouter, PaymentLedgerRouter };

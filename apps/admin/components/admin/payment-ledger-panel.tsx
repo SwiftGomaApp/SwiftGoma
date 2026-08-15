@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { Download, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  exportPaymentLedgerCsv,
   getPaymentLedger,
   type PaymentLedgerEntry,
   type PaymentLedgerResponse,
@@ -28,6 +29,8 @@ import {
 import { formatDateTime } from "@/lib/i18n/format";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { labelOf } from "@/lib/i18n/labels";
+import { showErrorToast, showSuccessToast } from "@/lib/admin-toast";
+import { triggerBrowserDownload } from "@/lib/api/routes/accountant";
 
 const sourceLabels: Record<PaymentLedgerSource, string> = {
   ADMIN_PAYOUT: "Paiement sortant",
@@ -50,6 +53,7 @@ export function PaymentLedgerPanel() {
   const [data, setData] = useState<PaymentLedgerResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -80,6 +84,26 @@ export function PaymentLedgerPanel() {
     setSearch(searchInput.trim());
   }
 
+  async function handleExportCsv() {
+    setIsExporting(true);
+    try {
+      const { blob, filename } = await exportPaymentLedgerCsv({
+        source,
+        direction,
+        search,
+      });
+      triggerBrowserDownload(blob, filename);
+      showSuccessToast("CSV téléchargé", filename);
+    } catch (err) {
+      showErrorToast(
+        "Échec du téléchargement",
+        getErrorMessage(err, "Impossible de générer le CSV."),
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -106,7 +130,9 @@ export function PaymentLedgerPanel() {
                 }}
                 className="min-w-40"
               >
-                <NativeSelectOption value="">Toutes les sources</NativeSelectOption>
+                <NativeSelectOption value="">
+                  Toutes les sources
+                </NativeSelectOption>
                 {Object.entries(sourceLabels).map(([value, label]) => (
                   <NativeSelectOption key={value} value={value}>
                     {label}
@@ -121,7 +147,9 @@ export function PaymentLedgerPanel() {
                 }}
                 className="min-w-32"
               >
-                <NativeSelectOption value="">Entrées et sorties</NativeSelectOption>
+                <NativeSelectOption value="">
+                  Entrées et sorties
+                </NativeSelectOption>
                 <NativeSelectOption value="IN">Entrées</NativeSelectOption>
                 <NativeSelectOption value="OUT">Sorties</NativeSelectOption>
               </NativeSelect>
@@ -137,9 +165,23 @@ export function PaymentLedgerPanel() {
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <CardTitle className="text-sm">Grand livre unifié</CardTitle>
-          {data && (
-            <p className="text-muted-foreground text-xs">{data.total} mouvements</p>
-          )}
+          <div className="flex items-center gap-3">
+            {data && (
+              <p className="text-muted-foreground text-xs">
+                {data.total} mouvements
+              </p>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExportCsv}
+              disabled={isExporting}
+            >
+              <Download className="h-4 w-4" />
+              {isExporting ? "Génération…" : "Exporter en CSV"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {error && <p className="text-destructive text-sm">{error}</p>}
@@ -150,7 +192,9 @@ export function PaymentLedgerPanel() {
               <Skeleton className="h-10 w-full" />
             </div>
           ) : !data || data.items.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Aucun mouvement trouvé.</p>
+            <p className="text-muted-foreground text-sm">
+              Aucun mouvement trouvé.
+            </p>
           ) : (
             <>
               <Table>
@@ -175,7 +219,11 @@ export function PaymentLedgerPanel() {
                         {labelOf(sourceLabels, item.source)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={item.direction === "IN" ? "default" : "secondary"}>
+                        <Badge
+                          variant={
+                            item.direction === "IN" ? "default" : "secondary"
+                          }
+                        >
                           {directionLabels[item.direction]}
                         </Badge>
                       </TableCell>
