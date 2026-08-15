@@ -13,19 +13,21 @@ function extractKycFiles(req) {
   return {
     idDocumentFile: req.files?.idDocument?.[0],
     proofOfAddressFile: req.files?.proofOfAddress?.[0],
+    selfieFile: req.files?.selfie?.[0],
     rccmDocumentFile: req.files?.rccmDocument?.[0],
   };
 }
 
 async function postSubmitKyc(req, res, next) {
   try {
-    const { idDocumentFile, proofOfAddressFile, rccmDocumentFile } =
+    const { idDocumentFile, proofOfAddressFile, selfieFile, rccmDocumentFile } =
       extractKycFiles(req);
     const kyc = await submitKyc({
       userId: req.user.id,
       idDocumentType: req.body.idDocumentType,
       idDocumentFile,
       proofOfAddressFile,
+      selfieFile,
       rccmNumber: req.body.rccmNumber,
       rccmDocumentFile,
     });
@@ -46,13 +48,14 @@ async function getMyKyc(req, res, next) {
 
 async function postResubmitKyc(req, res, next) {
   try {
-    const { idDocumentFile, proofOfAddressFile, rccmDocumentFile } =
+    const { idDocumentFile, proofOfAddressFile, selfieFile, rccmDocumentFile } =
       extractKycFiles(req);
-    const kyc = await resubmitKyc({
+    const kyc = await submitKyc({
       userId: req.user.id,
       idDocumentType: req.body.idDocumentType,
       idDocumentFile,
       proofOfAddressFile,
+      selfieFile,
       rccmNumber: req.body.rccmNumber,
       rccmDocumentFile,
     });
@@ -82,7 +85,11 @@ async function getKycDetail(req, res, next) {
 
 async function postSupportReview(req, res, next) {
   try {
-    const kyc = await supportReviewKyc(req.user, req.params.id);
+    const kyc = await supportReviewKyc(
+      req.user,
+      req.params.id,
+      req.body.callNotes,
+    );
     res.status(200).json({ success: true, data: kyc });
   } catch (err) {
     next(err);

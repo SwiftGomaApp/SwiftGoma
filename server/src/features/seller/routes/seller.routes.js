@@ -39,7 +39,9 @@ const {
   imageUpload,
   documentUpload,
   verifyImageContents,
-  verifyDocumentContents,
+  verifyFieldContents,
+  ALLOWED_IMAGE_TYPES,
+  ALLOWED_DOCUMENT_TYPES,
 } = require("../../../common/middleware/upload");
 
 const SellerRouter = express.Router();
@@ -55,8 +57,15 @@ const shopImages = imageUpload.fields([
 const kycFiles = documentUpload.fields([
   { name: "idDocument", maxCount: 1 },
   { name: "proofOfAddress", maxCount: 1 },
+  { name: "selfie", maxCount: 1 },
   { name: "rccmDocument", maxCount: 1 },
 ]);
+const verifyKycFileContents = verifyFieldContents({
+  idDocument: ALLOWED_DOCUMENT_TYPES,
+  proofOfAddress: ALLOWED_DOCUMENT_TYPES,
+  rccmDocument: ALLOWED_DOCUMENT_TYPES,
+  selfie: ALLOWED_IMAGE_TYPES,
+});
 
 SellerRouter.get("/shop/slug/:slug", getShopBySlugHandler);
 SellerRouter.get("/shops", getShopsHandler);
@@ -94,7 +103,7 @@ SellerRouter.post(
   "/kyc",
   authorize("SELLER"),
   kycFiles,
-  verifyDocumentContents,
+  verifyKycFileContents,
   postSubmitKyc,
 );
 SellerRouter.get("/kyc/my-kyc", authorize("SELLER"), getMyKyc);
@@ -102,7 +111,7 @@ SellerRouter.post(
   "/kyc/resubmit",
   authorize("SELLER"),
   kycFiles,
-  verifyDocumentContents,
+  verifyKycFileContents,
   postResubmitKyc,
 );
 

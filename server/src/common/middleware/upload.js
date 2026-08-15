@@ -106,6 +106,36 @@ const verifyImageContents = verifyFileContents(ALLOWED_IMAGE_TYPES);
 const verifyDocumentContents = verifyFileContents(ALLOWED_DOCUMENT_TYPES);
 const verifyPdfContents = verifyFileContents(["application/pdf"]);
 
+function verifyFieldContents(fieldRutes) {
+  return (req, res, next) => {
+    const fileGroups = req.files
+      ? Array.isArray(req.files)
+        ? { file: req.files }
+        : req.files
+      : req.file
+        ? { file: [req.file] }
+        : {};
+
+    for (const [fieldName, files] of Object.entries(fileGroups)) {
+      const allowedTypes = fieldRutes[fieldName];
+      if (!allowedTypes) continue;
+
+      for (const file of files) {
+        const realType = detectRealMimeType(file.buffer);
+        if (!realType || !allowedTypes.includes(realType)) {
+          return next(
+            new BadRequestError(
+              `Le fichier pour "${fieldName}" ne correspond à aucun format autorisé (contenu réel non reconnu ou non permis).`,
+            ),
+          );
+        }
+        file.mimetype = realType;
+      }
+    }
+    next();
+  };
+}
+
 module.exports = {
   imageUpload,
   pdfUpload,
@@ -113,4 +143,7 @@ module.exports = {
   verifyImageContents,
   verifyDocumentContents,
   verifyPdfContents,
+  verifyFieldContents,
+  ALLOWED_IMAGE_TYPES,
+  ALLOWED_DOCUMENT_TYPES,
 };

@@ -157,6 +157,60 @@ enum ContactMessageStatus {
   CLOSED
 }
 
+enum IncidentSeverity {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum IncidentStatus {
+  INVESTIGATING
+  IDENTIFIED
+  MONITORING
+  RESOLVED
+}
+
+enum BlogPostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum AdminPayoutProvider {
+  PAWAPAY
+  MBIYOPAY
+}
+
+enum AdminPayoutStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum AccountantReportSource {
+  DOWNLOAD
+  EMAIL
+  SCHEDULED
+}
+
+enum ExpenseCategory {
+  OPERATIONS
+  MARKETING
+  PAYROLL
+  LEGAL
+  TRAVEL
+  UTILITIES
+  EQUIPMENT
+  OTHER
+}
+
+enum ExpenseStatus {
+  PENDING
+  REJECTED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 // ====================================== MODELS ===============================
 
 model User {
@@ -419,6 +473,9 @@ model SellerKyc {
   idDocumentUrl      String
   idDocumentPublicId String
 
+  selfieUrl      String
+  selfiePublicId String
+
   proofOfAddressUrl      String
   proofOfAddressPublicId String
 
@@ -430,6 +487,8 @@ model SellerKyc {
 
   supportReviewedBy String?
   supportReviewedAt DateTime?
+
+  callNotes String? @db.Text
 
   adminReviewedBy String?
   adminReviewedAt DateTime?
@@ -1058,19 +1117,6 @@ model ProductReview {
   @@map("product_reviews")
 }
 
-enum IncidentSeverity {
-  MINOR
-  MAJOR
-  CRITICAL
-}
-
-enum IncidentStatus {
-  INVESTIGATING
-  IDENTIFIED
-  MONITORING
-  RESOLVED
-}
-
 model Incident {
   id          String           @id @default(uuid())
   title       String
@@ -1088,11 +1134,6 @@ model Incident {
   @@index([status])
   @@index([createdAt])
   @@map("incidents")
-}
-
-enum BlogPostStatus {
-  DRAFT
-  PUBLISHED
 }
 
 model BlogPost {
@@ -1142,17 +1183,6 @@ model ContactMessage {
   @@map("contact_messages")
 }
 
-enum AdminPayoutProvider {
-  PAWAPAY
-  MBIYOPAY
-}
-
-enum AdminPayoutStatus {
-  PROCESSING
-  COMPLETED
-  FAILED
-}
-
 model AdminPayout {
   id               String              @id @default(uuid())
   adminId          String
@@ -1181,12 +1211,6 @@ model AdminPayout {
   @@map("admin_payouts")
 }
 
-enum AccountantReportSource {
-  DOWNLOAD
-  EMAIL
-  SCHEDULED
-}
-
 model AccountantReport {
   id               String                 @id @default(uuid())
   reference        String
@@ -1206,25 +1230,6 @@ model AccountantReport {
   @@index([createdAt(sort: Desc)])
   @@index([periodFrom, periodTo])
   @@map("accountant_reports")
-}
-
-enum ExpenseCategory {
-  OPERATIONS
-  MARKETING
-  PAYROLL
-  LEGAL
-  TRAVEL
-  UTILITIES
-  EQUIPMENT
-  OTHER
-}
-
-enum ExpenseStatus {
-  PENDING
-  REJECTED
-  PROCESSING
-  COMPLETED
-  FAILED
 }
 
 model Expense {
