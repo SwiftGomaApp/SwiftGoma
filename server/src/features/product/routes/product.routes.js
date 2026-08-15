@@ -4,8 +4,10 @@ const {
   getCategory,
   postCreateCategory,
   putUpdateCategory,
+  deleteCategoryHandler,
   postCreateSubcategory,
   putUpdateSubcategory,
+  deleteSubcategoryHandler,
 } = require("../controllers/category.controller");
 const {
   postCreateProduct,
@@ -61,10 +63,21 @@ ProductRouter.post(
   authorize("ADMIN", "SUPPORT"),
   postCreateSubcategory,
 );
+
 ProductRouter.put(
   "/categories/subcategories/:id",
   authorize("ADMIN", "SUPPORT"),
   putUpdateSubcategory,
+);
+ProductRouter.delete(
+  "/categories/subcategories/:id",
+  authorize("ADMIN", "SUPPORT"),
+  deleteSubcategoryHandler,
+);
+ProductRouter.delete(
+  "/categories/:id",
+  authorize("ADMIN", "SUPPORT"),
+  deleteCategoryHandler,
 );
 
 ProductRouter.get(
@@ -103,12 +116,7 @@ ProductRouter.post(
   postPreviewConversion,
 );
 
-ProductRouter.post(
-  "/",
-  authorize("SELLER"),
-  productImages,
-  postCreateProduct,
-);
+ProductRouter.post("/", authorize("SELLER"), productImages, postCreateProduct);
 ProductRouter.get("/shop/:shopId", authorize("SELLER"), getMyShopProducts);
 ProductRouter.put("/:id", authorize("SELLER"), putUpdateProduct);
 ProductRouter.post("/:id/status", authorize("SELLER"), postSetProductStatus);

@@ -3,8 +3,10 @@ const {
   listCategories,
   getCategoryById,
   updateCategory,
+  deleteCategory,
   createSubcategory,
   updateSubcategory,
+  deleteSubcategory,
 } = require("../services/category.service");
 
 async function getCategories(req, res, next) {
@@ -77,11 +79,33 @@ async function putUpdateSubcategory(req, res, next) {
   }
 }
 
+async function deleteCategoryHandler(req, res, next) {
+  try {
+    await deleteCategory(req.params.id);
+    res.status(200).json({ success: true, message: "Catégorie supprimée." });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteSubcategoryHandler(req, res, next) {
+  try {
+    await deleteSubcategory(req.params.id);
+    res
+      .status(200)
+      .json({ success: true, message: "Sous-catégorie supprimée." });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getCategories,
   getCategory,
   postCreateCategory,
   putUpdateCategory,
+  deleteCategoryHandler,
   postCreateSubcategory,
   putUpdateSubcategory,
+  deleteSubcategoryHandler,
 };

@@ -195,12 +195,48 @@ async function seedDefaultCategories() {
   return results;
 }
 
+async function deleteCategory(categoryId) {
+  const category = await prisma.category.findUnique({
+    where: { id: categoryId },
+    include: { _count: { select: { subcategories: true } } },
+  });
+  if (!category) throw new NotFoundError("Catégorie introuvable.");
+
+  if (category._count.subcategories > 0) {
+    throw new ConflictError(
+      "Impossible de supprimer cette catégorie : elle contient encore des sous-catégories. Supprimez-les d'abord.",
+    );
+  }
+
+  await prisma.category.delete({ where: { id: categoryId } });
+  await invalidateCategoryCaches(categoryId);
+}
+
+async function deleteSubcategory(subcategoryId) {
+  const subcategory = await prisma.subcategory.findUnique({
+    where: { id: subcategoryId },
+    include: { _count: { select: { products: true } } },
+  });
+  if (!subcategory) throw new NotFoundError("Sous-catégorie introuvable.");
+
+  if (subcategory._count.products > 0) {
+    throw new ConflictError(
+      "Impossible de supprimer cette sous-catégorie : des produits y sont encore rattachés.",
+    );
+  }
+
+  await prisma.subcategory.delete({ where: { id: subcategoryId } });
+  await invalidateCategoryCaches(subcategory.categoryId);
+}
+
 module.exports = {
   createCategory,
   listCategories,
   getCategoryById,
   updateCategory,
+  deleteCategory,
   createSubcategory,
   updateSubcategory,
+  deleteSubcategory,
   seedDefaultCategories,
 };
