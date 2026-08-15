@@ -16,6 +16,7 @@ const {
   listOrdersForBuyer,
   listOrdersForShop,
   listOrdersForRider,
+  confirmDeliveryReceipt,
 } = require("../services/order.service");
 const { getPrismaClient } = require("../../../config/prisma");
 const { NotFoundError } = require("../../../common/errors");
@@ -147,11 +148,7 @@ async function postAssignRider(req, res, next) {
   try {
     const sellerProfileId = await getSellerProfileIdForUser(req.user.id);
     const riderId = req.body.riderId ?? req.body.userId;
-    const order = await assignRider(
-      req.params.id,
-      sellerProfileId,
-      riderId,
-    );
+    const order = await assignRider(req.params.id, sellerProfileId, riderId);
     res.status(200).json({ success: true, data: order });
   } catch (err) {
     next(err);
@@ -238,6 +235,15 @@ async function getOrder(req, res, next) {
   }
 }
 
+async function postConfirmReceipt(req, res, next) {
+  try {
+    const order = await confirmDeliveryReceipt(req.params.id, req.user.id);
+    res.status(200).json({ success: true, data: order });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   postCheckout,
   getMyOrders,
@@ -256,4 +262,5 @@ module.exports = {
   postMarkFailedDelivery,
   getMyDeliveries,
   getOrder,
+  postConfirmReceipt,
 };
