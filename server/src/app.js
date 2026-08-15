@@ -42,8 +42,7 @@ const {
 const MbiyoPayCallbackRouter = require("./features/payments/routes/mbiyopayCallback.routes");
 const MbiyoPayRouter = require("./features/payments/routes/mbiopay.routes");
 const AdminTransactionsRouter = require("./features/payments/routes/adminTransactions.routes");
-const PaymentLedgerRouter =
-  require("./features/payments/routes/adminTransactions.routes").PaymentLedgerRouter;
+const PaymentLedgerRouter = require("./features/payments/routes/adminTransactions.routes");
 const CartRouter = require("./features/orders/routes/cart.routes");
 const OrderRouter = require("./features/orders/routes/order.routes");
 const FavoriteRouter = require("./features/favorites/routes/favorite.routes");
@@ -57,6 +56,7 @@ const AdminOrderRouter = require("./features/orders/routes/adminOrder.routes");
 const AdminProductRouter = require("./features/product/routes/adminProduct.routes");
 const AdminSubscriptionRouter = require("./features/subscriptions/routes/adminSubscription.routes");
 const AdminInvoiceRouter = require("./features/invoicing/routes/adminInvoice.routes");
+const { ipBlockGuard } = require("./common/middleware/ipBlockGuard");
 
 const createApp = () => {
   const app = express();
@@ -65,6 +65,7 @@ const createApp = () => {
 
   app.use(requestId);
   app.use(helmet());
+  app.use(ipBlockGuard());
 
   if (isProduction && env.clientOrigins.length === 0) {
     throw new Error(
@@ -141,8 +142,8 @@ const createApp = () => {
     });
   });
 
-  app.use("/api/v1/auth", authLimiter, authRoutes);
-  app.use("/api/v1/users", authLimiter, UserRouter);
+  app.use("/api/v1/auth", authRoutes);
+  app.use("/api/v1/users", UserRouter);
 
   app.use("/api/v1/notifications", NotificationRouter);
   app.use("/api/v1/seller", SellerRouter);

@@ -469,6 +469,7 @@ async function getAccountantOverview() {
     orders,
     adminPayouts,
     walletPayouts,
+    sellerLiabilities,
   ] = await Promise.all([
     getInvoiceStats(),
     getSubscriptionStats(),
@@ -483,6 +484,10 @@ async function getAccountantOverview() {
       _count: { _all: true },
       where: { type: "PAYOUT_DEBIT" },
     }),
+    prisma.walletBalance.groupBy({
+      by: ["currency"],
+      _sum: { balance: true },
+    }),
   ]);
 
   const adminPayoutMap = adminPayouts.reduce((acc, row) => {
@@ -494,6 +499,11 @@ async function getAccountantOverview() {
     acc[row.status] = row._count._all;
     return acc;
   }, {});
+
+  const sellerLiabilitiesByCurrency = sellerLiabilities.map((row) => ({
+    currency: row.currency,
+    total: row._sum.balance ?? 0,
+  }));
 
   return {
     invoices,
@@ -516,7 +526,86 @@ async function getAccountantOverview() {
       total: Object.values(walletPayoutMap).reduce((sum, n) => sum + n, 0),
       byStatus: walletPayoutMap,
     },
+    sellerLiabilities: {
+      byCurrency: sellerLiabilitiesByCurrency,
+      note: "Somme des soldes wallet vendeurs — dette de la plateforme envers les vendeurs.",
+    },
     generatedAt: new Date().toISOString(),
+  };
+}
+
+async function getAccountantMetrics({ days = 30, currency = "USD" } = {}) {
+  const safeDays = ALLOWED_METRIC_DAYS.includes(Number(days))
+    ? Number(days)
+    : 30;
+  const safeCurrency = ALLOWED_METRIC_CURRENCIES.includes(currency)
+    ? currency
+    : "USD";
+
+  const rows = await prisma.$queryRaw`
+    WITH bounds AS (
+      SELECT
+        (CURRENT_DATE - (${safeDays}::int - 1)) AS start_date,
+        CURRENT_DATE AS end_date
+    ),
+    date_series AS (
+      SELECT generate_series(
+        (SELECT start_date FROM bounds),
+        (SELECT end_date FROM bounds),
+        INTERVAL '1 day'
+      )::date AS date
+    ),
+    gmv_by_day AS (
+      SELECT DATE("createdAt") AS date, COALESCE(SUM(total), 0)::float AS gmv
+      FROM "orders"
+      WHERE status = 'COMPLETED'
+        AND currency = ${safeCurrency}
+        AND "createdAt" >= (SELECT start_date FROM bounds)
+      GROUP BY DATE("createdAt")
+    ),
+    sub_revenue_by_day AS (
+      SELECT DATE("paidAt") AS date, COALESCE(SUM(amount), 0)::float AS "subscriptionRevenue"
+      FROM "subscription_payments"
+      WHERE status = 'SUCCEEDED'
+        AND currency = ${safeCurrency}
+        AND "paidAt" >= (SELECT start_date FROM bounds)
+      GROUP BY DATE("paidAt")
+    ),
+    admin_payouts_by_day AS (
+      SELECT DATE("createdAt") AS date, COALESCE(SUM(amount), 0)::float AS "adminPayouts"
+      FROM "admin_payouts"
+      WHERE status = 'COMPLETED'
+        AND currency = ${safeCurrency}
+        AND "createdAt" >= (SELECT start_date FROM bounds)
+      GROUP BY DATE("createdAt")
+    ),
+    seller_payouts_by_day AS (
+      SELECT DATE("createdAt") AS date, COALESCE(SUM(ABS(amount)), 0)::float AS "sellerPayouts"
+      FROM "wallet_transactions"
+      WHERE type = 'PAYOUT_DEBIT'
+        AND status = 'COMPLETED'
+        AND currency = ${safeCurrency}
+        AND "createdAt" >= (SELECT start_date FROM bounds)
+      GROUP BY DATE("createdAt")
+    )
+    SELECT
+      TO_CHAR(ds.date, 'YYYY-MM-DD') AS date,
+      COALESCE(g.gmv, 0) AS gmv,
+      COALESCE(sr."subscriptionRevenue", 0) AS "subscriptionRevenue",
+      COALESCE(ap."adminPayouts", 0) AS "adminPayouts",
+      COALESCE(sp."sellerPayouts", 0) AS "sellerPayouts"
+    FROM date_series ds
+    LEFT JOIN gmv_by_day g ON g.date = ds.date
+    LEFT JOIN sub_revenue_by_day sr ON sr.date = ds.date
+    LEFT JOIN admin_payouts_by_day ap ON ap.date = ds.date
+    LEFT JOIN seller_payouts_by_day sp ON sp.date = ds.date
+    ORDER BY ds.date ASC;
+  `;
+
+  return {
+    days: safeDays,
+    currency: safeCurrency,
+    series: rows,
   };
 }
 
@@ -533,4 +622,5 @@ module.exports = {
   getAdminOverview,
   getSupportOverview,
   getAccountantOverview,
+  getAccountantMetrics,
 };

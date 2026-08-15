@@ -28,18 +28,28 @@ AuthRouter.post(
   authLimiter,
   authController.loginWithPassword,
 );
-AuthRouter.post("/login/totp", authLimiter, authController.loginWithTotp);
+AuthRouter.post("/login/totp", authController.loginWithTotp);
 AuthRouter.post(
   "/register/google",
   authLimiter,
   authController.registerWithGoogle,
 );
-AuthRouter.post("/login/google", authLimiter, authController.loginWithGoogle);
+AuthRouter.post("/login/google", authController.loginWithGoogle);
 AuthRouter.post("/refresh-token", authController.refreshAccessToken);
-AuthRouter.get("/me", authenticate, authController.getMe);
-AuthRouter.post("/logout", authenticate, authController.logout);
-AuthRouter.post("/logout-all", authenticate, authController.logoutAll);
-AuthRouter.get("/sessions", authenticate, authController.listSessions);
+AuthRouter.get("/me", authenticate, authLimiter, authController.getMe);
+AuthRouter.post("/logout", authenticate, authLimiter, authController.logout);
+AuthRouter.post(
+  "/logout-all",
+  authenticate,
+  authLimiter,
+  authController.logoutAll,
+);
+AuthRouter.get(
+  "/sessions",
+  authenticate,
+  authLimiter,
+  authController.listSessions,
+);
 AuthRouter.delete(
   "/sessions/:sessionId",
   authenticate,
@@ -54,13 +64,29 @@ AuthRouter.post(
 AuthRouter.post(
   "/password/update",
   authenticate,
+  authLimiter,
   authController.updatePassword,
 );
-AuthRouter.post("/password/forgot", authLimiter, authController.forgotPassword);
-AuthRouter.post("/password/reset", authLimiter, authController.resetPassword);
-AuthRouter.post("/totp/setup", authenticate, authController.setupTotp);
-AuthRouter.post("/totp/confirm", authenticate, authController.confirmTotp);
-AuthRouter.post("/totp/disable", authenticate, authController.disableTotp);
+AuthRouter.post("/password/forgot", authController.forgotPassword);
+AuthRouter.post("/password/reset", authController.resetPassword);
+AuthRouter.post(
+  "/totp/setup",
+  authenticate,
+  authLimiter,
+  authController.setupTotp,
+);
+AuthRouter.post(
+  "/totp/confirm",
+  authenticate,
+  authLimiter,
+  authController.confirmTotp,
+);
+AuthRouter.post(
+  "/totp/disable",
+  authenticate,
+  authLimiter,
+  authController.disableTotp,
+);
 AuthRouter.post(
   "/totp/regenerate-backup-codes",
   authenticate,

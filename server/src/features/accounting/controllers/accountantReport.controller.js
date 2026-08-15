@@ -1,5 +1,6 @@
 const {
   buildAccountantReport,
+  buildAccountantReportCsv,
   saveDownloadedReport,
   emailAccountantReportToAdmins,
   listAccountantReports,
@@ -29,10 +30,7 @@ async function downloadReportPdf(req, res, next) {
       req.user,
     );
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${filename}"`,
-    );
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.status(200).send(pdfBuffer);
   } catch (err) {
     next(err);
@@ -63,13 +61,26 @@ async function getReportHistory(req, res, next) {
 
 async function downloadStoredReportPdf(req, res, next) {
   try {
-    const { pdfBuffer, filename } = await getStoredReportPdfBuffer(req.params.id);
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${filename}"`,
+    const { pdfBuffer, filename } = await getStoredReportPdfBuffer(
+      req.params.id,
     );
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.status(200).send(pdfBuffer);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function downloadReportCsv(req, res, next) {
+  try {
+    const { csv, filename } = await buildAccountantReportCsv(
+      req.query,
+      getRequestedByLabel(req.user),
+    );
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.status(200).send(csv);
   } catch (err) {
     next(err);
   }
@@ -81,4 +92,5 @@ module.exports = {
   sendReportEmail,
   getReportHistory,
   downloadStoredReportPdf,
+  downloadReportCsv,
 };

@@ -54,10 +54,20 @@ async function getAccountantOverviewHandler(req, res, next) {
   }
 }
 
+async function getAccountantMetricsHandler(req, res, next) {
+  try {
+    const metrics = await getAccountantMetrics(req.query);
+    res.status(200).json({ success: true, data: metrics });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   getOverview,
   getMetrics,
   getSupportOverviewHandler,
   getSupportMetricsHandler,
   getAccountantOverviewHandler,
+  getAccountantMetricsHandler,
 };

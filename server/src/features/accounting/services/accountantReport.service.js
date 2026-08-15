@@ -4,7 +4,9 @@ const { ValidationError, NotFoundError } = require("../../../common/errors");
 const { sendAdminAccountantReportEmail } = require("../../../common/emails");
 const { generateAccountantReportPdf } = require("../utils/accountantReportPdf");
 const { uploadPdf } = require("../../../common/services/cloudinaryUpload");
-const { CLOUDINARY_FOLDERS } = require("../../../common/constants/cloudinaryFolders");
+const {
+  CLOUDINARY_FOLDERS,
+} = require("../../../common/constants/cloudinaryFolders");
 
 const prisma = getPrismaClient();
 const MAX_PERIOD_DAYS = 366;
@@ -24,7 +26,9 @@ function endOfDay(date) {
 
 function parseReportPeriod(query = {}) {
   const now = new Date();
-  const defaultFrom = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
+  const defaultFrom = startOfDay(
+    new Date(now.getFullYear(), now.getMonth(), 1),
+  );
   const defaultTo = endOfDay(now);
 
   const from = query.from ? startOfDay(new Date(query.from)) : defaultFrom;
@@ -157,9 +161,13 @@ async function persistAccountantReport({
 }) {
   const stamp = Date.now();
   const publicId = `${report.reference.toLowerCase()}-${stamp}`;
-  const upload = await uploadPdf(pdfBuffer, CLOUDINARY_FOLDERS.ACCOUNTANT_REPORTS, {
-    public_id: publicId,
-  });
+  const upload = await uploadPdf(
+    pdfBuffer,
+    CLOUDINARY_FOLDERS.ACCOUNTANT_REPORTS,
+    {
+      public_id: publicId,
+    },
+  );
 
   const record = await prisma.accountantReport.create({
     data: {
@@ -340,12 +348,8 @@ async function buildAccountantReport(query = {}, requestedBy = null) {
     }),
   ]);
 
-  const {
-    expenseRows,
-    expenseTotals,
-    expenseCount,
-    expensePendingCount,
-  } = await fetchExpenseReportSlice(from, to);
+  const { expenseRows, expenseTotals, expenseCount, expensePendingCount } =
+    await fetchExpenseReportSlice(from, to);
 
   const invoiceMap = invoiceTypeCounts.reduce((acc, row) => {
     acc[row.type] = row._count._all;
@@ -434,8 +438,7 @@ async function buildAccountantReport(query = {}, requestedBy = null) {
       })),
       sellerPayouts: sellerPayoutRows.map((row) => ({
         createdAt: row.createdAt,
-        businessName:
-          row.wallet?.sellerProfile?.businessName ?? "Vendeur",
+        businessName: row.wallet?.sellerProfile?.businessName ?? "Vendeur",
         amount: Math.abs(Number(row.amount)),
         currency: row.currency,
         status: row.status,
@@ -488,7 +491,10 @@ async function getAdminRecipientEmails() {
   ];
 }
 
-async function generateAccountantReportPdfBuffer(query = {}, requestedBy = null) {
+async function generateAccountantReportPdfBuffer(
+  query = {},
+  requestedBy = null,
+) {
   const report = await buildAccountantReport(query, requestedBy);
   const pdfBuffer = await generateAccountantReportPdf(report);
   return {
@@ -533,10 +539,8 @@ async function emailAccountantReportToAdmins(
     );
   }
 
-  const { report, pdfBuffer, filename } = await generateAccountantReportPdfBuffer(
-    query,
-    requestedBy,
-  );
+  const { report, pdfBuffer, filename } =
+    await generateAccountantReportPdfBuffer(query, requestedBy);
 
   await sendAdminAccountantReportEmail(recipients, {
     report,
@@ -618,6 +622,38 @@ async function getStoredReportPdfBuffer(id) {
   };
 }
 
+function csvEscape(value) {
+  if (value === null || value === undefined) return "";
+  const str = String(value);
+  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+
+async function buildAccountantReportCsv(query = {}, requestedBy = null) {
+  const report = await buildAccountantReport(query, requestedBy);
+  const rows = [
+    ["Rapport", report.reference],
+    ["Période début", report.period.from],
+    ["Période fin", report.period.to],
+    [],
+    ["Catégorie", "Devise", "Total", "Nombre"],
+  ];
+
+  const pushTotals = (label, totals) => {
+    totals.forEach((t) => rows.push([label, t.currency, t.total, t.count]));
+  };
+
+  pushTotals("Revenus abonnements", report.summary.subscriptionRevenue);
+  pushTotals("Paiements commandes", report.summary.orderPayments);
+  pushTotals("GMV commandes", report.summary.orderGmv);
+  pushTotals("Paiements admin sortants", report.summary.adminPayouts.totals);
+  pushTotals("Retraits vendeurs", report.summary.sellerPayouts.totals);
+  pushTotals("Dépenses SwiftGoma", report.summary.companyExpenses.totals);
+
+  const csv = rows.map((row) => row.map(csvEscape).join(",")).join("\n");
+
+  return { csv, filename: `${report.reference}.csv` };
+}
+
 module.exports = {
   parseReportPeriod,
   buildAccountantReport,
@@ -627,4 +663,5 @@ module.exports = {
   generateMonthlyAccountantReport,
   listAccountantReports,
   getStoredReportPdfBuffer,
+  buildAccountantReportCsv,
 };

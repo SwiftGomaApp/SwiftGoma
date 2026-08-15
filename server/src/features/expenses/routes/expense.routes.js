@@ -8,6 +8,8 @@ const {
   resendExpenseApprovalHandler,
   confirmExpenseApprovalHandler,
   getExpenseMetaHandler,
+  updateExpenseHandler,
+  exportExpensesCsvHandler,
 } = require("../controllers/expense.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
@@ -30,16 +32,8 @@ ExpenseRouter.get(
   authorize("ADMIN", "ACCOUNTANT"),
   getExpenseMetaHandler,
 );
-ExpenseRouter.get(
-  "/",
-  authorize("ADMIN", "ACCOUNTANT"),
-  listExpensesHandler,
-);
-ExpenseRouter.get(
-  "/:id",
-  authorize("ADMIN", "ACCOUNTANT"),
-  getExpenseHandler,
-);
+ExpenseRouter.get("/", authorize("ADMIN", "ACCOUNTANT"), listExpensesHandler);
+ExpenseRouter.get("/:id", authorize("ADMIN", "ACCOUNTANT"), getExpenseHandler);
 ExpenseRouter.post(
   "/",
   authorize("ACCOUNTANT"),
@@ -47,11 +41,7 @@ ExpenseRouter.post(
   verifyDocumentContents,
   createExpenseHandler,
 );
-ExpenseRouter.post(
-  "/:id/reject",
-  authorize("ADMIN"),
-  rejectExpenseHandler,
-);
+ExpenseRouter.post("/:id/reject", authorize("ADMIN"), rejectExpenseHandler);
 ExpenseRouter.post(
   "/:id/approve/request",
   authorize("ADMIN"),
@@ -69,6 +59,20 @@ ExpenseRouter.post(
   authorize("ADMIN"),
   payoutConfirmLimiter,
   confirmExpenseApprovalHandler,
+);
+
+ExpenseRouter.put(
+  "/:id",
+  authorize("ACCOUNTANT"),
+  documentUpload.single("receipt"),
+  verifyDocumentContents,
+  updateExpenseHandler,
+);
+
+ExpenseRouter.get(
+  "/export/csv",
+  authorize("ADMIN", "ACCOUNTANT"),
+  exportExpensesCsvHandler,
 );
 
 module.exports = ExpenseRouter;

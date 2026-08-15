@@ -21,6 +21,26 @@ function userOrIpKey(req, res) {
   return `ip:${rateLimit.ipKeyGenerator(req, res)}`;
 }
 
+const VIOLATIONS_BEFORE_BLOCK = 5;
+
+async function recordViolationAndMaybeBlock(req, windowMs) {
+  const client = getRedisClient();
+  if (!client) return;
+
+  const ip = rateLimit.ipKeyGenerator(req, req.res);
+  const violationsKey = `rl:violations:${ip}`;
+  const blockKey = `rl:blocked:${ip}`;
+
+  const count = await client.incr(violationsKey);
+  if (count === 1) {
+    await client.pexpire(violationsKey, windowMs);
+  }
+
+  if (count >= VIOLATIONS_BEFORE_BLOCK) {
+    await client.set(blockKey, "1", "PX", windowMs);
+  }
+}
+
 function createRateLimiter({ name, windowMs, max, message, keyGenerator }) {
   if (!name) {
     throw new Error(
@@ -35,6 +55,9 @@ function createRateLimiter({ name, windowMs, max, message, keyGenerator }) {
     store: buildStore(name),
     ...(keyGenerator && { keyGenerator }),
     handler: (req, res, next) => {
+      recordViolationAndMaybeBlock(req, windowMs).catch((err) => {
+        console.error("[rateLimit] violation tracking failed:", err.message);
+      });
       next(new TooManyRequestsError(message));
     },
   });

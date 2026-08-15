@@ -34,9 +34,21 @@ async function listAdminSubscriptions(query = {}) {
   const search = typeof query.search === "string" ? query.search.trim() : "";
   if (search) {
     where.OR = [
-      { sellerProfile: { businessName: { contains: search, mode: "insensitive" } } },
-      { sellerProfile: { user: { name: { contains: search, mode: "insensitive" } } } },
-      { sellerProfile: { user: { email: { contains: search, mode: "insensitive" } } } },
+      {
+        sellerProfile: {
+          businessName: { contains: search, mode: "insensitive" },
+        },
+      },
+      {
+        sellerProfile: {
+          user: { name: { contains: search, mode: "insensitive" } },
+        },
+      },
+      {
+        sellerProfile: {
+          user: { email: { contains: search, mode: "insensitive" } },
+        },
+      },
       { plan: { name: { contains: search, mode: "insensitive" } } },
     ];
   }
@@ -54,7 +66,7 @@ async function listAdminSubscriptions(query = {}) {
           select: {
             id: true,
             businessName: true,
-            user: { select: { id: true, name: true, email: true } },
+            user: { select: { id: true, name: true } },
           },
         },
         _count: { select: { payments: true } },
@@ -78,7 +90,7 @@ async function getAdminSubscriptionById(subscriptionId) {
       plan: { include: { prices: true } },
       sellerProfile: {
         include: {
-          user: { select: { id: true, name: true, email: true, phone: true } },
+          user: { select: { id: true, name: true, phone: true } },
         },
       },
       payments: {
@@ -86,7 +98,12 @@ async function getAdminSubscriptionById(subscriptionId) {
         include: {
           plan: { select: { name: true, slug: true } },
           invoices: {
-            select: { id: true, type: true, documentNumber: true, pdfUrl: true },
+            select: {
+              id: true,
+              type: true,
+              documentNumber: true,
+              pdfUrl: true,
+            },
           },
         },
       },

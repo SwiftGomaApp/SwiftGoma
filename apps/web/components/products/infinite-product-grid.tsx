@@ -11,9 +11,7 @@ import { mapProductToCardData } from "@/lib/api/routes/products";
 import { FeaturedProductCard } from "@/components/products/product-card";
 import { ProductCardSkeleton } from "./product-card-skeleton";
 
-type FetchPage = (
-  params: ProductListParams,
-) => Promise<{
+type FetchPage = (params: ProductListParams) => Promise<{
   products: ProductListItem[];
   pagination: { page: number; totalPages: number };
 }>;
