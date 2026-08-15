@@ -218,6 +218,23 @@ export const authApi = {
   listPasskeys() {
     return unwrap<Passkey[]>(api.get("/auth/passkey"));
   },
+
+  requestAccountRecovery(input: { email: string; locale?: string }) {
+    return unwrap<{ sent: boolean }>(
+      api.post("/users/recovery/request", input),
+    );
+  },
+
+  verifyAccountRecovery(input: {
+    email: string;
+    code: string;
+    deviceName?: string;
+    locale?: string;
+  }) {
+    return unwrap<AuthResult | RequiresTotpResult>(
+      api.post("/users/recovery/verify", input),
+    );
+  },
 };
 
 type PublicKeyCredentialRequestOptionsJSON = Record<string, unknown>;

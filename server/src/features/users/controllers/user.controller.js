@@ -55,7 +55,7 @@ async function verifyAccountRecovery(req, res) {
   if (result.requiresTotp) {
     return res.status(200).json({
       success: true,
-      data: { requiresTotp: true, userId: result.userId },
+      data: { requiresTotp: true, pendingToken: result.pendingToken },
     });
   }
 
@@ -289,7 +289,7 @@ async function deleteSecondaryEmail(req, res) {
 
 module.exports = {
   updateProfile,
-deleteAccount,
+  deleteAccount,
   requestAccountRecovery,
   verifyAccountRecovery,
   requestPhoneVerification,

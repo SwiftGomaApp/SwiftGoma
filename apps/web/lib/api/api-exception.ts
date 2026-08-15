@@ -9,7 +9,8 @@ type ApiErrorCode =
   | "CONFLICT"
   | "TOO_MANY_REQUESTS"
   | "INTERNAL_ERROR"
-  | "NETWORK_ERROR";
+  | "NETWORK_ERROR"
+  | "ACCOUNT_DELETION_PENDING";
 
 type ApiErrorBody = {
   success: false;

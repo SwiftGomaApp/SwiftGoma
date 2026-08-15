@@ -67,4 +67,8 @@ export const userApi = {
       }),
     );
   },
+
+  deleteAccount(input: { reason?: string; locale?: string }) {
+    return unwrap<{ deleted: boolean }>(api.post("/users/delete", input));
+  },
 };
