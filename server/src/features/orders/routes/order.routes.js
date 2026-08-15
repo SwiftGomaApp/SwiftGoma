@@ -17,6 +17,7 @@ const {
   postMarkFailedDelivery,
   getMyDeliveries,
   getOrder,
+  postConfirmReceipt,
 } = require("../controllers/order.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
@@ -29,6 +30,7 @@ OrderRouter.use(authenticate);
 OrderRouter.post("/checkout", paymentLimiter, postCheckout);
 OrderRouter.get("/me", getMyOrders);
 OrderRouter.post("/:id/cancel", postCancelOrder);
+OrderRouter.post("/:id/confirm-receipt", postConfirmReceipt);
 OrderRouter.get("/:id/qr-code", getOrderQr);
 
 OrderRouter.post("/scan", postScanQr);

@@ -1493,7 +1493,7 @@ async function completeStaleDeliveredOrders() {
   return results.filter((r) => r.status === "fulfilled" && r.value).length;
 }
 
-async function completeOneDeliveredOrder(order) {
+async function completeOneDeliveredOrder(order, { notifySeller = false } = {}) {
   assertValidStatusTransition(
     order.status,
     "COMPLETED",
@@ -1519,6 +1519,27 @@ async function completeOneDeliveredOrder(order) {
   }
 
   emitOrderUpdate(updated);
+
+  if (notifySeller) {
+    try {
+      const sellerUserId = order.shop?.sellerProfile?.userId;
+      if (sellerUserId) {
+        await createNotification({
+          userId: sellerUserId,
+          type: NOTIFICATION_TYPES.ORDER_STATUS,
+          title: "Réception confirmée",
+          body: "Le client a confirmé la réception de sa commande.",
+          data: { action: "orderReceiptConfirmed", orderId: order.id },
+        });
+      }
+    } catch (err) {
+      console.error(
+        `[order] Failed to notify seller of receipt confirmation for order ${order.id}:`,
+        err.message,
+      );
+    }
+  }
+
   return true;
 }
 
@@ -1948,6 +1969,27 @@ async function remindStaleDeliveryOrders() {
   return sent;
 }
 
+async function confirmDeliveryReceipt(orderId, buyerId) {
+  const order = await assertOrderOwnedByBuyer(orderId, buyerId);
+
+  if (order.status !== "DELIVERED") {
+    throw new ConflictError(
+      "Cette commande ne peut être confirmée que lorsqu'elle est au statut « livrée ».",
+    );
+  }
+
+  const completed = await completeOneDeliveredOrder(order, {
+    notifySeller: true,
+  });
+  if (!completed) {
+    throw new ConflictError(
+      "La commande a changé de statut entre-temps. Veuillez rafraîchir et réessayer.",
+    );
+  }
+
+  return prisma.order.findUnique({ where: { id: orderId } });
+}
+
 module.exports = {
   checkout,
   confirmOrderPayment,
@@ -1979,5 +2021,6 @@ module.exports = {
   emitOrderUpdate,
   sendOrderPaymentDocuments,
   completeStaleDeliveredOrders,
+  confirmDeliveryReceipt,
   unassignStaleRiderOrders,
 };
