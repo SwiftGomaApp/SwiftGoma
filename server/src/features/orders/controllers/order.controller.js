@@ -18,6 +18,11 @@ const {
   listOrdersForRider,
   confirmDeliveryReceipt,
 } = require("../services/order.service");
+const {
+  sendOrderMessage,
+  listOrderMessages,
+  markOrderMessagesRead,
+} = require("../services/orderMessage.service");
 const { getPrismaClient } = require("../../../config/prisma");
 const { NotFoundError } = require("../../../common/errors");
 
@@ -244,6 +249,41 @@ async function postConfirmReceipt(req, res, next) {
   }
 }
 
+async function getOrderMessages(req, res, next) {
+  try {
+    const messages = await listOrderMessages(
+      req.params.id,
+      req.user.id,
+      req.query,
+    );
+    res.status(200).json({ success: true, data: messages });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postOrderMessage(req, res, next) {
+  try {
+    const message = await sendOrderMessage({
+      orderId: req.params.id,
+      senderId: req.user.id,
+      body: req.body.body,
+    });
+    res.status(201).json({ success: true, data: message });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postMarkOrderMessagesRead(req, res, next) {
+  try {
+    await markOrderMessagesRead(req.params.id, req.user.id);
+    res.status(200).json({ success: true, data: { orderId: req.params.id } });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   postCheckout,
   getMyOrders,
@@ -263,4 +303,7 @@ module.exports = {
   getMyDeliveries,
   getOrder,
   postConfirmReceipt,
+  getOrderMessages,
+  postOrderMessage,
+  postMarkOrderMessagesRead,
 };

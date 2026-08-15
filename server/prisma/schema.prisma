@@ -211,6 +211,11 @@ enum ExpenseStatus {
   FAILED
 }
 
+enum OrderMessageSenderRole {
+  BUYER
+  RIDER
+}
+
 // ====================================== MODELS ===============================
 
 model User {
@@ -252,6 +257,7 @@ model User {
   sellerProfile           SellerProfile?
   rider                   Rider?
   orders                  Order[]
+  orderMessages           OrderMessage[]
 
   actionsReceived  AccountActionLog[] @relation("TargetUser")
   actionsPerformed AccountActionLog[] @relation("ActorUser")
@@ -892,8 +898,9 @@ model Order {
   cancelledAt DateTime?
   rejectedAt  DateTime?
 
-  items   OrderItem[]
-  payment OrderPayment?
+  items    OrderItem[]
+  payment  OrderPayment?
+  messages OrderMessage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1268,4 +1275,24 @@ model Expense {
   @@index([incurredAt(sort: Desc)])
   @@index([createdById])
   @@map("expenses")
+}
+
+model OrderMessage {
+  id      String @id @default(uuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  senderId   String
+  sender     User                   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  senderRole OrderMessageSenderRole
+
+  body String
+
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
+  @@index([senderId])
+  @@map("order_messages")
 }

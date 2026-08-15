@@ -170,6 +170,53 @@ function initSocket(httpServer) {
       socket.leave(`order:${orderId}`);
     });
 
+    socket.on("order:message:send", async ({ orderId, body }, ack) => {
+      try {
+        const {
+          sendOrderMessage,
+        } = require("../features/orders/services/orderMessage.service");
+        const message = await sendOrderMessage({
+          orderId,
+          senderId: socket.userId,
+          body,
+        });
+
+        io.to(`order:${orderId}`).emit("order:message:new", message);
+        if (ack) ack({ message });
+      } catch (err) {
+        console.error("[socket] order:message:send failed:", err.message);
+        if (ack) {
+          ack({
+            error: err.code || "INTERNAL_ERROR",
+            message: err.message || "Impossible d'envoyer le message.",
+          });
+        }
+      }
+    });
+
+    socket.on("order:message:read", async (orderId, ack) => {
+      try {
+        const {
+          markOrderMessagesRead,
+        } = require("../features/orders/services/orderMessage.service");
+        await markOrderMessagesRead(orderId, socket.userId);
+
+        socket.to(`order:${orderId}`).emit("order:message:read", {
+          orderId,
+          readBy: socket.userId,
+        });
+        if (ack) ack({ ok: true });
+      } catch (err) {
+        console.error("[socket] order:message:read failed:", err.message);
+        if (ack) {
+          ack({
+            error: err.code || "INTERNAL_ERROR",
+            message: err.message || "Impossible de marquer comme lu.",
+          });
+        }
+      }
+    });
+
     socket.on("disconnect", () => {});
   });
 
