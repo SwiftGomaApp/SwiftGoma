@@ -10,6 +10,7 @@ import { NotificationsPreferences } from "@/components/settings/notifications-pr
 import { DevicesSessions } from "@/components/settings/devices-sessions";
 import { SecurityPhone } from "@/components/settings/security-phone";
 import { SecurityConnectedAccounts } from "@/components/settings/security-connected-accounts";
+import { SecurityDeleteAccount } from "@/components/settings/security-delete-account";
 import { CurrencyPreference } from "@/components/settings/currency-preference";
 
 type Section = "security" | "notifications" | "devices" | "currency";
@@ -70,6 +71,7 @@ export default function SettingsPage() {
               <SecurityConnectedAccounts />
               <SecurityTwoFactor />
               <SecurityPasskeys />
+              <SecurityDeleteAccount />
             </div>
           )}
           {activeSection === "notifications" && <NotificationsPreferences />}

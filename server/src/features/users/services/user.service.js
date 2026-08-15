@@ -38,6 +38,7 @@ const {
   logoutAll,
 } = require("../../auth/services/auth.service");
 const { ACCOUNT_DELETION_CONFIG } = require("../config/accountDeletion.config");
+const { signMfaPendingToken } = require("../../../config/jwt");
 const { isWithinRecoveryGracePeriod } = require("../utils/accountDeletion");
 const { verifyGoogleIdToken } = require("../../auth/config/google.config");
 const { maskPhone } = require("../utils/phone");
@@ -58,7 +59,14 @@ const PHONE_OTP_TTL_MINUTES = 10;
 const PHONE_OTP_RESEND_COOLDOWN_SECONDS = 30;
 const MAX_LIMIT = 100;
 const PRIVILEGED_ROLES = ["ADMIN", "SUPPORT", "ACCOUNTANT"];
-const VALID_ROLES = ["BUYER", "SELLER", "RIDER", "ADMIN", "SUPPORT", "ACCOUNTANT"];
+const VALID_ROLES = [
+  "BUYER",
+  "SELLER",
+  "RIDER",
+  "ADMIN",
+  "SUPPORT",
+  "ACCOUNTANT",
+];
 const SECONDARY_EMAIL_OTP_TTL_MINUTES = 10;
 
 const SENSITIVE_FIELDS = [
@@ -343,7 +351,10 @@ async function verifyAccountRecovery({
   }
 
   if (restored.twoFactorAuth && restored.twoFactorAuth.isEnabled) {
-    return { requiresTotp: true, userId: restored.id };
+    return {
+      requiresTotp: true,
+      pendingToken: signMfaPendingToken({ userId: restored.id }),
+    };
   }
 
   const { accessToken, refreshToken, sessionId } = await issueSessionAndNotify(

@@ -11,11 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Logo from "@/components/global/logo";
 import { GoogleAuthButton } from "@/components/auth/google-auth-button";
-import { authApi } from "@/lib/api/routes/auth";
-import { ApiException } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 import { detectLocale } from "@/lib/locale";
+import { authApi, type RequiresTotpResult } from "@/lib/api/routes/auth";
+import { ApiException } from "@/lib/api";
+import { AccountRecoveryScreen } from "@/components/auth/account-recovery-screen";
 
 function HexPattern() {
   return (
@@ -58,6 +59,28 @@ function getErrorMessage(err: unknown, fallback: string) {
   return err instanceof ApiException ? err.message : fallback;
 }
 
+function extractDeletionInfo(
+  err: unknown,
+): { recoverableUntil: string; email: string | null } | null {
+  if (
+    err instanceof ApiException &&
+    err.code === "ACCOUNT_DELETION_PENDING" &&
+    err.details &&
+    typeof err.details === "object" &&
+    "recoverableUntil" in err.details
+  ) {
+    const details = err.details as {
+      recoverableUntil: unknown;
+      email?: unknown;
+    };
+    return {
+      recoverableUntil: String(details.recoverableUntil),
+      email: typeof details.email === "string" ? details.email : null,
+    };
+  }
+  return null;
+}
+
 function sanitizeNextPath(next: string | null) {
   if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
   return next;
@@ -84,12 +107,14 @@ function SignInForm() {
   const [otpStep, setOtpStep] = useState<"email" | "code">("email");
   const [otpCode, setOtpCode] = useState("");
 
-  const [totpPendingToken, setTotpPendingToken] = useState<string | null>(
-    null,
-  );
+  const [totpPendingToken, setTotpPendingToken] = useState<string | null>(null);
   const [totpCode, setTotpCode] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
+  const [deletionInfo, setDeletionInfo] = useState<{
+    email: string;
+    recoverableUntil: string;
+  } | null>(null);
 
   function switchMethod(next: LoginMethod) {
     setMethod(next);
@@ -146,7 +171,15 @@ function SignInForm() {
         await completeLogin();
       }
     } catch (err) {
-      toast.error(getErrorMessage(err, "Identifiants invalides."));
+      const deletion = extractDeletionInfo(err);
+      if (deletion) {
+        setDeletionInfo({
+          email: deletion.email ?? email,
+          recoverableUntil: deletion.recoverableUntil,
+        });
+      } else {
+        toast.error(getErrorMessage(err, "Identifiants invalides."));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -182,7 +215,15 @@ function SignInForm() {
         await completeLogin();
       }
     } catch (err) {
-      toast.error(getErrorMessage(err, "Connexion avec Google échouée."));
+      const deletion = extractDeletionInfo(err);
+      if (deletion) {
+        setDeletionInfo({
+          email: deletion.email ?? "",
+          recoverableUntil: deletion.recoverableUntil,
+        });
+      } else {
+        toast.error(getErrorMessage(err, "Connexion avec Google échouée."));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -209,7 +250,13 @@ function SignInForm() {
         await completeLogin();
       }
     } catch (err) {
-      if (err instanceof ApiException) {
+      const deletion = extractDeletionInfo(err);
+      if (deletion) {
+        setDeletionInfo({
+          email: deletion.email ?? email,
+          recoverableUntil: deletion.recoverableUntil,
+        });
+      } else if (err instanceof ApiException) {
         toast.error(err.message);
       } else {
         toast.error("Connexion par clé d'accès annulée ou échouée.");
@@ -217,6 +264,21 @@ function SignInForm() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  if (deletionInfo) {
+    return (
+      <AccountRecoveryScreen
+        email={deletionInfo.email}
+        recoverableUntil={deletionInfo.recoverableUntil}
+        onCancel={() => setDeletionInfo(null)}
+        onRecovered={completeLogin}
+        onRequiresTotp={(result) => {
+          setDeletionInfo(null);
+          setTotpPendingToken(result.pendingToken);
+        }}
+      />
+    );
   }
 
   return (
