@@ -2022,5 +2022,6 @@ module.exports = {
   sendOrderPaymentDocuments,
   completeStaleDeliveredOrders,
   confirmDeliveryReceipt,
+  assertCanViewOrder,
   unassignStaleRiderOrders,
 };

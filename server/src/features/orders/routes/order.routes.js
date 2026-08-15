@@ -18,10 +18,16 @@ const {
   getMyDeliveries,
   getOrder,
   postConfirmReceipt,
+  getOrderMessages,
+  postOrderMessage,
+  postMarkOrderMessagesRead,
 } = require("../controllers/order.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
-const { paymentLimiter } = require("../../../common/middleware/rateLimiters");
+const {
+  paymentLimiter,
+  chatMessageLimiter,
+} = require("../../../common/middleware/rateLimiters");
 
 const OrderRouter = express.Router();
 
@@ -32,6 +38,10 @@ OrderRouter.get("/me", getMyOrders);
 OrderRouter.post("/:id/cancel", postCancelOrder);
 OrderRouter.post("/:id/confirm-receipt", postConfirmReceipt);
 OrderRouter.get("/:id/qr-code", getOrderQr);
+
+OrderRouter.get("/:id/messages", getOrderMessages);
+OrderRouter.post("/:id/messages", chatMessageLimiter, postOrderMessage);
+OrderRouter.post("/:id/messages/read", postMarkOrderMessagesRead);
 
 OrderRouter.post("/scan", postScanQr);
 

@@ -16,14 +16,16 @@ const authLimiter = createRateLimiter({
   name: "auth",
   windowMs: 15 * 60 * 1000,
   max: isTest ? 100_000 : 10,
-  message: "Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.",
+  message:
+    "Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.",
 });
 
 const paymentLimiter = createRateLimiter({
   name: "payment",
   windowMs: FIFTEEN_MINUTES_MS,
   max: isTest ? 100_000 : 20,
-  message: "Trop de requêtes de paiement. Veuillez patienter avant de réessayer.",
+  message:
+    "Trop de requêtes de paiement. Veuillez patienter avant de réessayer.",
 });
 
 const payoutOtpLimiter = createRateLimiter({
@@ -48,7 +50,8 @@ const payoutConfirmLimiter = createRateLimiter({
   name: "payout-confirm",
   windowMs: FIFTEEN_MINUTES_MS,
   max: isTest ? 100_000 : 5,
-  message: "Trop de confirmations de paiement. Veuillez patienter avant de réessayer.",
+  message:
+    "Trop de confirmations de paiement. Veuillez patienter avant de réessayer.",
   keyGenerator: userOrIpKey,
 });
 
@@ -59,6 +62,14 @@ const webhookLimiter = createRateLimiter({
   message: "Trop de requêtes webhook.",
 });
 
+const chatMessageLimiter = createRateLimiter({
+  name: "chat-message",
+  windowMs: 60 * 1000,
+  max: isTest ? 100_000 : 20,
+  message: "Trop de messages envoyés. Veuillez ralentir.",
+  keyGenerator: userOrIpKey,
+});
+
 module.exports = {
   globalLimiter,
   authLimiter,
@@ -67,4 +78,5 @@ module.exports = {
   payoutOtpResendLimiter,
   payoutConfirmLimiter,
   webhookLimiter,
+  chatMessageLimiter,
 };
