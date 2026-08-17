@@ -41,6 +41,13 @@ export function GoogleAuthButton({
   const [ready, setReady] = useState(false);
   const initializedRef = useRef(false);
 
+  // Toujours à jour, même si `initialize()` n'est appelé qu'une fois :
+  // le callback lira toujours la dernière version de onCredential.
+  const onCredentialRef = useRef(onCredential);
+  useEffect(() => {
+    onCredentialRef.current = onCredential;
+  }, [onCredential]);
+
   useEffect(() => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
     if (!clientId) {
@@ -58,7 +65,7 @@ export function GoogleAuthButton({
           window.google.accounts.id.initialize({
             client_id: clientId,
             callback: (response) => {
-              void onCredential(response.credential);
+              void onCredentialRef.current(response.credential);
             },
           });
           initializedRef.current = true;
@@ -77,12 +84,11 @@ export function GoogleAuthButton({
     return () => {
       cancelled = true;
     };
-  }, [onCredential]);
+  }, []);
 
   function handleClick() {
-    const realButton = hiddenButtonRef.current?.querySelector(
-      'div[role="button"]',
-    );
+    const realButton =
+      hiddenButtonRef.current?.querySelector('div[role="button"]');
     if (realButton instanceof HTMLElement) {
       realButton.click();
     }

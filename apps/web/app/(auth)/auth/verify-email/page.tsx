@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import Logo from "@/components/global/logo";
 import { authApi } from "@/lib/api/routes/auth";
 import { ApiException } from "@/lib/api";
+import { detectLocale } from "@/lib/locale";
 
 const RESEND_COOLDOWN_SECONDS = 30;
 
@@ -49,7 +50,10 @@ function VerifyEmailForm() {
   async function handleResend() {
     setIsResending(true);
     try {
-      await authApi.resendEmailVerification({ email, locale: "fr" });
+      await authApi.resendEmailVerification({
+        email,
+        locale: detectLocale(),
+      });
       toast.success("Code renvoyé.");
       setCooldown(RESEND_COOLDOWN_SECONDS);
     } catch (err) {

@@ -16,6 +16,7 @@ import {
   oneSignalLogout,
 } from "@/lib/onesignal";
 import { refreshSession } from "@/lib/api/client";
+import { clearCarts } from "@/lib/cart/storage";
 
 type AuthContextValue = {
   user: User | null;
@@ -84,11 +85,13 @@ export function AuthProvider({
 
   async function logout() {
     setIsLoggingOut(true);
+    const loggedOutUserId = user?.id ?? null;
     try {
       await authApi.logout();
     } finally {
       setUser(null);
       setIsLoggingOut(false);
+      if (loggedOutUserId) clearCarts(loggedOutUserId);
     }
   }
 
