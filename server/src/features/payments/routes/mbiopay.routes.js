@@ -16,6 +16,7 @@ const {
   payoutConfirmLimiter,
   paymentLimiter,
 } = require("../../../common/middleware/rateLimiters");
+const { idempotencyGuard } = require("../../../common/middleware/idempotency");
 
 const FINANCE_READ = authorize("ADMIN", "ACCOUNTANT");
 
@@ -23,7 +24,13 @@ const MbiyoPayRouter = express.Router();
 
 MbiyoPayRouter.use(authenticate);
 
-MbiyoPayRouter.post("/payin", authorize("ADMIN"), paymentLimiter, postInitiatePayin);
+MbiyoPayRouter.post(
+  "/payin",
+  authorize("ADMIN"),
+  paymentLimiter,
+  idempotencyGuard({ scope: "mbiopay-payin" }),
+  postInitiatePayin,
+);
 MbiyoPayRouter.post(
   "/payout/request-approval",
   authorize("ADMIN"),
@@ -37,9 +44,17 @@ MbiyoPayRouter.post(
   postConfirmPayout,
 );
 MbiyoPayRouter.get("/payout/history", FINANCE_READ, getPayoutHistory);
-MbiyoPayRouter.get("/transactions/:transactionId", FINANCE_READ, getTransactionStatus);
+MbiyoPayRouter.get(
+  "/transactions/:transactionId",
+  FINANCE_READ,
+  getTransactionStatus,
+);
 MbiyoPayRouter.get("/balances", FINANCE_READ, getBalances);
-MbiyoPayRouter.get("/balances/networks", FINANCE_READ, getNetworkBalancesHandler);
+MbiyoPayRouter.get(
+  "/balances/networks",
+  FINANCE_READ,
+  getNetworkBalancesHandler,
+);
 MbiyoPayRouter.get("/countries", FINANCE_READ, getCountriesHandler);
 
 module.exports = MbiyoPayRouter;
