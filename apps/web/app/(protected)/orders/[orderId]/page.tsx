@@ -11,6 +11,7 @@ import {
   Copy,
   Loader2,
   MapPin,
+  MessageCircle,
   Navigation,
   Package,
   QrCode as QrCodeIcon,
@@ -63,6 +64,7 @@ import {
   orderStatusBadgeVariant,
 } from "@/lib/orders";
 import { cn } from "@/lib/utils";
+import { OrderChat } from "@/components/orders/order-chat";
 
 function OrderDetailSkeleton() {
   return (
@@ -187,6 +189,7 @@ function OrderDetailContent({ order: initialOrder }: { order: Order }) {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [trackDialogOpen, setTrackDialogOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelUnavailableDialogOpen, setCancelUnavailableDialogOpen] =
     useState(false);
@@ -424,9 +427,7 @@ function OrderDetailContent({ order: initialOrder }: { order: Order }) {
             </CardHeader>
             <CardContent className="grid gap-5 pt-6 sm:grid-cols-2">
               <DetailRow
-                icon={
-                  order.fulfillmentMethod === "DELIVERY" ? Truck : Store
-                }
+                icon={order.fulfillmentMethod === "DELIVERY" ? Truck : Store}
                 label="Mode de réception"
                 value={
                   order.fulfillmentMethod === "DELIVERY"
@@ -535,6 +536,18 @@ function OrderDetailContent({ order: initialOrder }: { order: Order }) {
             </Button>
           )}
 
+          {canTrack && (
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2"
+              onClick={() => setChatOpen(true)}
+            >
+              <MessageCircle className="h-4 w-4" />
+              Message au livreur
+            </Button>
+          )}
+
           {!FAILED_ORDER_STATUSES.includes(order.status) &&
             order.status !== "COMPLETED" && (
               <Button
@@ -635,6 +648,12 @@ function OrderDetailContent({ order: initialOrder }: { order: Order }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <OrderChat
+        orderId={order.id}
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+      />
     </main>
   );
 }

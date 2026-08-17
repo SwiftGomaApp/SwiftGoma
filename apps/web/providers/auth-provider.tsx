@@ -31,7 +31,6 @@ export function AuthProvider({
   initialUser,
 }: {
   children: React.ReactNode;
-  /** Pass from the server when the session is already resolved to skip a client /auth/me call. */
   initialUser?: User | null;
 }) {
   const [user, setUser] = useState<User | null>(initialUser ?? null);
@@ -45,7 +44,14 @@ export function AuthProvider({
       setUser(me);
     } catch (err) {
       if (err instanceof ApiException && err.isAuthError) {
-        setUser(null);
+        try {
+          await authApi.refreshToken();
+          const me = await authApi.getMe();
+          setUser(me);
+          return;
+        } catch {
+          setUser(null);
+        }
       }
     } finally {
       setIsLoading(false);

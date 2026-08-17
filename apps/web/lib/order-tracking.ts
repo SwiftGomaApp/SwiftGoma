@@ -1,3 +1,5 @@
+import type { OrderMessage } from "./api/routes/orders";
+
 export type LiveLocation = {
   role?: "BUYER" | "RIDER";
   latitude: number;
@@ -13,3 +15,11 @@ export type OrderJoinAck = {
   };
   error?: string;
 };
+
+export type OrderMessageSendAck =
+  | { message: OrderMessage; error?: undefined }
+  | { error: string; message?: string };
+
+export type OrderMessageReadAck =
+  | { ok: true; error?: undefined }
+  | { error: string; message?: string };
