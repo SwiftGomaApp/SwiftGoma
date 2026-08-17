@@ -20,6 +20,7 @@ const {
   payoutConfirmLimiter,
   paymentLimiter,
 } = require("../../../common/middleware/rateLimiters");
+const { idempotencyGuard } = require("../../../common/middleware/idempotency");
 
 const FINANCE_READ = authorize("ADMIN", "ACCOUNTANT");
 
@@ -27,7 +28,13 @@ const PawapayRouter = express.Router();
 
 PawapayRouter.use(authenticate);
 
-PawapayRouter.post("/deposits", authorize("ADMIN"), paymentLimiter, postInitiateDeposit);
+PawapayRouter.post(
+  "/deposits",
+  authorize("ADMIN"),
+  paymentLimiter,
+  idempotencyGuard({ scope: "pawapay-deposit" }),
+  postInitiateDeposit,
+);
 PawapayRouter.get("/deposits/:depositId", FINANCE_READ, getDepositStatus);
 PawapayRouter.post(
   "/payouts/request-approval",

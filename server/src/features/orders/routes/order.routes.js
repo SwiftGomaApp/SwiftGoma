@@ -28,12 +28,18 @@ const {
   paymentLimiter,
   chatMessageLimiter,
 } = require("../../../common/middleware/rateLimiters");
+const { idempotencyGuard } = require("../../../common/middleware/idempotency");
 
 const OrderRouter = express.Router();
 
 OrderRouter.use(authenticate);
 
-OrderRouter.post("/checkout", paymentLimiter, postCheckout);
+OrderRouter.post(
+  "/checkout",
+  paymentLimiter,
+  idempotencyGuard({ scope: "order-checkout" }),
+  postCheckout,
+);
 OrderRouter.get("/me", getMyOrders);
 OrderRouter.post("/:id/cancel", postCancelOrder);
 OrderRouter.post("/:id/confirm-receipt", postConfirmReceipt);

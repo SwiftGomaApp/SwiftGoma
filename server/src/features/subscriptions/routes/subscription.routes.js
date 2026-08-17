@@ -13,6 +13,7 @@ const {
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
 const { paymentLimiter } = require("../../../common/middleware/rateLimiters");
+const { idempotencyGuard } = require("../../../common/middleware/idempotency");
 
 const SubscriptionRouter = express.Router();
 
@@ -22,12 +23,14 @@ SubscriptionRouter.post(
   "/",
   authorize("SELLER"),
   paymentLimiter,
+  idempotencyGuard({ scope: "subscription-subscribe" }),
   postSubscribe,
 );
 SubscriptionRouter.post(
   "/upgrade",
   authorize("SELLER"),
   paymentLimiter,
+  idempotencyGuard({ scope: "subscription-upgrade" }),
   postUpgrade,
 );
 SubscriptionRouter.get("/me", authorize("SELLER"), getMySubscription);
@@ -53,6 +56,10 @@ SubscriptionRouter.post(
   postCheckPaymentStatus,
 );
 SubscriptionRouter.get("/stats", authorize("ADMIN", "ACCOUNTANT"), getStats);
-SubscriptionRouter.get("/revenue", authorize("ADMIN", "ACCOUNTANT"), getRevenue);
+SubscriptionRouter.get(
+  "/revenue",
+  authorize("ADMIN", "ACCOUNTANT"),
+  getRevenue,
+);
 
 module.exports = SubscriptionRouter;
