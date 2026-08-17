@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const {
   initiateDeposit,
   checkDepositStatus,
@@ -16,6 +17,22 @@ const {
 } = require("../services/adminPayoutApproval.service");
 const { listAdminPayouts } = require("../services/adminPayout.service");
 
+const DEPOSIT_DEDUPE_WINDOW_MS = 5 * 60 * 1000;
+
+function deriveDepositId(body) {
+  const bucket = Math.floor(Date.now() / DEPOSIT_DEDUPE_WINDOW_MS);
+  const basis = JSON.stringify({
+    amount: body.amount,
+    currency: body.currency,
+    country: body.country,
+    provider: body.provider,
+    payerPhoneNumber: body.payerPhoneNumber,
+    bucket,
+  });
+  const hash = crypto.createHash("sha256").update(basis).digest("hex");
+  return `SWG-DEP-${hash.slice(0, 32)}`;
+}
+
 async function postInitiateDeposit(req, res, next) {
   try {
     const result = await initiateDeposit({
@@ -27,6 +44,7 @@ async function postInitiateDeposit(req, res, next) {
       customerMessage: req.body.customerMessage,
       clientReferenceId: req.body.clientReferenceId,
       metadata: req.body.metadata || {},
+      depositId: req.body.depositId || deriveDepositId(req.body),
     });
     res.status(201).json({ success: true, data: result });
   } catch (err) {
