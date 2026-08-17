@@ -118,7 +118,26 @@ async function resolveOrderPaymentContext(orderPaymentId) {
   });
   if (!payment) throw new NotFoundError("Paiement de commande introuvable.");
 
-  const { sellerProfile } = payment.order.shop;
+  const { order } = payment;
+  const { sellerProfile } = order.shop;
+
+  const items = order.items.map((item) => ({
+    description: item.productName,
+    subDescription: item.variantName || null,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    subtotal: item.subtotal,
+  }));
+
+  if (order.fulfillmentMethod === "DELIVERY" && Number(order.deliveryFee) > 0) {
+    items.push({
+      description: "Frais de livraison",
+      subDescription: null,
+      quantity: 1,
+      unitPrice: order.deliveryFee,
+      subtotal: order.deliveryFee,
+    });
+  }
 
   return {
     paymentIdField: "orderPaymentId",
@@ -129,14 +148,10 @@ async function resolveOrderPaymentContext(orderPaymentId) {
     amount: payment.amount,
     currency: payment.currency,
     sellerProfile,
+    subtotal: order.subtotal,
+    deliveryFee: order.deliveryFee,
     paymentMethodLabel: formatPaymentMethodLabel(payment.network),
-    items: payment.order.items.map((item) => ({
-      description: item.productName,
-      subDescription: item.variantName || null,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      subtotal: item.subtotal,
-    })),
+    items,
   };
 }
 
@@ -182,6 +197,8 @@ async function generateInvoiceDocument(type, paymentId) {
     seller: buildSellerData(context.sellerProfile),
     items: context.items,
     amount: context.amount,
+    subtotal: context.subtotal,
+    deliveryFee: context.deliveryFee,
     currency: context.currency,
   });
 
@@ -243,6 +260,8 @@ async function generateReceiptDocument(type, paymentId) {
     seller: buildSellerData(context.sellerProfile),
     items: context.items,
     amount: context.amount,
+    subtotal: context.subtotal,
+    deliveryFee: context.deliveryFee,
     currency: context.currency,
     paymentMethod: context.paymentMethodLabel,
   });
@@ -339,7 +358,11 @@ async function listInvoicesForAdmin(query = {}) {
   if (search) {
     where.OR = [
       { documentNumber: { contains: search, mode: "insensitive" } },
-      { sellerProfile: { businessName: { contains: search, mode: "insensitive" } } },
+      {
+        sellerProfile: {
+          businessName: { contains: search, mode: "insensitive" },
+        },
+      },
     ];
   }
 

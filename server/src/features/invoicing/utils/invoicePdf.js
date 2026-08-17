@@ -276,8 +276,44 @@ function drawFooter(doc) {
   }
 }
 
+function buildTotalsRows(
+  amount,
+  subtotal,
+  deliveryFee,
+  currency,
+  totalLabel,
+  totalBold = true,
+) {
+  const hasBreakdown = subtotal !== undefined && subtotal !== null;
+
+  if (!hasBreakdown) {
+    return [
+      ["Sous-total", formatMoney(amount, currency)],
+      [totalLabel, formatMoney(amount, currency), totalBold],
+    ];
+  }
+
+  const rows = [["Sous-total", formatMoney(subtotal, currency)]];
+
+  if (deliveryFee && Number(deliveryFee) > 0) {
+    rows.push(["Frais de livraison", formatMoney(deliveryFee, currency)]);
+  }
+
+  rows.push([totalLabel, formatMoney(amount, currency), totalBold]);
+  return rows;
+}
+
 async function generateInvoicePdf(data) {
-  const { documentNumber, issuedAt, seller, items, amount, currency } = data;
+  const {
+    documentNumber,
+    issuedAt,
+    seller,
+    items,
+    amount,
+    subtotal,
+    deliveryFee,
+    currency,
+  } = data;
 
   const logoBuffer = await getLogoBuffer();
 
@@ -307,10 +343,10 @@ async function generateInvoicePdf(data) {
 
     drawLineItemsTable(doc, items, currency);
 
-    drawTotalsBlock(doc, [
-      ["Sous-total", formatMoney(amount, currency)],
-      ["Total dû", formatMoney(amount, currency), true],
-    ]);
+    drawTotalsBlock(
+      doc,
+      buildTotalsRows(amount, subtotal, deliveryFee, currency, "Total dû"),
+    );
 
     drawFooter(doc);
     doc.end();
@@ -325,6 +361,8 @@ async function generateReceiptPdf(data) {
     seller,
     items,
     amount,
+    subtotal,
+    deliveryFee,
     currency,
     paymentMethod,
   } = data;
@@ -361,11 +399,21 @@ async function generateReceiptPdf(data) {
 
     drawLineItemsTable(doc, items, currency);
 
-    drawTotalsBlock(doc, [
-      ["Sous-total", formatMoney(amount, currency)],
-      ["Total", formatMoney(amount, currency)],
-      ["Montant payé", formatMoney(amount, currency), true],
+    const receiptTotalsRows = buildTotalsRows(
+      amount,
+      subtotal,
+      deliveryFee,
+      currency,
+      "Total",
+      false,
+    );
+    receiptTotalsRows.push([
+      "Montant payé",
+      formatMoney(amount, currency),
+      true,
     ]);
+
+    drawTotalsBlock(doc, receiptTotalsRows);
 
     ensureSpace(doc, 70);
 
