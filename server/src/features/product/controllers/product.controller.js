@@ -8,6 +8,7 @@ const {
   setProductStatus,
   adjustStock,
   getStockHistory,
+  trackProductView,
 } = require("../services/product.service");
 const { submitReview } = require("../services/productReview.service");
 const { getPrismaClient } = require("../../../config/prisma");
@@ -175,9 +176,27 @@ async function getProducts(req, res, next) {
   }
 }
 
+async function getPopularProducts(req, res, next) {
+  try {
+    const result = await listAllProducts({
+      page: req.query.page,
+      limit: req.query.limit,
+      categoryId: req.query.categoryId,
+      shopId: req.query.shopId,
+      currency: req.query.currency,
+      city: req.query.city,
+      sortBy: "popular",
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function getProductBySlugHandler(req, res, next) {
   try {
     const product = await getProductBySlug(req.params.slug);
+    trackProductView(product.id);
     res.status(200).json({ success: true, data: product });
   } catch (err) {
     next(err);
@@ -208,4 +227,5 @@ module.exports = {
   getProducts,
   getProductBySlugHandler,
   postSubmitReview,
+  getPopularProducts,
 };

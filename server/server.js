@@ -24,6 +24,9 @@ const {
   startAdminPayoutReconciliationJob,
 } = require("./src/jobs/adminPayoutReconciliation.job");
 const { startOrderDeliveryJob } = require("./src/jobs/orderDelivery.job");
+const {
+  startProductPopularityJob,
+} = require("./src/jobs/productPopularity.job");
 
 const app = createApp();
 const httpServer = http.createServer(app);
@@ -42,6 +45,7 @@ startInvoiceDocumentsWorker();
 startAccountantReportJob();
 startAdminPayoutReconciliationJob();
 startOrderDeliveryJob();
+startProductPopularityJob();
 
 function crash(label, err) {
   console.error(`[${label}]`, err);
