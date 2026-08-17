@@ -4,7 +4,6 @@ import { env } from "./config/env";
 import { authApi } from "./routes/auth";
 
 function resolveApiBaseUrl(): string {
-  // Relative /api/v1 works in the browser; SSR needs an absolute same-origin URL.
   if (typeof window === "undefined") {
     return env.server.apiBaseUrl;
   }
