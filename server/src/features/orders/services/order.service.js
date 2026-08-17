@@ -155,6 +155,7 @@ async function notifyBuyerWithEmail(order, { action, title, body, reason }) {
       name: order.buyer.name,
       action,
       shopName: order.shop.name,
+      amount: formatMoney(order.total, order.currency),
       reason,
       actionUrl: `${env.appUrl}/orders/${order.id}`,
       locale: "fr",
@@ -804,8 +805,8 @@ async function failOrderPayment(transactionId, failureReason, orderId) {
   const fullOrder = await getFullOrder(updatedOrder.id);
   await notifyBuyerWithEmail(fullOrder, {
     action: "paymentFailed",
-    title: "Échec du paiement de votre commande",
-    body: "Le paiement de votre commande a échoué. Merci de réessayer.",
+    title: "Le paiement n'a pas abouti",
+    body: "Nous n'avons pas pu confirmer votre paiement. Aucun montant n'a été débité — vous pouvez réessayer quand vous voulez.",
   });
 
   return { payment: updatedPayment, order: updatedOrder };
@@ -922,7 +923,7 @@ async function acceptOrder(orderId, sellerProfileId) {
   await notifyBuyerWithEmail(fullOrder, {
     action: "orderAccepted",
     title: "Votre commande a été acceptée",
-    body: "Le vendeur prépare votre commande.",
+    body: "Le vendeur a commencé à la préparer. Vous serez averti dès qu'elle sera prête.",
   });
 
   return fullOrder;
@@ -1000,10 +1001,11 @@ async function rejectOrder(orderId, sellerProfileId, reason) {
   const fullOrder = await getFullOrder(orderId);
   await notifyBuyerWithEmail(fullOrder, {
     action: "orderRejected",
-    title: "Votre commande a été refusée",
+    title: "Votre commande n'a pas été acceptée",
     body: reason
-      ? `Le vendeur a refusé votre commande. Raison : ${reason}`
-      : "Le vendeur a refusé votre commande.",
+      ? `Le vendeur n'a pas pu honorer votre commande. Raison : ${reason}. Vous avez été intégralement remboursé.`
+      : "Le vendeur n'a pas pu honorer votre commande. Vous avez été intégralement remboursé.",
+
     reason,
   });
 
@@ -1025,8 +1027,8 @@ async function markReadyForPickup(orderId, sellerProfileId) {
   emitOrderUpdate(updated);
 
   await notifyBuyer(order.buyerId, {
-    title: "Votre commande est prête",
-    body: "Votre commande vous attend en boutique.",
+    title: "Votre commande est prête !",
+    body: "Elle vous attend en boutique — passez la récupérer quand vous voulez.",
     action: "orderReadyForPickup",
     orderId,
   });
@@ -1054,8 +1056,8 @@ async function markReadyForDelivery(orderId, sellerProfileId) {
   emitOrderUpdate(updated);
 
   await notifyBuyer(order.buyerId, {
-    title: "Commande en préparation",
-    body: "Le vendeur prépare votre commande pour la livraison.",
+    title: "Votre commande est en préparation",
+    body: "Le vendeur la prépare pour la livraison. Un livreur sera bientôt assigné.",
     action: "orderPreparing",
     orderId,
   });
@@ -1110,7 +1112,7 @@ async function completePickupHandoff(orderId, sellerProfileId, scannedQrToken) {
   await notifyBuyerWithEmail(fullOrder, {
     action: "orderCompleted",
     title: "Commande récupérée",
-    body: "Merci pour votre achat !",
+    body: "Merci pour votre achat ! À bientôt sur SwiftGoma.",
   });
 
   return updated;
@@ -1150,11 +1152,11 @@ async function assignRider(orderId, sellerProfileId, riderIdOrUserId) {
   await notifyRiderWithEmail(rider, fullOrder, {
     action: "deliveryAssigned",
     title: "Nouvelle livraison assignée",
-    body: `Une commande de ${formatMoney(order.total, order.currency)} vous a été assignée.`,
+    body: `Une commande de ${formatMoney(order.total, order.currency)} vous a été assignée. Rendez-vous au point de retrait dès que possible.`,
   });
   await notifyBuyer(order.buyerId, {
-    title: "Un livreur a été assigné",
-    body: "Votre commande sera bientôt en route.",
+    title: "Un livreur a été assigné à votre commande",
+    body: "Il se dirige vers la boutique pour la récupérer.",
     action: "riderAssigned",
     orderId,
   });
@@ -1178,8 +1180,8 @@ async function markPickedUp(orderId, riderUserId) {
   emitOrderUpdate(updated);
 
   await notifyBuyer(order.buyerId, {
-    title: "Votre commande a été récupérée",
-    body: "Le livreur est en route vers vous.",
+    title: "Votre commande a été récupérée par le livreur",
+    body: "Il est maintenant en route vers vous.",
     action: "orderPickedUp",
     orderId,
   });
@@ -1203,7 +1205,7 @@ async function markOnTheWay(orderId, riderUserId) {
 
   await notifyBuyer(order.buyerId, {
     title: "Votre commande est en route",
-    body: "Le livreur se dirige vers vous.",
+    body: "Le livreur arrive bientôt chez vous.",
     action: "orderOnTheWay",
     orderId,
   });
@@ -1248,7 +1250,7 @@ async function completeDeliveryHandoff(orderId, riderUserId, scannedQrToken) {
   await notifyBuyerWithEmail(fullOrder, {
     action: "orderCompleted",
     title: "Commande livrée",
-    body: "Merci pour votre achat !",
+    body: "Votre commande est arrivée. Merci pour votre achat !",
   });
 
   return updated;
@@ -1268,10 +1270,10 @@ async function markFailedDelivery(orderId, riderUserId, reason) {
   await refundOrderPayment(order, "delivery_failed");
 
   await notifyBuyer(order.buyerId, {
-    title: "Échec de la livraison",
+    title: "La livraison n'a pas abouti",
     body: reason
-      ? `La livraison a échoué. Raison : ${reason}`
-      : "La livraison a échoué.",
+      ? `La livraison n'a pas pu être finalisée. Raison : ${reason}. Vous serez remboursé.`
+      : "La livraison n'a pas pu être finalisée. Vous serez remboursé.",
     action: "deliveryFailed",
     orderId,
   });
@@ -1392,8 +1394,8 @@ async function cancelOrder(orderId, buyerId, reason) {
     await createNotification({
       userId: order.shop.sellerProfile.user.id,
       type: NOTIFICATION_TYPES.ORDER_STATUS,
-      title: "Commande annulée",
-      body: "Une commande a été annulée par l'acheteur.",
+      title: "Une commande a été annulée",
+      body: "L'acheteur a annulé cette commande.",
       data: { action: "orderCancelled", orderId },
     });
   } catch (err) {
@@ -1459,13 +1461,13 @@ async function expireOneOrder(order) {
   await Promise.all([
     notifyBuyerWithEmail(fullOrder, {
       action: "orderExpired",
-      title: "Commande expirée",
-      body: "Le vendeur n'a pas répondu à temps. Votre paiement a été remboursé.",
+      title: "Commande annulée automatiquement",
+      body: "Le vendeur n'a pas répondu à temps, votre commande a été annulée et intégralement remboursée.",
     }),
     notifySellerWithEmail(order.shop, fullOrder, {
       action: "orderExpiredSeller",
-      title: "Commande expirée",
-      body: "Une commande a expiré automatiquement faute de réponse de votre part.",
+      title: "Commande expirée faute de réponse",
+      body: "Une commande a été annulée automatiquement car vous n'avez pas répondu à temps. Le client a déjà été remboursé.",
     }),
   ]);
 
@@ -1527,8 +1529,8 @@ async function completeOneDeliveredOrder(order, { notifySeller = false } = {}) {
         await createNotification({
           userId: sellerUserId,
           type: NOTIFICATION_TYPES.ORDER_STATUS,
-          title: "Réception confirmée",
-          body: "Le client a confirmé la réception de sa commande.",
+          title: "Réception confirmée par le client",
+          body: "Le client a confirmé avoir bien reçu sa commande.",
           data: { action: "orderReceiptConfirmed", orderId: order.id },
         });
       }
@@ -1711,8 +1713,8 @@ async function failOneStuckOnTheWayOrder(order) {
   await refundOrderPayment(order, "delivery_timeout");
 
   await notifyBuyer(order.buyerId, {
-    title: "Échec de la livraison",
-    body: "La livraison n'a pas pu être finalisée à temps. Votre paiement sera remboursé.",
+    title: "La livraison n'a pas pu être finalisée à temps",
+    body: "Nous n'avons pas pu confirmer la livraison dans les délais. Vous serez intégralement remboursé.",
     action: "deliveryFailed",
     orderId: order.id,
   });
@@ -1775,16 +1777,16 @@ async function unassignOneStaleRiderOrder(order) {
       await createNotification({
         userId: sellerUserId,
         type: NOTIFICATION_TYPES.ORDER_STATUS,
-        title: "Livreur non disponible",
-        body: "Le livreur n'a pas récupéré la commande à temps. Veuillez en assigner un autre.",
+        title: "Votre livreur n'a pas récupéré la commande à temps",
+        body: "Merci d'assigner un nouveau livreur pour ne pas retarder davantage la livraison.",
         data: { action: "riderUnassigned", orderId: order.id },
       });
     }
     await createNotification({
       userId: order.buyerId,
       type: NOTIFICATION_TYPES.ORDER_STATUS,
-      title: "Changement de livreur",
-      body: "Votre commande est réassignée — un nouveau livreur sera bientôt désigné.",
+      title: "Changement de livreur en cours",
+      body: "Le livreur précédent n'était pas disponible à temps. Un nouveau livreur va bientôt être assigné à votre commande.",
       data: { action: "riderUnassigned", orderId: order.id },
     });
   } catch (err) {
