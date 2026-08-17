@@ -15,6 +15,7 @@ import {
   oneSignalLogin,
   oneSignalLogout,
 } from "@/lib/onesignal";
+import { refreshSession } from "@/lib/api/client";
 
 type AuthContextValue = {
   user: User | null;
@@ -45,13 +46,15 @@ export function AuthProvider({
     } catch (err) {
       if (err instanceof ApiException && err.isAuthError) {
         try {
-          await authApi.refreshToken();
+          await refreshSession();
           const me = await authApi.getMe();
           setUser(me);
           return;
         } catch {
           setUser(null);
         }
+      } else {
+        setUser(null);
       }
     } finally {
       setIsLoading(false);
@@ -59,7 +62,6 @@ export function AuthProvider({
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional fetch on mount when no server-provided user
     if (initialUser === undefined) refresh();
   }, []);
 
