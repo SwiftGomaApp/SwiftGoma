@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const {
   initiatePayin,
   initiatePayout,
@@ -13,6 +14,22 @@ const {
 } = require("../services/adminPayoutApproval.service");
 const { listAdminPayouts } = require("../services/adminPayout.service");
 
+const PAYIN_DEDUPE_WINDOW_MS = 5 * 60 * 1000;
+
+function derivePayinOrderId(body) {
+  const bucket = Math.floor(Date.now() / PAYIN_DEDUPE_WINDOW_MS);
+  const basis = JSON.stringify({
+    amount: body.amount,
+    currency: body.currency,
+    network: body.network,
+    phoneNumber: body.phoneNumber,
+    countryCode: body.countryCode,
+    bucket,
+  });
+  const hash = crypto.createHash("sha256").update(basis).digest("hex");
+  return `SWG-IN-${hash.slice(0, 32)}`;
+}
+
 async function postInitiatePayin(req, res, next) {
   try {
     const result = await initiatePayin({
@@ -21,7 +38,7 @@ async function postInitiatePayin(req, res, next) {
       network: req.body.network,
       phoneNumber: req.body.phoneNumber,
       countryCode: req.body.countryCode,
-      orderId: req.body.orderId,
+      orderId: req.body.orderId || derivePayinOrderId(req.body),
     });
     res.status(201).json({ success: true, data: result });
   } catch (err) {
