@@ -151,6 +151,10 @@ export const authApi = {
     return unwrap<User>(api.get("/auth/me"));
   },
 
+  refreshToken() {
+    return unwrap<AuthResult>(api.post("/auth/refresh-token"));
+  },
+
   logout() {
     return unwrap<{ success: boolean }>(api.post("/auth/logout"));
   },

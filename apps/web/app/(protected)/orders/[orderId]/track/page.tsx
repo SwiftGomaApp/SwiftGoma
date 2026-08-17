@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Loader2,
   MapPinOff,
+  MessageCircle,
   Navigation,
   Radio,
   Truck,
@@ -16,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { DevRiderSimulator } from "@/components/orders/dev-rider-simulator";
 import { OrderTrackingMap } from "@/components/orders/order-tracking-map";
 import { useOrderTracking } from "@/hooks/use-order-tracking";
+import { useOrderMessages } from "@/hooks/use-order-messages";
 import { ordersApi, type Order } from "@/lib/api/routes/orders";
 import { ApiException } from "@/lib/api";
 import {
@@ -25,6 +27,7 @@ import {
 } from "@/lib/orders";
 import type { LiveLocation } from "@/lib/order-tracking";
 import { cn } from "@/lib/utils";
+import { OrderChat } from "@/components/orders/order-chat";
 
 const IS_DEV = process.env.NODE_ENV === "development";
 
@@ -38,6 +41,7 @@ export default function OrderTrackPage() {
     null,
   );
   const [simulationActive, setSimulationActive] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -72,6 +76,11 @@ export default function OrderTrackPage() {
   );
 
   const displayRiderLocation = simulatedRider ?? riderLocation;
+
+  const { unreadCount } = useOrderMessages(params.orderId, {
+    enabled: canTrack,
+    manageRoom: false,
+  });
 
   useEffect(() => {
     if (!order || isLoading) return;
@@ -142,98 +151,122 @@ export default function OrderTrackPage() {
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <div className="pointer-events-auto mx-auto w-full max-w-lg rounded-2xl border border-border/80 bg-card p-4 shadow-2xl">
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted" />
+        <div className="pointer-events-auto mx-auto w-full max-w-lg rounded-2xl border border-border/80 bg-card p-4 shadow-2xl">
+          <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted" />
 
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                <Truck className="h-5 w-5 text-primary" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-foreground">
-                    Suivi en direct
-                  </p>
-                  <Badge variant={orderStatusBadgeVariant(order.status)}>
-                    {ORDER_STATUS_LABELS[order.status]}
-                  </Badge>
-                  {simulationActive && IS_DEV && (
-                    <Badge variant="outline">Simulation active</Badge>
-                  )}
-                </div>
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {order.shop?.name ?? "Votre commande"}
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+              <Truck className="h-5 w-5 text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-foreground">
+                  Suivi en direct
                 </p>
+                <Badge variant={orderStatusBadgeVariant(order.status)}>
+                  {ORDER_STATUS_LABELS[order.status]}
+                </Badge>
+                {simulationActive && IS_DEV && (
+                  <Badge variant="outline">Simulation active</Badge>
+                )}
               </div>
-            </div>
-
-            {order.deliveryAddress && (
-              <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                {order.deliveryAddress}
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {order.shop?.name ?? "Votre commande"}
               </p>
-            )}
-
-            <div
-              className={cn(
-                "mt-3 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium",
-                (isLive && displayRiderLocation) || simulationActive
-                  ? "bg-primary/10 text-primary"
-                  : "bg-muted text-muted-foreground",
-              )}
-            >
-              {(isLive && displayRiderLocation) || simulationActive ? (
-                <>
-                  <Radio className="h-3.5 w-3.5 shrink-0 animate-pulse" />
-                  {simulationActive
-                    ? "Position simulée du livreur"
-                    : "Position du livreur mise à jour"}
-                </>
-              ) : isLive && !displayRiderLocation ? (
-                <>
-                  <Navigation className="h-3.5 w-3.5 shrink-0" />
-                  En attente de la position du livreur…
-                </>
-              ) : (
-                <>
-                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                  Connexion au suivi…
-                </>
-              )}
-            </div>
-
-            {joinError && (
-              <p className="mt-2 text-xs text-destructive">{joinError}</p>
-            )}
-
-            {!joined && !joinError && !simulationActive && (
-              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-                Le pin orange est votre adresse. Le livreur apparaît dès
-                qu&apos;il partage sa position.
-              </p>
-            )}
-
-            <div className="mt-4 flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                render={<Link href={`/orders/${order.id}`} />}
-                nativeButton={false}
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Retour
-              </Button>
-              {IS_DEV && (
-                <DevRiderSimulator
-                  active={simulationActive}
-                  destination={destination}
-                  onLocation={setSimulatedRider}
-                  onActiveChange={setSimulationActive}
-                  className="flex-1"
-                />
-              )}
             </div>
           </div>
+
+          {order.deliveryAddress && (
+            <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+              {order.deliveryAddress}
+            </p>
+          )}
+
+          <div
+            className={cn(
+              "mt-3 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium",
+              (isLive && displayRiderLocation) || simulationActive
+                ? "bg-primary/10 text-primary"
+                : "bg-muted text-muted-foreground",
+            )}
+          >
+            {(isLive && displayRiderLocation) || simulationActive ? (
+              <>
+                <Radio className="h-3.5 w-3.5 shrink-0 animate-pulse" />
+                {simulationActive
+                  ? "Position simulée du livreur"
+                  : "Position du livreur mise à jour"}
+              </>
+            ) : isLive && !displayRiderLocation ? (
+              <>
+                <Navigation className="h-3.5 w-3.5 shrink-0" />
+                En attente de la position du livreur…
+              </>
+            ) : (
+              <>
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                Connexion au suivi…
+              </>
+            )}
+          </div>
+
+          {joinError && (
+            <p className="mt-2 text-xs text-destructive">{joinError}</p>
+          )}
+
+          {!joined && !joinError && !simulationActive && (
+            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+              Le pin orange est votre adresse. Le livreur apparaît dès
+              qu&apos;il partage sa position.
+            </p>
+          )}
+
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              render={<Link href={`/orders/${order.id}`} />}
+              nativeButton={false}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Retour
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="relative flex-1"
+              onClick={() => setChatOpen(true)}
+            >
+              <MessageCircle className="mr-2 h-4 w-4" />
+              Message
+              {unreadCount > 0 && (
+                <Badge
+                  variant="destructive"
+                  className="absolute -top-2 -right-2 h-5 min-w-5 justify-center rounded-full px-1"
+                >
+                  {unreadCount}
+                </Badge>
+              )}
+            </Button>
+            {IS_DEV && (
+              <DevRiderSimulator
+                active={simulationActive}
+                destination={destination}
+                onLocation={setSimulatedRider}
+                onActiveChange={setSimulationActive}
+                className="flex-1"
+              />
+            )}
+          </div>
         </div>
+      </div>
+
+      <OrderChat
+        orderId={order.id}
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        manageRoom={false}
+      />
     </>
   );
 }

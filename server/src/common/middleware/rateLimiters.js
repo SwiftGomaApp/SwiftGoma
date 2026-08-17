@@ -1,7 +1,7 @@
-const { createRateLimiter, userOrIpKey } = require("./rateLimit");
+const { createRateLimiter, userOrIpKey, emailOrIpKey } = require("./rateLimit");
 const { env } = require("../../config/env");
 
-const isTest = env.nodeEnv === "test";
+const isTest = env.nodeEnv === "development";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 
@@ -18,6 +18,15 @@ const authLimiter = createRateLimiter({
   max: isTest ? 100_000 : 10,
   message:
     "Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.",
+  trackViolations: true,
+});
+
+const sessionLimiter = createRateLimiter({
+  name: "session",
+  windowMs: 5 * 60 * 1000,
+  max: isTest ? 100_000 : 60,
+  message: "Trop de requêtes de session. Veuillez patienter un instant.",
+  keyGenerator: userOrIpKey,
 });
 
 const paymentLimiter = createRateLimiter({
@@ -26,6 +35,7 @@ const paymentLimiter = createRateLimiter({
   max: isTest ? 100_000 : 20,
   message:
     "Trop de requêtes de paiement. Veuillez patienter avant de réessayer.",
+  trackViolations: true,
 });
 
 const payoutOtpLimiter = createRateLimiter({
@@ -35,6 +45,7 @@ const payoutOtpLimiter = createRateLimiter({
   message:
     "Trop de demandes de vérification de paiement. Veuillez patienter avant de réessayer.",
   keyGenerator: userOrIpKey,
+  trackViolations: true,
 });
 
 const payoutOtpResendLimiter = createRateLimiter({
@@ -44,6 +55,7 @@ const payoutOtpResendLimiter = createRateLimiter({
   message:
     "Trop de tentatives de renvoi de code de paiement. Veuillez patienter avant de réessayer.",
   keyGenerator: userOrIpKey,
+  trackViolations: true,
 });
 
 const payoutConfirmLimiter = createRateLimiter({
@@ -53,6 +65,7 @@ const payoutConfirmLimiter = createRateLimiter({
   message:
     "Trop de confirmations de paiement. Veuillez patienter avant de réessayer.",
   keyGenerator: userOrIpKey,
+  trackViolations: true,
 });
 
 const webhookLimiter = createRateLimiter({
@@ -70,6 +83,47 @@ const chatMessageLimiter = createRateLimiter({
   keyGenerator: userOrIpKey,
 });
 
+const credentialGuessLimiter = createRateLimiter({
+  name: "credential-guess",
+  windowMs: FIFTEEN_MINUTES_MS,
+  max: isTest ? 100_000 : 8,
+  message:
+    "Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.",
+  keyGenerator: emailOrIpKey,
+  trackViolations: true,
+});
+
+const otpRequestLimiter = createRateLimiter({
+  name: "otp-request",
+  windowMs: FIFTEEN_MINUTES_MS,
+  max: isTest ? 100_000 : 5,
+  message: "Trop de demandes. Veuillez patienter avant de réessayer.",
+  keyGenerator: emailOrIpKey,
+});
+
+const accountLimiter = createRateLimiter({
+  name: "account",
+  windowMs: FIFTEEN_MINUTES_MS,
+  max: isTest ? 100_000 : 8,
+  message: "Trop de tentatives. Veuillez patienter avant de réessayer.",
+  keyGenerator: emailOrIpKey,
+});
+
+const authenticatedActionLimiter = createRateLimiter({
+  name: "auth-action",
+  windowMs: FIFTEEN_MINUTES_MS,
+  max: isTest ? 100_000 : 30,
+  message: "Trop de requêtes. Veuillez patienter un instant.",
+  keyGenerator: userOrIpKey, // already authenticated, safe to key by user id
+});
+
+const refreshTokenLimiter = createRateLimiter({
+  name: "refresh-token",
+  windowMs: 5 * 60 * 1000,
+  max: isTest ? 100_000 : 20,
+  message: "Trop de requêtes. Veuillez patienter un instant.",
+});
+
 module.exports = {
   globalLimiter,
   authLimiter,
@@ -79,4 +133,10 @@ module.exports = {
   payoutConfirmLimiter,
   webhookLimiter,
   chatMessageLimiter,
+  sessionLimiter,
+  credentialGuessLimiter,
+  otpRequestLimiter,
+  accountLimiter,
+  authenticatedActionLimiter,
+  refreshTokenLimiter,
 };

@@ -1,6 +1,6 @@
 const rateLimit = require("express-rate-limit");
 const { getRedisClient } = require("../../config/redis");
-const { TooManyRequestsError } = require("../errors");
+const { IpBlockedError } = require("../errors");
 
 function ipBlockGuard() {
   return async (req, res, next) => {
@@ -9,13 +9,18 @@ function ipBlockGuard() {
 
     try {
       const ip = rateLimit.ipKeyGenerator(req, res);
-      const blocked = await client.get(`rl:blocked:${ip}`);
+      const blockKey = `rl:blocked:${ip}`;
+      const blocked = await client.get(blockKey);
       if (blocked) {
-        return next(
-          new TooManyRequestsError(
-            "Votre adresse IP a été temporairement bloquée suite à des tentatives répétées. Veuillez réessayer plus tard.",
-          ),
-        );
+        const ttlMs = await client.pttl(blockKey);
+        const retryAfterSeconds =
+          ttlMs && ttlMs > 0 ? Math.ceil(ttlMs / 1000) : null;
+
+        if (retryAfterSeconds) {
+          res.set("Retry-After", String(retryAfterSeconds));
+        }
+
+        return next(new IpBlockedError(undefined, retryAfterSeconds));
       }
       next();
     } catch (err) {

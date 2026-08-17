@@ -1,6 +1,7 @@
 import axios, { AxiosError, type AxiosRequestConfig } from "axios";
 import { ApiException } from "./api-exception";
 import { env } from "./config/env";
+import { authApi } from "./routes/auth";
 
 function resolveApiBaseUrl(): string {
   // Relative /api/v1 works in the browser; SSR needs an absolute same-origin URL.
@@ -71,7 +72,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        await api.post("/auth/refresh-token");
+        await authApi.refreshToken();
         processQueue(null);
         return api(original);
       } catch (refreshError) {

@@ -2,121 +2,170 @@ const express = require("express");
 
 const authController = require("../controllers/auth.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
-const { authLimiter } = require("../../../common/middleware/rateLimiters");
+const {
+  sessionLimiter,
+  credentialGuessLimiter,
+  otpRequestLimiter,
+  accountLimiter,
+  authenticatedActionLimiter,
+  refreshTokenLimiter,
+} = require("../../../common/middleware/rateLimiters");
 
 const AuthRouter = express.Router();
 
-AuthRouter.post("/create-account", authLimiter, authController.createAccount);
-AuthRouter.post("/verify-email", authLimiter, authController.verifyEmail);
+// --- Tier C: account creation / social login ---
+AuthRouter.post(
+  "/create-account",
+  accountLimiter,
+  authController.createAccount,
+);
+AuthRouter.post("/verify-email", accountLimiter, authController.verifyEmail);
+AuthRouter.post(
+  "/register/google",
+  accountLimiter,
+  authController.registerWithGoogle,
+);
+AuthRouter.post(
+  "/login/google",
+  accountLimiter,
+  authController.loginWithGoogle,
+);
+
+// --- Tier B: request/initiation (spam & enumeration risk) ---
 AuthRouter.post(
   "/resend-verification",
-  authLimiter,
+  otpRequestLimiter,
   authController.resendEmailVerification,
 );
 AuthRouter.post(
   "/login/request-otp",
-  authLimiter,
+  otpRequestLimiter,
   authController.requestLoginOtp,
 );
 AuthRouter.post(
+  "/passkey/login/options",
+  otpRequestLimiter,
+  authController.generatePasskeyLoginOptions,
+);
+AuthRouter.post(
+  "/password/forgot",
+  otpRequestLimiter,
+  authController.forgotPassword,
+);
+
+// --- Tier A: credential guessing (tight, feeds IP auto-block) ---
+AuthRouter.post(
   "/login/verify-otp",
-  authLimiter,
+  credentialGuessLimiter,
   authController.verifyLoginOtp,
 );
 AuthRouter.post(
   "/login/password",
-  authLimiter,
+  credentialGuessLimiter,
   authController.loginWithPassword,
 );
-AuthRouter.post("/login/totp", authController.loginWithTotp);
 AuthRouter.post(
-  "/register/google",
-  authLimiter,
-  authController.registerWithGoogle,
-);
-AuthRouter.post("/login/google", authController.loginWithGoogle);
-AuthRouter.post("/refresh-token", authController.refreshAccessToken);
-AuthRouter.get("/me", authenticate, authLimiter, authController.getMe);
-AuthRouter.post("/logout", authenticate, authLimiter, authController.logout);
-AuthRouter.post(
-  "/logout-all",
-  authenticate,
-  authLimiter,
-  authController.logoutAll,
-);
-AuthRouter.get(
-  "/sessions",
-  authenticate,
-  authLimiter,
-  authController.listSessions,
-);
-AuthRouter.delete(
-  "/sessions/:sessionId",
-  authenticate,
-  authLimiter,
-  authController.revokeSession,
+  "/login/totp",
+  credentialGuessLimiter,
+  authController.loginWithTotp,
 );
 AuthRouter.post(
-  "/password/create",
-  authenticate,
-  authController.createPassword,
+  "/passkey/login/verify",
+  credentialGuessLimiter,
+  authController.verifyPasskeyLogin,
+);
+AuthRouter.post(
+  "/password/reset",
+  credentialGuessLimiter,
+  authController.resetPassword,
 );
 AuthRouter.post(
   "/password/update",
   authenticate,
-  authLimiter,
+  credentialGuessLimiter,
   authController.updatePassword,
-);
-AuthRouter.post("/password/forgot", authController.forgotPassword);
-AuthRouter.post("/password/reset", authController.resetPassword);
-AuthRouter.post(
-  "/totp/setup",
-  authenticate,
-  authLimiter,
-  authController.setupTotp,
 );
 AuthRouter.post(
   "/totp/confirm",
   authenticate,
-  authLimiter,
+  credentialGuessLimiter,
   authController.confirmTotp,
 );
 AuthRouter.post(
   "/totp/disable",
   authenticate,
-  authLimiter,
+  credentialGuessLimiter,
   authController.disableTotp,
+);
+
+// --- Session management (unchanged) ---
+AuthRouter.post(
+  "/refresh-token",
+  refreshTokenLimiter,
+  authController.refreshAccessToken,
+);
+AuthRouter.get("/me", authenticate, sessionLimiter, authController.getMe);
+AuthRouter.post("/logout", authenticate, sessionLimiter, authController.logout);
+AuthRouter.post(
+  "/logout-all",
+  authenticate,
+  sessionLimiter,
+  authController.logoutAll,
+);
+AuthRouter.get(
+  "/sessions",
+  authenticate,
+  sessionLimiter,
+  authController.listSessions,
+);
+AuthRouter.delete(
+  "/sessions/:sessionId",
+  authenticate,
+  sessionLimiter,
+  authController.revokeSession,
+);
+
+// --- Tier D: authenticated, non-guessable setup actions ---
+AuthRouter.post(
+  "/password/create",
+  authenticate,
+  authenticatedActionLimiter,
+  authController.createPassword,
+);
+AuthRouter.post(
+  "/totp/setup",
+  authenticate,
+  authenticatedActionLimiter,
+  authController.setupTotp,
 );
 AuthRouter.post(
   "/totp/regenerate-backup-codes",
   authenticate,
+  authenticatedActionLimiter,
   authController.regenerateBackupCodes,
 );
-
 AuthRouter.post(
   "/passkey/register/options",
   authenticate,
+  authenticatedActionLimiter,
   authController.generatePasskeyRegistrationOptions,
 );
 AuthRouter.post(
   "/passkey/register/verify",
   authenticate,
+  authenticatedActionLimiter,
   authController.verifyPasskeyRegistration,
 );
-AuthRouter.post(
-  "/passkey/login/options",
-  authLimiter,
-  authController.generatePasskeyLoginOptions,
+AuthRouter.get(
+  "/passkey",
+  authenticate,
+  sessionLimiter,
+  authController.listPasskeys,
 );
-AuthRouter.post(
-  "/passkey/login/verify",
-  authLimiter,
-  authController.verifyPasskeyLogin,
-);
-AuthRouter.get("/passkey", authenticate, authController.listPasskeys);
 AuthRouter.delete(
   "/passkey/:passkeyId",
   authenticate,
+  sessionLimiter,
   authController.deletePasskey,
 );
 

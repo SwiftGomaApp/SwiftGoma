@@ -14,7 +14,6 @@ function resolveUpstreamOrigin(): string | null {
 const upstreamOrigin = resolveUpstreamOrigin();
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["192.168.1.66", "192.168.1.71"],
   images: {
     remotePatterns: [
       {

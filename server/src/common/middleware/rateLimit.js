@@ -21,9 +21,20 @@ function userOrIpKey(req, res) {
   return `ip:${rateLimit.ipKeyGenerator(req, res)}`;
 }
 
-const VIOLATIONS_BEFORE_BLOCK = 5;
+function emailOrIpKey(req, res) {
+  const email =
+    typeof req.body?.email === "string"
+      ? req.body.email.trim().toLowerCase()
+      : null;
+  const ip = rateLimit.ipKeyGenerator(req, res);
+  return email ? `ip:${ip}|email:${email}` : `ip:${ip}`;
+}
 
-async function recordViolationAndMaybeBlock(req, windowMs) {
+const VIOLATIONS_BEFORE_BLOCK = 5;
+const VIOLATIONS_WINDOW_MS = 15 * 60 * 1000;
+const BLOCK_DURATION_MS = 15 * 60 * 1000;
+
+async function recordViolationAndMaybeBlock(req) {
   const client = getRedisClient();
   if (!client) return;
 
@@ -33,15 +44,22 @@ async function recordViolationAndMaybeBlock(req, windowMs) {
 
   const count = await client.incr(violationsKey);
   if (count === 1) {
-    await client.pexpire(violationsKey, windowMs);
+    await client.pexpire(violationsKey, VIOLATIONS_WINDOW_MS);
   }
 
   if (count >= VIOLATIONS_BEFORE_BLOCK) {
-    await client.set(blockKey, "1", "PX", windowMs);
+    await client.set(blockKey, "1", "PX", BLOCK_DURATION_MS);
   }
 }
 
-function createRateLimiter({ name, windowMs, max, message, keyGenerator }) {
+function createRateLimiter({
+  name,
+  windowMs,
+  max,
+  message,
+  keyGenerator,
+  trackViolations = false,
+}) {
   if (!name) {
     throw new Error(
       "createRateLimiter : `name` est requis (utilisé pour namespacer les clés Redis de ce limiteur).",
@@ -55,12 +73,14 @@ function createRateLimiter({ name, windowMs, max, message, keyGenerator }) {
     store: buildStore(name),
     ...(keyGenerator && { keyGenerator }),
     handler: (req, res, next) => {
-      recordViolationAndMaybeBlock(req, windowMs).catch((err) => {
-        console.error("[rateLimit] violation tracking failed:", err.message);
-      });
-      next(new TooManyRequestsError(message));
+      if (trackViolations) {
+        recordViolationAndMaybeBlock(req).catch((err) => {
+          console.error("[rateLimit] violation tracking failed:", err.message);
+        });
+      }
+      next(new TooManyRequestsError(message, Math.ceil(windowMs / 1000)));
     },
   });
 }
 
-module.exports = { createRateLimiter, userOrIpKey };
+module.exports = { createRateLimiter, userOrIpKey, emailOrIpKey };

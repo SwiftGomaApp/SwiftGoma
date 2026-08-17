@@ -88,6 +88,23 @@ export type OrderListResponse = {
   };
 };
 
+export type OrderMessageSenderRole = "BUYER" | "RIDER";
+
+export type OrderMessage = {
+  id: string;
+  orderId: string;
+  senderId: string;
+  senderRole: OrderMessageSenderRole;
+  body: string;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type OrderMessageListParams = {
+  limit?: number;
+  before?: string;
+};
+
 function unwrap<T>(promise: Promise<{ data: { data: T } }>) {
   return promise.then((res) => res.data.data);
 }
@@ -113,5 +130,21 @@ export const ordersApi = {
 
   cancelOrder(orderId: string, reason: string) {
     return unwrap<Order>(api.post(`/orders/${orderId}/cancel`, { reason }));
+  },
+
+  getOrderMessages(orderId: string, params: OrderMessageListParams = {}) {
+    return unwrap<OrderMessage[]>(
+      api.get(`/orders/${orderId}/messages`, { params }),
+    );
+  },
+
+  sendOrderMessageRest(orderId: string, body: string) {
+    return unwrap<OrderMessage>(
+      api.post(`/orders/${orderId}/messages`, { body }),
+    );
+  },
+
+  markOrderMessagesRead(orderId: string) {
+    return api.post(`/orders/${orderId}/messages/read`);
   },
 };
