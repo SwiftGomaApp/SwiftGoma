@@ -207,15 +207,15 @@ async function adminCancelOrder(orderId, actor, reason) {
     await createNotification({
       userId: order.buyerId,
       type: NOTIFICATION_TYPES.ORDER_STATUS,
-      title: "Commande annulée",
-      body: "Votre commande a été annulée par notre équipe.",
+      title: "Votre commande a été annulée",
+      body: "Notre équipe a annulé cette commande. Si un paiement avait été effectué, vous serez remboursé sous peu.",
       data: { action: "orderCancelled", orderId },
     });
     await createNotification({
       userId: order.shop.sellerProfile.userId,
       type: NOTIFICATION_TYPES.ORDER_STATUS,
-      title: "Commande annulée",
-      body: "Une commande a été annulée par l'équipe SwiftGoma.",
+      title: "Une commande a été annulée par notre équipe",
+      body: "Cette commande a été annulée par l'équipe SwiftGoma. Aucune action n'est requise de votre part.",
       data: { action: "orderCancelled", orderId },
     });
   } catch (err) {
