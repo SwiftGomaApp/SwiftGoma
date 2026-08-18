@@ -59,6 +59,8 @@ const AdminProductRouter = require("./features/product/routes/adminProduct.route
 const AdminSubscriptionRouter = require("./features/subscriptions/routes/adminSubscription.routes");
 const AdminInvoiceRouter = require("./features/invoicing/routes/adminInvoice.routes");
 const { ipBlockGuard } = require("./common/middleware/ipBlockGuard");
+const AdminHeroSlideRouter = require("./features/storefront/routes/adminHeroslides.routes");
+const HeroSlideRouter = require("./features/storefront/routes/heroslides.routes");
 
 const createApp = () => {
   const app = express();
@@ -173,6 +175,8 @@ const createApp = () => {
   app.use("/api/v1/blog", BlogRouter);
   app.use("/api/v1/accounting", AccountingRouter);
   app.use("/api/v1/expenses", ExpenseRouter);
+  app.use("/api/v1/storefront/admin/hero-slides", AdminHeroSlideRouter);
+  app.use("/api/v1/storefront", HeroSlideRouter);
 
   app.use(notFound);
 

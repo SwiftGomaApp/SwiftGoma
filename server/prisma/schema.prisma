@@ -216,6 +216,13 @@ enum OrderMessageSenderRole {
   RIDER
 }
 
+enum HeroRoles {
+  SELLER
+  BUYER
+  RIDER
+  PAYMENT
+}
+
 // ====================================== MODELS ===============================
 
 model User {
@@ -760,6 +767,7 @@ model Product {
   orderItems OrderItem[]
   favorites  Favorite[]
   reviews    ProductReview[]
+  heroSlides HeroSlide[]
 
   @@index([shopId])
   @@index([subcategoryId])
@@ -1299,4 +1307,29 @@ model OrderMessage {
   @@index([orderId, createdAt])
   @@index([senderId])
   @@map("order_messages")
+}
+
+model HeroSlide {
+  id   String    @id @default(uuid())
+  role HeroRoles @unique
+
+  title             String
+  description       String
+  searchPlaceholder String
+
+  imageUrl      String
+  imagePublicId String
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+  @@index([isActive])
+  @@map("hero_slides")
 }

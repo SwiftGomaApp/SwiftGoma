@@ -13,6 +13,7 @@ const CLOUDINARY_FOLDERS = {
   BLOG_COVERS: "swiftgoma/blog-covers",
   ACCOUNTANT_REPORTS: "swiftgoma/accountant-reports",
   EXPENSE_RECEIPTS: "swiftgoma/expense-receipts",
+  HERO_SLIDES: "swiftgoma/hero-slides",
 };
 
 module.exports = { CLOUDINARY_FOLDERS };

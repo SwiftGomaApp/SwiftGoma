@@ -1,14 +1,24 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Heart, Minus, Plus, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  Minus,
+  Plus,
+  X,
+  Eye,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/providers/cart-provider";
 import { useFavorites } from "@/providers/favorites-provider";
+import { useRouter } from "next/navigation";
 
 export type ProductCardData = {
   slug: string;
@@ -44,7 +54,7 @@ function formatPrice(price: number, currency: string) {
 
 // ============================================================
 // Featured — swipeable image carousel with arrows + dots,
-// wishlist toggle, add to cart
+// wishlist toggle, add to cart (UNTOUCHED)
 // ============================================================
 
 const FEATURED_SIZE_CONFIG: Record<
@@ -153,7 +163,6 @@ export function FeaturedProductCard({
         className,
       )}
     >
-      {/* Image carousel */}
       <div className="group relative aspect-4/3 w-full">
         <div
           ref={scrollerRef}
@@ -178,7 +187,6 @@ export function FeaturedProductCard({
           ))}
         </div>
 
-        {/* Prev / next arrows */}
         {images.length > 1 && (
           <>
             <button
@@ -204,28 +212,6 @@ export function FeaturedProductCard({
           </>
         )}
 
-        {/* Dots */}
-        {images.length > 1 && (
-          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
-            {images.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => scrollToIndex(i)}
-                aria-label={`Voir l'image ${i + 1}`}
-                aria-current={activeIndex === i}
-                className={cn(
-                  "h-1.5 rounded-full transition-all",
-                  activeIndex === i
-                    ? "w-4 bg-background"
-                    : "w-1.5 bg-background/50 hover:bg-background/75",
-                )}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Wishlist */}
         <button
           type="button"
           onClick={(e) => {
@@ -233,11 +219,7 @@ export function FeaturedProductCard({
             if (favoriteProductId) toggleFavorite(favoriteProductId);
           }}
           disabled={!favoriteProductId}
-          aria-label={
-            isWishlisted ? "Retirer des favoris" : "Ajouter aux favoris"
-          }
-          aria-pressed={isWishlisted}
-          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur transition-colors hover:bg-background disabled:pointer-events-none disabled:opacity-40"
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-background/80 backdrop-blur transition-colors hover:bg-background"
         >
           <Heart
             className={cn(
@@ -250,7 +232,6 @@ export function FeaturedProductCard({
         </button>
       </div>
 
-      {/* Content */}
       <div className={cn("flex flex-1 flex-col", config.gap, config.padding)}>
         <Link href={`/products/${product.slug}`}>
           <h3
@@ -263,23 +244,6 @@ export function FeaturedProductCard({
           </h3>
         </Link>
 
-        {product.tags && product.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {product.tags.map((tag) => (
-              <Badge key={tag} variant="secondary">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        {product.description && size !== "sm" && (
-          <p className="line-clamp-3 text-sm text-muted-foreground">
-            {product.description}
-          </p>
-        )}
-
-        {/* Content — bottom price/CTA block only, replace this inside FeaturedProductCard */}
         {size === "sm" ? (
           <div className="mt-auto flex flex-col gap-2 pt-2">
             <div className="flex flex-col">
@@ -315,8 +279,8 @@ export function FeaturedProductCard({
 }
 
 // ============================================================
-// Compact — cart-item row: image flush left, remove top-right,
-// quantity stepper bottom-right
+// Compact — Updated with Name/Subtitle on Top, Price on Bottom,
+// Removed quantity/X, Added Eye Button.
 // ============================================================
 
 const COMPACT_SIZE_CONFIG: Record<
@@ -330,7 +294,7 @@ const COMPACT_SIZE_CONFIG: Record<
 > = {
   sm: {
     maxWidth: "max-w-sm",
-    imageWidth: "w-20",
+    imageWidth: "w-24",
     padding: "p-3",
     title: "text-sm",
   },
@@ -338,55 +302,51 @@ const COMPACT_SIZE_CONFIG: Record<
     maxWidth: "max-w-md",
     imageWidth: "w-28",
     padding: "p-4",
-    title: "text-sm",
+    title: "text-base",
   },
   lg: {
     maxWidth: "max-w-lg",
     imageWidth: "w-32",
     padding: "p-5",
-    title: "text-base",
+    title: "text-lg",
   },
 };
 
 type CompactProductCardProps = {
   product: ProductCardData;
-  quantity: number;
   size?: CardSize;
-  onQuantityChange?: (slug: string, quantity: number) => void;
-  onRemove?: (slug: string) => void;
-  minQuantity?: number;
-  maxQuantity?: number;
   className?: string;
 };
 
 export function CompactProductCard({
   product,
-  quantity,
   size = "md",
-  onQuantityChange,
-  onRemove,
-  minQuantity = 1,
-  maxQuantity,
   className,
 }: CompactProductCardProps) {
-  const canDecrease = quantity > minQuantity;
-  const canIncrease = maxQuantity === undefined || quantity < maxQuantity;
   const coverImage = product.images[0] ?? "/placeholder-product.png";
   const config = COMPACT_SIZE_CONFIG[size];
+
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function handleView() {
+    startTransition(() => {
+      router.push(`/products/${product.slug}`);
+    });
+  }
 
   return (
     <div
       className={cn(
-        "flex w-full items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-sm",
+        "group flex w-full items-stretch overflow-hidden rounded-2xl border border-white/10 bg-black/40 backdrop-blur-md shadow-2xl transition-all hover:bg-black/50",
         config.maxWidth,
         className,
       )}
     >
-      {/* Image — flush left, square, sized off its own width */}
-      <Link
-        href={`/products/${product.slug}`}
+      {/* Image — Left Side */}
+      <div
         className={cn(
-          "relative aspect-square shrink-0 self-stretch bg-muted",
+          "relative shrink-0 overflow-hidden m-2 rounded-xl aspect-square",
           config.imageWidth,
         )}
       >
@@ -394,82 +354,44 @@ export function CompactProductCard({
           src={coverImage}
           alt={product.name}
           fill
-          sizes="128px"
-          className="object-cover"
+          sizes="160px"
+          className="object-cover transition-transform duration-500 group-hover:scale-105"
         />
-      </Link>
+      </div>
 
-      {/* Right column: top row (info + remove), bottom row (price + stepper) */}
-      <div
-        className={cn(
-          "flex flex-1 flex-col justify-between gap-3",
-          config.padding,
-        )}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-col gap-0.5">
-            <Link href={`/products/${product.slug}`}>
-              <p
-                className={cn(
-                  "font-semibold text-foreground hover:underline",
-                  config.title,
-                )}
-              >
-                {product.name}
-              </p>
-            </Link>
-            {product.subtitle && (
-              <p className="text-xs text-muted-foreground">
-                {product.subtitle}
-              </p>
-            )}
-            {product.size && (
-              <p className="text-xs text-muted-foreground">{product.size}</p>
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onRemove?.(product.slug)}
-            aria-label="Retirer"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-          >
-            <X className="h-4 w-4" />
-          </button>
+      {/* Content — Left Aligned */}
+      <div className="flex flex-1 flex-col justify-between py-4 pr-5 pl-2 text-left">
+        {/* Top Section: Name and Subtitle */}
+        <div>
+          <h4 className={cn("font-bold text-white line-clamp-1", config.title)}>
+            {product.name}
+          </h4>
+          {product.subtitle && (
+            <p className="text-xs text-white/60 line-clamp-1 mt-0.5">
+              {product.subtitle}
+            </p>
+          )}
         </div>
 
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-sm font-semibold text-foreground">
+        {/* Bottom Section: Price and View Button */}
+        <div className="flex items-end justify-between">
+          <p className="text-base font-bold text-white">
             {formatPrice(product.price, product.currency)}
           </p>
 
-          <div className="flex shrink-0 items-center gap-1 rounded-full border border-border">
-            <button
-              type="button"
-              onClick={() =>
-                canDecrease && onQuantityChange?.(product.slug, quantity - 1)
-              }
-              disabled={!canDecrease}
-              aria-label="Diminuer la quantité"
-              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </button>
-            <span className="w-5 text-center text-sm font-medium text-foreground tabular-nums">
-              {quantity}
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                canIncrease && onQuantityChange?.(product.slug, quantity + 1)
-              }
-              disabled={!canIncrease}
-              aria-label="Augmenter la quantité"
-              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          <Button
+            onClick={handleView}
+            disabled={isPending}
+            aria-busy={isPending}
+            aria-label="Voir le produit"
+          >
+            {isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+            <p>{isPending ? "Chargement..." : "Voir le produit"}</p>
+          </Button>
         </div>
       </div>
     </div>
