@@ -196,6 +196,14 @@ function SignInForm() {
       });
       await completeLogin();
     } catch (err) {
+      if (err instanceof ApiException && err.isAuthError) {
+        toast.error(
+          "Votre session de connexion a expiré. Merci de recommencer.",
+        );
+        switchMethod("password");
+        return;
+      }
+      setTotpCode("");
       toast.error(getErrorMessage(err, "Code invalide."));
     } finally {
       setIsLoading(false);

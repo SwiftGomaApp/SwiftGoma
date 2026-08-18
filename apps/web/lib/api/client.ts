@@ -4,7 +4,6 @@ import { env } from "./config/env";
 import { authApi } from "./routes/auth";
 
 function resolveApiBaseUrl(): string {
-  // Relative /api/v1 works in the browser; SSR needs an absolute same-origin URL.
   if (typeof window === "undefined") {
     return env.server.apiBaseUrl;
   }
@@ -19,23 +18,20 @@ export const api = axios.create({
   },
 });
 
-let isRefreshing = false;
-let pendingQueue: {
-  resolve: (value: unknown) => void;
-  reject: (reason?: unknown) => void;
-  config: AxiosRequestConfig;
-}[] = [];
+let refreshPromise: Promise<void> | null = null;
 
-function processQueue(error: unknown) {
-  pendingQueue.forEach(({ resolve, reject, config }) => {
-    if (error) {
-      reject(error);
-    } else {
-      resolve(api(config));
-    }
-  });
-  pendingQueue = [];
+export function refreshSession(): Promise<void> {
+  if (!refreshPromise) {
+    refreshPromise = authApi
+      .refreshToken()
+      .then(() => undefined)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
 }
+
 const NO_REFRESH_PATHS = [
   "/auth/refresh-token",
   "/auth/login",
@@ -62,21 +58,12 @@ api.interceptors.response.use(
     const isUnauthorized = error.response.status === 401;
 
     if (isUnauthorized && !original._retry && shouldAttemptRefresh(original)) {
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          pendingQueue.push({ resolve, reject, config: original });
-        });
-      }
-
       original._retry = true;
-      isRefreshing = true;
 
       try {
-        await authApi.refreshToken();
-        processQueue(null);
+        await refreshSession();
         return api(original);
       } catch (refreshError) {
-        processQueue(refreshError);
         if (
           typeof window !== "undefined" &&
           !window.location.pathname.startsWith("/auth/")
@@ -86,8 +73,6 @@ api.interceptors.response.use(
         return Promise.reject(
           ApiException.fromAxiosError(refreshError as AxiosError),
         );
-      } finally {
-        isRefreshing = false;
       }
     }
 

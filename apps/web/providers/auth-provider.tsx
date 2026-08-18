@@ -15,6 +15,8 @@ import {
   oneSignalLogin,
   oneSignalLogout,
 } from "@/lib/onesignal";
+import { refreshSession } from "@/lib/api/client";
+import { clearCarts } from "@/lib/cart/storage";
 
 type AuthContextValue = {
   user: User | null;
@@ -45,13 +47,15 @@ export function AuthProvider({
     } catch (err) {
       if (err instanceof ApiException && err.isAuthError) {
         try {
-          await authApi.refreshToken();
+          await refreshSession();
           const me = await authApi.getMe();
           setUser(me);
           return;
         } catch {
           setUser(null);
         }
+      } else {
+        setUser(null);
       }
     } finally {
       setIsLoading(false);
@@ -59,7 +63,6 @@ export function AuthProvider({
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional fetch on mount when no server-provided user
     if (initialUser === undefined) refresh();
   }, []);
 
@@ -82,11 +85,13 @@ export function AuthProvider({
 
   async function logout() {
     setIsLoggingOut(true);
+    const loggedOutUserId = user?.id ?? null;
     try {
       await authApi.logout();
     } finally {
       setUser(null);
       setIsLoggingOut(false);
+      if (loggedOutUserId) clearCarts(loggedOutUserId);
     }
   }
 

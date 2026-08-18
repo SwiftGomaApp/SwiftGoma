@@ -5,6 +5,7 @@ import { blogApi } from "@/lib/api/routes/blog";
 import { ApiException } from "@/lib/api";
 import { ServerErrorBanner } from "@/components/global/server-error-banner";
 import { buildPageMetadata } from "@/lib/seo";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 type BlogPostPageProps = {
   params: Promise<{ slug: string }>;
@@ -79,7 +80,6 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
       </div>
 
       {post.coverImageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element -- arbitrary admin-pasted URL, not a pre-configured next/image remote host
         <img
           src={post.coverImageUrl}
           alt={post.title}
@@ -89,7 +89,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
       <div className="prose prose-neutral dark:prose-invert mt-8 max-w-none">
         {isHtmlContent(post.content) ? (
-          <div dangerouslySetInnerHTML={{ __html: post.content }} />
+          <div
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.content) }}
+          />
         ) : (
           <ReactMarkdown>{post.content}</ReactMarkdown>
         )}
