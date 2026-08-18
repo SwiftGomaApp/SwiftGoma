@@ -19,6 +19,7 @@ const {
   getProducts,
   getProductBySlugHandler,
   postSubmitReview,
+  getPopularProducts,
 } = require("../controllers/product.controller");
 const {
   postCreateExchangeRate,
@@ -44,6 +45,7 @@ ProductRouter.get("/categories", getCategories);
 ProductRouter.get("/categories/:id", getCategory);
 
 ProductRouter.get("/", getProducts);
+ProductRouter.get("/popular", getPopularProducts);
 ProductRouter.get("/slug/:slug", getProductBySlugHandler);
 
 ProductRouter.use(authenticate);

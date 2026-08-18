@@ -4,6 +4,7 @@ const {
   uploadImage,
   deleteAsset,
 } = require("../../../common/services/cloudinaryUpload");
+const { getRedisClient } = require("../../../config/redis");
 const {
   CLOUDINARY_FOLDERS,
 } = require("../../../common/constants/cloudinaryFolders");
@@ -249,7 +250,6 @@ async function createProduct({
     );
     throw err;
   }
-
 }
 
 async function getProductById(productId) {
@@ -264,6 +264,17 @@ async function getProductById(productId) {
   });
   if (!product) throw new NotFoundError("Produit introuvable.");
   return product;
+}
+
+async function trackProductView(productId) {
+  const redis = getRedisClient();
+  if (!redis) return;
+
+  try {
+    await redis.incr(`product:views:${productId}`);
+  } catch (err) {
+    console.error("[product] Erreur lors du tracking de vue:", err.message);
+  }
 }
 
 async function getProductBySlug(slug) {
@@ -604,7 +615,10 @@ async function listAllProducts(params = {}) {
         where: baseWhere,
         skip,
         take: safeLimit,
-        orderBy: { createdAt: "desc" },
+        orderBy:
+          sortBy === "popular"
+            ? [{ popularityScore: "desc" }, { createdAt: "desc" }]
+            : { createdAt: "desc" },
         include: {
           images: { orderBy: { position: "asc" }, take: 1 },
           variants: {
@@ -648,4 +662,5 @@ module.exports = {
   adjustStock,
   getStockHistory,
   invalidateProductCaches,
+  trackProductView,
 };
