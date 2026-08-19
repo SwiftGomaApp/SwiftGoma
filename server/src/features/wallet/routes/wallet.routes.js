@@ -11,6 +11,7 @@ const {
   payoutOtpLimiter,
   payoutConfirmLimiter,
 } = require("../../../common/middleware/rateLimiters");
+const { idempotencyGuard } = require("../../../common/middleware/idempotency");
 
 const WalletRouter = express.Router();
 
@@ -20,6 +21,11 @@ WalletRouter.get("/me", getMyWallet);
 WalletRouter.get("/me/transactions", getMyWalletTransactions);
 
 WalletRouter.post("/payout/otp", payoutOtpLimiter, postRequestPayoutOtp);
-WalletRouter.post("/payout", payoutConfirmLimiter, postInitiatePayout);
+WalletRouter.post(
+  "/payout",
+  payoutConfirmLimiter,
+  idempotencyGuard({ scope: "wallet-payout" }),
+  postInitiatePayout,
+);
 
 module.exports = WalletRouter;

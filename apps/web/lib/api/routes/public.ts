@@ -1,4 +1,38 @@
 import { api } from "../client";
+import type { ProductCardData } from "@/components/products/product-card";
+
+export type HeroRole = "seller" | "buyer" | "rider" | "payment";
+
+export type HeroSlide = {
+  role: HeroRole;
+  title: string;
+  description: string;
+  searchPlaceholder: string;
+  image: string;
+  products: ProductCardData[];
+};
+
+export type BillingCycle = "MONTHLY" | "YEARLY";
+
+export type PlanPrice = {
+  id: string;
+  billingCycle: BillingCycle;
+  currency: string;
+  amount: string;
+};
+
+export type Plan = {
+  id: string;
+  name: string;
+  slug: string;
+  maxProducts: number;
+  maxPhotosPerProduct: number;
+  maxShops: number;
+  prioritySupport: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  prices: PlanPrice[];
+};
 
 export type Subcategory = {
   id: string;
@@ -183,6 +217,23 @@ export const publicApi = {
 
   async listShops(params: ShopListParams = {}): Promise<ShopListResponse> {
     const { data } = await api.get("/seller/shops", { params });
+    return data.data;
+  },
+
+  async getHeroSlides(): Promise<HeroSlide[]> {
+    const { data } = await api.get("/storefront/hero");
+    return data.data;
+  },
+
+  async listPopularProducts(
+    params: Omit<ProductListParams, "sortBy"> = {},
+  ): Promise<ProductListResponse> {
+    const { data } = await api.get("/products/popular", { params });
+    return data.data;
+  },
+
+  async listPlans(): Promise<Plan[]> {
+    const { data } = await api.get("/plans");
     return data.data;
   },
 };

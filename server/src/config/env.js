@@ -45,6 +45,7 @@ const env = {
   },
 
   appUrl: process.env.APP_URL || "http://localhost:3000",
+  healthCheckToken: process.env.HEALTH_CHECK_TOKEN || "",
   totpSecretEncryptionKey: process.env.TOTP_SECRET_ENCRYPTION_KEY || "",
 
   google: {
@@ -110,6 +111,7 @@ function assertRequiredEnv() {
   if (!env.cloudinary.apiSecret) missing.push("CLOUDINARY_API_SECRET");
   if (!env.totpSecretEncryptionKey) missing.push("TOTP_SECRET_ENCRYPTION_KEY");
   if (!env.redisUrl) missing.push("REDIS_URL");
+  if (!env.healthCheckToken) missing.push("HEALTH_CHECK_TOKEN");
 
   if (!env.pawapay.signingEnabled) {
     missing.push("PAWAPAY_SIGNING_ENABLED=true");

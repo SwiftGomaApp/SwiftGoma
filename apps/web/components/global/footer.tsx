@@ -1,4 +1,3 @@
-// components/layout/footer.tsx
 import Link from "next/link";
 import { Mail, Phone, MapPin } from "lucide-react";
 import Logo from "./logo";
@@ -14,7 +13,7 @@ const EXPLORE_LINKS = [
 ];
 
 const SELLER_LINKS = [
-  { href: "/help", label: "Vendre sur SwiftGoma" },
+  { href: "/sell", label: "Vendre sur SwiftGoma" },
   { href: "/legal/seller-terms", label: "Conditions Vendeurs" },
   { href: "/legal/delivery-terms", label: "Conditions Livreurs" },
 ];

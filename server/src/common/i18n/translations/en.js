@@ -1,0 +1,66 @@
+module.exports = {
+  errors: {
+    badRequest: "Invalid request.",
+    validation: "Validation failed.",
+    unauthorized: "Authentication required.",
+    forbidden: "You do not have permission to perform this action.",
+    notFound: "Resource not found.",
+    conflict: "Conflict with existing data.",
+    tooManyRequests: "Too many requests. Please slow down.",
+    internal: "An internal error occurred.",
+    ipBlocked:
+      "Your IP address has been temporarily blocked due to repeated attempts. Please try again later.",
+    malformedJson: "Malformed JSON in the request body.",
+    upload: {
+      fileTooLarge: "File is too large.",
+      tooManyFiles: "Too many files uploaded.",
+      unexpectedField: "Unexpected file field.",
+      generic: "File upload failed.",
+    },
+  },
+  expenses: {
+    titleRequired: "Title is required.",
+    invalidCategory: "Invalid category.",
+    invalidAmount: "Invalid amount.",
+    currencyRequired: "Currency is required.",
+    beneficiaryNameRequired: "Beneficiary name is required.",
+    invalidBeneficiaryPhone: "Invalid beneficiary phone number.",
+    providerRequired: "Mobile money provider is required.",
+    invalidProvider: "Invalid mobile money provider.",
+    invalidCustomerMessage:
+      "Customer message must be 4 to 22 alphanumeric characters.",
+    invalidExpenseDate: "Invalid expense date.",
+    invalidStatus: "Invalid expense status.",
+    invalidCategoryFilter: "Invalid expense category.",
+    notFound: "Expense not found.",
+    onlyPendingOrFailedApprovable:
+      "Only pending or failed expenses can be approved.",
+    onlyPendingRejectable: "Only pending expenses can be rejected.",
+    onlyPendingOrFailedEditable:
+      "Only pending or failed expenses can be edited.",
+    rejectionReasonRequired: "A rejection reason is required.",
+    alreadyProcessed: "This expense has already been processed or rejected.",
+    cannotAttachPayout: "Unable to attach the payout to the expense.",
+    adminRequired: "Administrator access required.",
+    adminEmailMissing: "Your administrator account has no email address.",
+    noPendingApproval: "No pending approval. Please request a new code.",
+    invalidApprovalSession: "Invalid approval session.",
+    approvalMismatch: "The expense does not match the session.",
+    approvalCodeExpired: "Code expired. Please request a new approval.",
+    approvalSessionExpiredRestart:
+      "Approval session expired. Please restart the approval process.",
+    invalidVerificationCode: "Invalid verification code.",
+    sessionAndCodeRequired: "Session ID and code are required.",
+    otpSentMessage: "A verification code has been sent to {{email}}.",
+    otpEmailFailed:
+      "Unable to send the verification email. Check the SMTP configuration.",
+    payoutRejected: "The PawaPay payout was rejected immediately.",
+  },
+  incidents: {
+    titleRequired: "Please provide a title.",
+    descriptionRequired: "Please provide a description.",
+    invalidSeverity: "Invalid severity.",
+    notFound: "Incident not found.",
+    invalidStatus: "Invalid status.",
+  },
+};

@@ -1,7 +1,12 @@
 const { getPrismaClient } = require("../../../config/prisma");
+const { t } = require("../../../common/i18n/t");
 const { ValidationError, NotFoundError } = require("../../../common/errors");
-const { broadcastNotification } = require("../../notification/services/notification.service");
-const { NOTIFICATION_TYPES } = require("../../notification/config/notificationTypes");
+const {
+  broadcastNotification,
+} = require("../../notification/services/notification.service");
+const {
+  NOTIFICATION_TYPES,
+} = require("../../notification/config/notificationTypes");
 
 const prisma = getPrismaClient();
 
@@ -10,14 +15,14 @@ const STATUSES = ["INVESTIGATING", "IDENTIFIED", "MONITORING", "RESOLVED"];
 
 async function createIncident({ createdBy, title, description, severity }) {
   if (!title || typeof title !== "string" || !title.trim()) {
-    throw new ValidationError("Veuillez indiquer un titre.");
+    throw new ValidationError(t("incidents.titleRequired"));
   }
   if (!description || typeof description !== "string" || !description.trim()) {
-    throw new ValidationError("Veuillez indiquer une description.");
+    throw new ValidationError(t("incidents.descriptionRequired"));
   }
   const resolvedSeverity = severity || "MINOR";
   if (!SEVERITIES.includes(resolvedSeverity)) {
-    throw new ValidationError("Sévérité invalide.");
+    throw new ValidationError(t("incidents.invalidSeverity"));
   }
 
   const incident = await prisma.incident.create({
@@ -42,13 +47,13 @@ async function createIncident({ createdBy, title, description, severity }) {
 
 async function updateIncident(id, { status, description, severity }) {
   const existing = await prisma.incident.findUnique({ where: { id } });
-  if (!existing) throw new NotFoundError("Incident introuvable.");
+  if (!existing) throw new NotFoundError(t("incidents.notFound"));
 
   if (status !== undefined && !STATUSES.includes(status)) {
-    throw new ValidationError("Statut invalide.");
+    throw new ValidationError(t("incidents.invalidStatus"));
   }
   if (severity !== undefined && !SEVERITIES.includes(severity)) {
-    throw new ValidationError("Sévérité invalide.");
+    throw new ValidationError(t("incidents.invalidSeverity"));
   }
 
   const resolvedAt =
