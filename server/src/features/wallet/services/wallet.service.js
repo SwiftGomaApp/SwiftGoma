@@ -413,10 +413,7 @@ async function verifyAndConsumePayoutOtp(sellerProfileId, otpCode) {
     );
   }
   if (!safeCompareCode(stored.code, otpCode)) {
-    await handleInvalidOtpAttempt(
-      otpScope,
-      "Code de confirmation invalide.",
-    );
+    await handleInvalidOtpAttempt(otpScope, "Code de confirmation invalide.");
   }
 
   await cache.del(key);
@@ -438,83 +435,95 @@ async function initiateSellerPayout({
 
   const lockKey = `${WALLET_CONFIG.PAYOUT_LOCK_PREFIX}${sellerProfileId}`;
 
-  return withLock(lockKey, WALLET_CONFIG.PAYOUT_LOCK_TTL_MS, async () => {
-    const sellerProfile = await getSellerProfileForPayout(sellerProfileId);
-    const { walletSettings } = sellerProfile;
+  const result = await withLock(
+    lockKey,
+    WALLET_CONFIG.PAYOUT_LOCK_TTL_MS,
+    async () => {
+      const sellerProfile = await getSellerProfileForPayout(sellerProfileId);
+      const { walletSettings } = sellerProfile;
 
-    await verifyAndConsumePayoutOtp(sellerProfileId, otpCode);
+      await verifyAndConsumePayoutOtp(sellerProfileId, otpCode);
 
-    const minimumEntry = await prisma.minimumPayoutAmount.findUnique({
-      where: {
-        walletSettingsId_currency: {
-          walletSettingsId: walletSettings.id,
-          currency,
+      const minimumEntry = await prisma.minimumPayoutAmount.findUnique({
+        where: {
+          walletSettingsId_currency: {
+            walletSettingsId: walletSettings.id,
+            currency,
+          },
         },
-      },
-    });
-    if (minimumEntry && validAmount < Number(minimumEntry.amount)) {
-      throw new ValidationError(
-        `Le montant minimum de payout pour ${currency} est ${minimumEntry.amount}.`,
-      );
-    }
+      });
+      if (minimumEntry && validAmount < Number(minimumEntry.amount)) {
+        throw new ValidationError(
+          `Le montant minimum de payout pour ${currency} est ${minimumEntry.amount}.`,
+        );
+      }
 
-    const wallet = await prisma.wallet.findUnique({
-      where: { sellerProfileId },
-    });
-    if (!wallet) {
-      throw new ConflictError("Aucun wallet trouvé pour ce vendeur.");
-    }
-    await assertWithinDailyPayoutLimit(wallet, currency, validAmount);
+      const wallet = await prisma.wallet.findUnique({
+        where: { sellerProfileId },
+      });
+      if (!wallet) {
+        throw new ConflictError("Aucun wallet trouvé pour ce vendeur.");
+      }
+      await assertWithinDailyPayoutLimit(wallet, currency, validAmount);
 
-    const { walletBalance, walletTransaction } = await debitWalletForPayout(
-      sellerProfileId,
-      currency,
-      validAmount,
-    );
-
-    try {
-      const payoutResult = await initiateMbiyoPayPayout({
-        amount: validAmount,
+      const { walletBalance, walletTransaction } = await debitWalletForPayout(
+        sellerProfileId,
         currency,
-        network: walletSettings.payoutProvider,
-        phoneNumber: walletSettings.payoutPhoneNumber,
-        countryCode: walletSettings.payoutCountry,
-        beneficiary: sellerProfile.businessName,
-        orderId: `SWG-PAYOUT-${walletTransaction.id}`,
-      });
-
-      const updatedTransaction = await prisma.walletTransaction.update({
-        where: { id: walletTransaction.id },
-        data: {
-          payoutOrderId: payoutResult.orderId || null,
-          payoutTransactionId: payoutResult.transaction_id || null,
-          payoutFee:
-            payoutResult.fee !== undefined ? String(payoutResult.fee) : null,
-          payoutChargedAmount:
-            payoutResult.charged_amount !== undefined
-              ? String(payoutResult.charged_amount)
-              : null,
-        },
-      });
-
-      return {
-        walletTransaction: serializeWalletTransaction(updatedTransaction),
-        balance: serializeWalletBalance(walletBalance),
-      };
-    } catch (err) {
-      console.error(
-        `[wallet] MbiyoPay payout failed for seller ${sellerProfileId}, wallet transaction ${walletTransaction.id} — refunding:`,
-        err.message,
-      );
-      await refundFailedPayout(
-        walletBalance.id,
-        walletTransaction.id,
         validAmount,
-        err.message || "Échec de l'initiation du payout MbiyoPay",
       );
-      throw err;
-    }
-  });
+
+      try {
+        const payoutResult = await initiateMbiyoPayPayout({
+          amount: validAmount,
+          currency,
+          network: walletSettings.payoutProvider,
+          phoneNumber: walletSettings.payoutPhoneNumber,
+          countryCode: walletSettings.payoutCountry,
+          beneficiary: sellerProfile.businessName,
+          orderId: `SWG-PAYOUT-${walletTransaction.id}`,
+        });
+
+        const updatedTransaction = await prisma.walletTransaction.update({
+          where: { id: walletTransaction.id },
+          data: {
+            payoutOrderId: payoutResult.orderId || null,
+            payoutTransactionId: payoutResult.transaction_id || null,
+            payoutFee:
+              payoutResult.fee !== undefined ? String(payoutResult.fee) : null,
+            payoutChargedAmount:
+              payoutResult.charged_amount !== undefined
+                ? String(payoutResult.charged_amount)
+                : null,
+          },
+        });
+
+        return {
+          walletTransaction: serializeWalletTransaction(updatedTransaction),
+          balance: serializeWalletBalance(walletBalance),
+        };
+      } catch (err) {
+        console.error(
+          `[wallet] MbiyoPay payout failed for seller ${sellerProfileId}, wallet transaction ${walletTransaction.id} — refunding:`,
+          err.message,
+        );
+        await refundFailedPayout(
+          walletBalance.id,
+          walletTransaction.id,
+          validAmount,
+          err.message || "Échec de l'initiation du payout MbiyoPay",
+        );
+        throw err;
+      }
+    },
+  );
+
+  if (result === null) {
+    throw new ConflictError(
+      "Une demande de payout est déjà en cours de traitement pour ce vendeur. Veuillez patienter quelques secondes et réessayer.",
+    );
+  }
+
+  return result;
 }
 
 async function findPayoutTransactionForCallback({ transactionId, orderId }) {

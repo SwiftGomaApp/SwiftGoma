@@ -34,6 +34,7 @@ const {
   formatLoginTime,
 } = require("../utils/deviceInfo");
 const { encryptSecret, decryptSecret } = require("../utils/totpEncryption");
+const { claimTotpStep } = require("../utils/totpReplayGuard");
 const { TOTP_CONFIG } = require("../config/totp.config");
 const { verifyGoogleIdToken } = require("../config/google.config");
 const { WEBAUTHN_CONFIG } = require("../config/webauthn.config");
@@ -1011,7 +1012,15 @@ async function verifyTotpOrBackupCode(prisma, twoFactorRecord, code) {
     token: trimmedCode,
     window: TOTP_CONFIG.verificationWindow,
   });
-  if (delta !== null) return true;
+  if (delta !== null) {
+    const currentStep = Math.floor(Date.now() / 1000 / TOTP_CONFIG.period);
+    const step = currentStep + delta;
+    const isFreshUse = await claimTotpStep(twoFactorRecord.userId, step);
+    if (!isFreshUse) {
+      return false;
+    }
+    return true;
+  }
 
   const codeHash = hashToken(trimmedCode.toUpperCase());
   const backupCode = await prisma.twoFactorBackupCode.findFirst({

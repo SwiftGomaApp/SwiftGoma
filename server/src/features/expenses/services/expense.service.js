@@ -1,4 +1,5 @@
 const { getPrismaClient } = require("../../../config/prisma");
+const { t } = require("../../../common/i18n/t");
 const {
   NotFoundError,
   ValidationError,
@@ -118,33 +119,31 @@ const expenseInclude = {
 
 function validateExpenseInput(input = {}) {
   if (!input.title?.trim()) {
-    throw new ValidationError("Le titre est requis.");
+    throw new ValidationError(t("expenses.titleRequired"));
   }
   if (!EXPENSE_CATEGORIES.includes(input.category)) {
-    throw new ValidationError("Catégorie invalide.");
+    throw new ValidationError(t("expenses.invalidCategory"));
   }
   if (!isValidAmount(input.amount)) {
-    throw new ValidationError("Montant invalide.");
+    throw new ValidationError(t("expenses.invalidAmount"));
   }
   if (!input.currency?.trim()) {
-    throw new ValidationError("La devise est requise.");
+    throw new ValidationError(t("expenses.currencyRequired"));
   }
   if (!input.vendorName?.trim()) {
-    throw new ValidationError("Le nom du bénéficiaire est requis.");
+    throw new ValidationError(t("expenses.beneficiaryNameRequired"));
   }
   if (!isValidMsisdn(input.vendorPhone)) {
-    throw new ValidationError("Numéro de téléphone du bénéficiaire invalide.");
+    throw new ValidationError(t("expenses.invalidBeneficiaryPhone"));
   }
   if (!input.providerName?.trim()) {
-    throw new ValidationError("Le fournisseur mobile money est requis.");
+    throw new ValidationError(t("expenses.providerRequired"));
   }
   if (!isValidStatementDescription(input.customerMessage)) {
-    throw new ValidationError(
-      "Le message client doit contenir 4 à 22 caractères alphanumériques.",
-    );
+    throw new ValidationError(t("expenses.invalidCustomerMessage"));
   }
   if (!input.incurredAt || Number.isNaN(new Date(input.incurredAt).getTime())) {
-    throw new ValidationError("Date de dépense invalide.");
+    throw new ValidationError(t("expenses.invalidExpenseDate"));
   }
 }
 
@@ -249,14 +248,14 @@ async function listExpenses(query = {}) {
   if (query.status) {
     const status = String(query.status).toUpperCase();
     if (!EXPENSE_STATUSES.includes(status)) {
-      throw new ValidationError("Statut de dépense invalide.");
+      throw new ValidationError(t("expenses.invalidStatus"));
     }
     where.status = status;
   }
   if (query.category) {
     const category = String(query.category).toUpperCase();
     if (!EXPENSE_CATEGORIES.includes(category)) {
-      throw new ValidationError("Catégorie de dépense invalide.");
+      throw new ValidationError(t("expenses.invalidCategoryFilter"));
     }
     where.category = category;
   }
@@ -287,7 +286,7 @@ async function getExpenseById(id) {
     include: expenseInclude,
   });
   if (!record) {
-    throw new NotFoundError("Dépense introuvable.");
+    throw new NotFoundError(t("expenses.notFound"));
   }
   return mapExpense(record);
 }
@@ -295,12 +294,10 @@ async function getExpenseById(id) {
 async function getExpenseRecordForApproval(id) {
   const record = await prisma.expense.findUnique({ where: { id } });
   if (!record) {
-    throw new NotFoundError("Dépense introuvable.");
+    throw new NotFoundError(t("expenses.notFound"));
   }
   if (!["PENDING", "FAILED"].includes(record.status)) {
-    throw new ValidationError(
-      "Seules les dépenses en attente ou en échec peuvent être approuvées.",
-    );
+    throw new ValidationError(t("expenses.onlyPendingOrFailedApprovable"));
   }
   return record;
 }
@@ -308,7 +305,7 @@ async function getExpenseRecordForApproval(id) {
 async function resetFailedExpenseForApproval(id) {
   const record = await prisma.expense.findUnique({ where: { id } });
   if (!record) {
-    throw new NotFoundError("Dépense introuvable.");
+    throw new NotFoundError(t("expenses.notFound"));
   }
   if (record.status !== "FAILED") {
     return record;
@@ -328,7 +325,7 @@ async function resetFailedExpenseForApproval(id) {
 
 async function rejectExpense(adminId, id, reason) {
   if (!reason?.trim()) {
-    throw new ValidationError("Le motif de rejet est requis.");
+    throw new ValidationError(t("expenses.rejectionReasonRequired"));
   }
 
   const claimed = await prisma.expense.updateMany({
@@ -343,11 +340,9 @@ async function rejectExpense(adminId, id, reason) {
   if (claimed.count !== 1) {
     const record = await prisma.expense.findUnique({ where: { id } });
     if (!record) {
-      throw new NotFoundError("Dépense introuvable.");
+      throw new NotFoundError(t("expenses.notFound"));
     }
-    throw new ValidationError(
-      "Seules les dépenses en attente peuvent être rejetées.",
-    );
+    throw new ValidationError(t("expenses.onlyPendingRejectable"));
   }
 
   const updated = await prisma.expense.findUnique({
@@ -388,7 +383,7 @@ async function claimExpenseForPayout(adminId, expenseId) {
     },
   });
   if (claimed.count !== 1) {
-    throw new ConflictError("Cette dépense a déjà été traitée ou rejetée.");
+    throw new ConflictError(t("expenses.alreadyProcessed"));
   }
 
   return prisma.expense.findUnique({ where: { id: expenseId } });
@@ -400,7 +395,7 @@ async function attachExpensePayout(expenseId, adminPayoutId) {
     data: { adminPayoutId },
   });
   if (updated.count !== 1) {
-    throw new ConflictError("Impossible d'associer le payout à la dépense.");
+    throw new ConflictError(t("expenses.cannotAttachPayout"));
   }
 
   return prisma.expense.findUnique({
@@ -436,12 +431,10 @@ async function markExpenseFailed(expenseId, failureReason) {
 async function updateExpense(id, input, receiptFile = null) {
   const existing = await prisma.expense.findUnique({ where: { id } });
   if (!existing) {
-    throw new NotFoundError("Dépense introuvable.");
+    throw new NotFoundError(t("expenses.notFound"));
   }
   if (!["PENDING", "FAILED"].includes(existing.status)) {
-    throw new ValidationError(
-      "Seules les dépenses en attente ou en échec peuvent être modifiées.",
-    );
+    throw new ValidationError(t("expenses.onlyPendingOrFailedEditable"));
   }
 
   validateExpenseInput(input);
@@ -478,14 +471,14 @@ async function listExpensesForExport(query = {}) {
   if (query.status) {
     const status = String(query.status).toUpperCase();
     if (!EXPENSE_STATUSES.includes(status)) {
-      throw new ValidationError("Statut de dépense invalide.");
+      throw new ValidationError(t("expenses.invalidStatus"));
     }
     where.status = status;
   }
   if (query.category) {
     const category = String(query.category).toUpperCase();
     if (!EXPENSE_CATEGORIES.includes(category)) {
-      throw new ValidationError("Catégorie de dépense invalide.");
+      throw new ValidationError(t("expenses.invalidCategoryFilter"));
     }
     where.category = category;
   }

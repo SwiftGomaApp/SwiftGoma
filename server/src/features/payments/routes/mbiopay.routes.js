@@ -41,6 +41,7 @@ MbiyoPayRouter.post(
   "/payout/confirm",
   authorize("ADMIN"),
   payoutConfirmLimiter,
+  idempotencyGuard({ scope: "mbiopay-payout-confirm" }),
   postConfirmPayout,
 );
 MbiyoPayRouter.get("/payout/history", FINANCE_READ, getPayoutHistory);

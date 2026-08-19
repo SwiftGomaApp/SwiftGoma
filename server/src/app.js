@@ -1,11 +1,13 @@
 const compression = require("compression");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
+const crypto = require("crypto");
 const express = require("express");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const Sentry = require("@sentry/node");
 
+const cache = require("./common/services/cache");
 const { env, isProduction } = require("./config/env");
 const { checkCloudinaryConnection } = require("./config/cloudinary");
 const { checkMailerConnection } = require("./config/mailer");
@@ -23,6 +25,7 @@ const {
   authLimiter,
 } = require("./common/middleware/rateLimiters");
 const { requestId } = require("./common/middleware/requestId");
+const { locale } = require("./common/middleware/locale");
 const authRoutes = require("./features/auth/routes/auth.routes");
 const UserRouter = require("./features/users/routes/user.routes");
 const NotificationRouter = require("./features/notification/routes/notification.routes");
@@ -68,6 +71,7 @@ const createApp = () => {
   app.disable("x-powered-by");
 
   app.use(requestId);
+  app.use(locale);
   app.use(helmet());
   app.use(ipBlockGuard());
 
@@ -106,43 +110,81 @@ const createApp = () => {
   app.use("/api/v1/mbiyopay/callbacks", MbiyoPayCallbackRouter);
 
   app.get("/api/v1/health", async (req, res) => {
-    const [
-      db,
-      cloudinaryStatus,
-      mailerStatus,
-      smsStatus,
-      oneSignalStatus,
-      pawapayStatus,
-      mbiyopayStatus,
-    ] = await Promise.all([
-      checkDatabaseConnection(),
-      checkCloudinaryConnection(),
-      checkMailerConnection(),
-      checkSmsConnection(),
-      checkOneSignalConnection(),
-      checkPawaPayConnection(),
-      checkMbiyoPayConnection(),
-    ]);
-    const healthy =
-      db.connected &&
-      cloudinaryStatus.connected &&
-      mailerStatus.connected &&
-      smsStatus.connected &&
-      oneSignalStatus.connected &&
-      pawapayStatus.connected &&
-      mbiyopayStatus.connected;
-
-    res.status(healthy ? 200 : 503).json({
-      status: healthy ? "ok" : "degraded",
-      env: env.nodeEnv,
+    const db = await checkDatabaseConnection();
+    res.status(db.connected ? 200 : 503).json({
+      status: db.connected ? "ok" : "degraded",
       timestamp: new Date().toISOString(),
-      database: db,
-      cloudinary: cloudinaryStatus,
-      mailer: mailerStatus,
-      sms: smsStatus,
-      oneSignal: oneSignalStatus,
-      pawapay: pawapayStatus,
-      mbiyopay: mbiyopayStatus,
+    });
+  });
+
+  app.get("/api/v1/health/detailed", async (req, res) => {
+    const token = req.headers["x-health-token"];
+    if (!env.healthCheckToken || typeof token !== "string" || !token) {
+      return res.status(404).json({ error: "not_found" });
+    }
+
+    const expectedHash = crypto
+      .createHash("sha256")
+      .update(env.healthCheckToken)
+      .digest();
+    const providedHash = crypto.createHash("sha256").update(token).digest();
+
+    if (!crypto.timingSafeEqual(expectedHash, providedHash)) {
+      return res.status(404).json({ error: "not_found" });
+    }
+
+    const payload = await cache.getOrSet("health:detailed", 10, async () => {
+      const [
+        db,
+        cloudinaryStatus,
+        mailerStatus,
+        smsStatus,
+        oneSignalStatus,
+        pawapayStatus,
+        mbiyopayStatus,
+      ] = await Promise.all([
+        checkDatabaseConnection(),
+        checkCloudinaryConnection(),
+        checkMailerConnection(),
+        checkSmsConnection(),
+        checkOneSignalConnection(),
+        checkPawaPayConnection(),
+        checkMbiyoPayConnection(),
+      ]);
+      const healthy =
+        db.connected &&
+        cloudinaryStatus.connected &&
+        mailerStatus.connected &&
+        smsStatus.connected &&
+        oneSignalStatus.connected &&
+        pawapayStatus.connected &&
+        mbiyopayStatus.connected;
+
+      return {
+        healthy,
+        env: env.nodeEnv,
+        timestamp: new Date().toISOString(),
+        database: db,
+        cloudinary: cloudinaryStatus,
+        mailer: mailerStatus,
+        sms: smsStatus,
+        oneSignal: oneSignalStatus,
+        pawapay: pawapayStatus,
+        mbiyopay: mbiyopayStatus,
+      };
+    });
+
+    res.status(payload.healthy ? 200 : 503).json({
+      status: payload.healthy ? "ok" : "degraded",
+      env: payload.env,
+      timestamp: payload.timestamp,
+      database: payload.database,
+      cloudinary: payload.cloudinary,
+      mailer: payload.mailer,
+      sms: payload.sms,
+      oneSignal: payload.oneSignal,
+      pawapay: payload.pawapay,
+      mbiyopay: payload.mbiyopay,
     });
   });
 

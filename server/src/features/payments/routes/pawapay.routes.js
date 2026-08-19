@@ -46,6 +46,7 @@ PawapayRouter.post(
   "/payouts/confirm",
   authorize("ADMIN"),
   payoutConfirmLimiter,
+  idempotencyGuard({ scope: "pawapay-payout-confirm" }),
   postConfirmPayout,
 );
 PawapayRouter.get("/payouts/history", FINANCE_READ, getPayoutHistory);
@@ -60,9 +61,15 @@ PawapayRouter.post(
   "/refunds/confirm",
   authorize("ADMIN"),
   payoutConfirmLimiter,
+  idempotencyGuard({ scope: "pawapay-refund-confirm" }),
   postConfirmRefund,
 );
-PawapayRouter.post("/refunds", authorize("ADMIN"), postInitiateRefund);
+PawapayRouter.post(
+  "/refunds",
+  authorize("ADMIN"),
+  idempotencyGuard({ scope: "pawapay-refund-initiate" }),
+  postInitiateRefund,
+);
 PawapayRouter.get("/refunds/:refundId", FINANCE_READ, getRefundStatus);
 PawapayRouter.get("/wallet-balances", FINANCE_READ, getBalances);
 PawapayRouter.get("/active-configuration", FINANCE_READ, getConfiguration);

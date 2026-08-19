@@ -1,21 +1,21 @@
 const { createRateLimiter, userOrIpKey, emailOrIpKey } = require("./rateLimit");
 const { env } = require("../../config/env");
 
-const isTest = env.nodeEnv === "development";
+const isDevRelaxedLimits = env.nodeEnv === "development";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 
 const globalLimiter = createRateLimiter({
   name: "global",
   windowMs: 15 * 60 * 1000,
-  max: isTest ? 100_000 : 300,
+  max: isDevRelaxedLimits ? 100_000 : 300,
   message: "Trop de requêtes. Veuillez ralentir et réessayer dans un instant.",
 });
 
 const authLimiter = createRateLimiter({
   name: "auth",
   windowMs: 15 * 60 * 1000,
-  max: isTest ? 100_000 : 10,
+  max: isDevRelaxedLimits ? 100_000 : 10,
   message:
     "Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.",
   trackViolations: true,
@@ -24,7 +24,7 @@ const authLimiter = createRateLimiter({
 const sessionLimiter = createRateLimiter({
   name: "session",
   windowMs: 5 * 60 * 1000,
-  max: isTest ? 100_000 : 60,
+  max: isDevRelaxedLimits ? 100_000 : 60,
   message: "Trop de requêtes de session. Veuillez patienter un instant.",
   keyGenerator: userOrIpKey,
 });
@@ -32,7 +32,7 @@ const sessionLimiter = createRateLimiter({
 const paymentLimiter = createRateLimiter({
   name: "payment",
   windowMs: FIFTEEN_MINUTES_MS,
-  max: isTest ? 100_000 : 20,
+  max: isDevRelaxedLimits ? 100_000 : 20,
   message:
     "Trop de requêtes de paiement. Veuillez patienter avant de réessayer.",
   trackViolations: true,
@@ -41,7 +41,7 @@ const paymentLimiter = createRateLimiter({
 const payoutOtpLimiter = createRateLimiter({
   name: "payout-otp",
   windowMs: FIFTEEN_MINUTES_MS,
-  max: isTest ? 100_000 : 10,
+  max: isDevRelaxedLimits ? 100_000 : 10,
   message:
     "Trop de demandes de vérification de paiement. Veuillez patienter avant de réessayer.",
   keyGenerator: userOrIpKey,
@@ -51,7 +51,7 @@ const payoutOtpLimiter = createRateLimiter({
 const payoutOtpResendLimiter = createRateLimiter({
   name: "payout-otp-resend",
   windowMs: FIFTEEN_MINUTES_MS,
-  max: isTest ? 100_000 : 3,
+  max: isDevRelaxedLimits ? 100_000 : 3,
   message:
     "Trop de tentatives de renvoi de code de paiement. Veuillez patienter avant de réessayer.",
   keyGenerator: userOrIpKey,
@@ -61,7 +61,7 @@ const payoutOtpResendLimiter = createRateLimiter({
 const payoutConfirmLimiter = createRateLimiter({
   name: "payout-confirm",
   windowMs: FIFTEEN_MINUTES_MS,
-  max: isTest ? 100_000 : 5,
+  max: isDevRelaxedLimits ? 100_000 : 5,
   message:
     "Trop de confirmations de paiement. Veuillez patienter avant de réessayer.",
   keyGenerator: userOrIpKey,
@@ -71,14 +71,14 @@ const payoutConfirmLimiter = createRateLimiter({
 const webhookLimiter = createRateLimiter({
   name: "webhook",
   windowMs: FIFTEEN_MINUTES_MS,
-  max: isTest ? 100_000 : 500,
+  max: isDevRelaxedLimits ? 100_000 : 500,
   message: "Trop de requêtes webhook.",
 });
 
 const chatMessageLimiter = createRateLimiter({
   name: "chat-message",
   windowMs: 60 * 1000,
-  max: isTest ? 100_000 : 20,
+  max: isDevRelaxedLimits ? 100_000 : 20,
   message: "Trop de messages envoyés. Veuillez ralentir.",
   keyGenerator: userOrIpKey,
 });
@@ -86,7 +86,7 @@ const chatMessageLimiter = createRateLimiter({
 const credentialGuessLimiter = createRateLimiter({
   name: "credential-guess",
   windowMs: FIFTEEN_MINUTES_MS,
-  max: isTest ? 100_000 : 8,
+  max: isDevRelaxedLimits ? 100_000 : 8,
   message:
     "Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.",
   keyGenerator: emailOrIpKey,
@@ -96,7 +96,7 @@ const credentialGuessLimiter = createRateLimiter({
 const otpRequestLimiter = createRateLimiter({
   name: "otp-request",
   windowMs: FIFTEEN_MINUTES_MS,
-  max: isTest ? 100_000 : 5,
+  max: isDevRelaxedLimits ? 100_000 : 5,
   message: "Trop de demandes. Veuillez patienter avant de réessayer.",
   keyGenerator: emailOrIpKey,
 });
@@ -104,7 +104,7 @@ const otpRequestLimiter = createRateLimiter({
 const accountLimiter = createRateLimiter({
   name: "account",
   windowMs: FIFTEEN_MINUTES_MS,
-  max: isTest ? 100_000 : 8,
+  max: isDevRelaxedLimits ? 100_000 : 8,
   message: "Trop de tentatives. Veuillez patienter avant de réessayer.",
   keyGenerator: emailOrIpKey,
 });
@@ -112,7 +112,7 @@ const accountLimiter = createRateLimiter({
 const authenticatedActionLimiter = createRateLimiter({
   name: "auth-action",
   windowMs: FIFTEEN_MINUTES_MS,
-  max: isTest ? 100_000 : 30,
+  max: isDevRelaxedLimits ? 100_000 : 30,
   message: "Trop de requêtes. Veuillez patienter un instant.",
   keyGenerator: userOrIpKey, // already authenticated, safe to key by user id
 });
@@ -120,7 +120,7 @@ const authenticatedActionLimiter = createRateLimiter({
 const refreshTokenLimiter = createRateLimiter({
   name: "refresh-token",
   windowMs: 5 * 60 * 1000,
-  max: isTest ? 100_000 : 20,
+  max: isDevRelaxedLimits ? 100_000 : 20,
   message: "Trop de requêtes. Veuillez patienter un instant.",
 });
 

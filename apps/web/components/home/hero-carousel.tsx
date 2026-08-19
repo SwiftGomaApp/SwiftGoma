@@ -12,17 +12,17 @@ import {
 import { ImageWithFallback } from "@/components/global/image-with-fallback";
 import { CompactProductCard } from "@/components/products/product-card";
 import { HeroSearchBar } from "@/components/home/hero-search-bar";
-import { HERO_SLIDES } from "@/lib/mock-hero-slides";
+import type { HeroSlide } from "@/lib/api/routes/public";
 import { cn } from "@/lib/utils";
 
-const ROLE_LABEL: Record<(typeof HERO_SLIDES)[number]["role"], string> = {
+const ROLE_LABEL: Record<HeroSlide["role"], string> = {
   seller: "Vendeur",
   buyer: "Acheteur",
   rider: "Livreur",
   payment: "Paiement en ligne",
 };
 
-export function HeroCarousel() {
+export function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
   // delay: 6000 -> passe à la slide suivante toutes les 6 secondes.
   // stopOnInteraction: false -> l'autoplay reprend après un clic sur une
   // flèche/dot au lieu de s'arrêter définitivement.
@@ -31,27 +31,36 @@ export function HeroCarousel() {
     Autoplay({ delay: 6000, stopOnInteraction: false, stopOnMouseEnter: true }),
   );
 
+  if (slides.length === 0) return null;
+
+  // Embla's loop mode (and the autoplay plugin, which relies on it) needs at
+  // least 2 slides to build its internal scroll-snap arrays. With exactly 1
+  // slide, loop:true leaves those arrays empty and autoplay.play() throws
+  // "Cannot read properties of undefined (reading '0')" the moment it's
+  // triggered (e.g. from HeroSearchBar's isPending effect).
+  const canLoop = slides.length > 1;
+
   return (
     <section aria-label="Présentation SwiftGoma" className="relative w-full">
       <Carousel
-        opts={{ loop: true }}
-        plugins={[autoplay.current]}
+        opts={{ loop: canLoop }}
+        plugins={canLoop ? [autoplay.current] : []}
         className="w-full"
       >
         <CarouselContent className="ml-0">
-          {HERO_SLIDES.map((slide) => (
+          {slides.map((slide) => (
             <CarouselItem key={slide.role} className="basis-full pl-0">
               <HeroSlideView slide={slide} />
             </CarouselItem>
           ))}
         </CarouselContent>
-        <HeroCarouselControls />
+        {canLoop && <HeroCarouselControls slides={slides} />}
       </Carousel>
     </section>
   );
 }
 
-function HeroSlideView({ slide }: { slide: (typeof HERO_SLIDES)[number] }) {
+function HeroSlideView({ slide }: { slide: HeroSlide }) {
   return (
     <div className="relative flex h-[85svh] min-h-140 w-full flex-col overflow-hidden sm:h-[90svh]">
       {/* Fullscreen immersive image */}
@@ -102,7 +111,7 @@ function HeroSlideView({ slide }: { slide: (typeof HERO_SLIDES)[number] }) {
   );
 }
 
-function HeroCarouselControls() {
+function HeroCarouselControls({ slides }: { slides: HeroSlide[] }) {
   const { api, scrollPrev, scrollNext, canScrollPrev, canScrollNext } =
     useCarousel();
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -143,7 +152,7 @@ function HeroCarouselControls() {
 
       {/* Dots */}
       <div className="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 gap-2 sm:bottom-7">
-        {HERO_SLIDES.map((slide, i) => (
+        {slides.map((slide, i) => (
           <button
             key={slide.role}
             type="button"

@@ -19,7 +19,9 @@ const {
   updateAdminPayout,
   mapPayoutInput,
 } = require("../../payments/services/adminPayout.service");
-const { assertValidPawaPayPayoutInput } = require("../../payments/services/adminPayoutApproval.service");
+const {
+  assertValidPawaPayPayoutInput,
+} = require("../../payments/services/adminPayoutApproval.service");
 const {
   assertOtpNotLocked,
   assertOtpResendCooldown,
@@ -44,6 +46,7 @@ const {
   resetFailedExpenseForApproval,
 } = require("./expense.service");
 const { getPrismaClient } = require("../../../config/prisma");
+const { t } = require("../../../common/i18n/t");
 
 const APPROVAL_TTL_MINUTES = 5;
 const memoryStore = new Map();
@@ -71,10 +74,13 @@ async function savePending(adminId, data) {
   if (existingTimeout) clearTimeout(existingTimeout);
 
   memoryStore.set(key, data);
-  const timeout = setTimeout(() => {
-    memoryStore.delete(key);
-    memoryTimeouts.delete(key);
-  }, APPROVAL_TTL_MINUTES * 60 * 1000);
+  const timeout = setTimeout(
+    () => {
+      memoryStore.delete(key);
+      memoryTimeouts.delete(key);
+    },
+    APPROVAL_TTL_MINUTES * 60 * 1000,
+  );
   memoryTimeouts.set(key, timeout);
 }
 
@@ -129,16 +135,14 @@ async function getAdminPrimaryEmail(adminId) {
     },
   });
   if (!user || user.role !== "ADMIN") {
-    throw new UnauthorizedError("Accès administrateur requis.");
+    throw new UnauthorizedError(t("expenses.adminRequired"));
   }
 
   const primary = user.emails.find((entry) => entry.isPrimary);
   const verified = user.emails.find((entry) => entry.isVerified);
   const email = primary?.email || verified?.email || user.emails[0]?.email;
   if (!email) {
-    throw new ValidationError(
-      "Votre compte administrateur n'a pas d'adresse e-mail.",
-    );
+    throw new ValidationError(t("expenses.adminEmailMissing"));
   }
   return { email, name: user.name };
 }
@@ -152,18 +156,16 @@ function getAdminDashboardUrl() {
 
 function assertPendingSession(pending, { pendingId, expenseId }) {
   if (!pending) {
-    throw new UnauthorizedError(
-      "Aucune approbation en attente. Demandez un nouveau code.",
-    );
+    throw new UnauthorizedError(t("expenses.noPendingApproval"));
   }
   if (pending.pendingId !== pendingId) {
-    throw new UnauthorizedError("Session d'approbation invalide.");
+    throw new UnauthorizedError(t("expenses.invalidApprovalSession"));
   }
   if (pending.expenseId !== expenseId) {
-    throw new UnauthorizedError("La dépense ne correspond pas à la session.");
+    throw new UnauthorizedError(t("expenses.approvalMismatch"));
   }
   if (isPendingExpired(pending)) {
-    throw new UnauthorizedError("Code expiré. Demandez une nouvelle approbation.");
+    throw new UnauthorizedError(t("expenses.approvalCodeExpired"));
   }
 }
 
@@ -210,7 +212,7 @@ async function requestExpenseApproval(adminId, expenseId) {
     await clearPending(adminId);
     console.error("[expense-approval] OTP email failed:", err.message);
     throw new AppError(
-      "Impossible d'envoyer l'e-mail de vérification. Vérifiez la configuration SMTP.",
+      t("expenses.otpEmailFailed"),
       502,
       "EXPENSE_OTP_EMAIL_FAILED",
     );
@@ -220,7 +222,7 @@ async function requestExpenseApproval(adminId, expenseId) {
 
   return {
     pendingId,
-    message: `Un code de vérification a été envoyé à ${email}.`,
+    message: t("expenses.otpSentMessage", { email }),
     expiresInMinutes: APPROVAL_TTL_MINUTES,
     summary: {
       expenseId: expense.id,
@@ -239,12 +241,10 @@ async function resendExpenseApproval(adminId, expenseId, { pendingId } = {}) {
   const pending = await loadPending(adminId);
   if (pending) {
     if (pending.expenseId !== expenseId) {
-      throw new UnauthorizedError("La dépense ne correspond pas à la session.");
+      throw new UnauthorizedError(t("expenses.approvalMismatch"));
     }
     if (pendingId && pending.pendingId !== pendingId) {
-      throw new UnauthorizedError(
-        "Session d'approbation expirée. Relancez l'approbation depuis le début.",
-      );
+      throw new UnauthorizedError(t("expenses.approvalSessionExpiredRestart"));
     }
   }
 
@@ -253,7 +253,7 @@ async function resendExpenseApproval(adminId, expenseId, { pendingId } = {}) {
 
 async function confirmExpenseApproval(adminId, expenseId, { pendingId, code }) {
   if (!pendingId || !code) {
-    throw new ValidationError("Identifiant de session et code requis.");
+    throw new ValidationError(t("expenses.sessionAndCodeRequired"));
   }
 
   const otpScope = adminExpenseOtpScope(adminId);
@@ -274,7 +274,7 @@ async function confirmExpenseApproval(adminId, expenseId, { pendingId, code }) {
     if (!safeCompareCode(pending.code, code)) {
       await handleInvalidOtpAttempt(
         otpScope,
-        "Code de vérification invalide.",
+        t("expenses.invalidVerificationCode"),
       );
     }
 
@@ -349,7 +349,7 @@ async function confirmExpenseApproval(adminId, expenseId, { pendingId, code }) {
         },
       );
       throw new AppError(
-        "Le paiement PawaPay a été rejeté immédiatement.",
+        t("expenses.payoutRejected"),
         502,
         "EXPENSE_PAYOUT_REJECTED",
       );
@@ -374,7 +374,10 @@ async function confirmExpenseApproval(adminId, expenseId, { pendingId, code }) {
         locale: "fr",
       });
     } catch (err) {
-      console.error("[expense-approval] confirmation email failed:", err.message);
+      console.error(
+        "[expense-approval] confirmation email failed:",
+        err.message,
+      );
     }
 
     return {

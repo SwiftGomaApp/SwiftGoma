@@ -397,3 +397,172 @@ export function CompactProductCard({
     </div>
   );
 }
+
+// ============================================================
+// Carousel — compact card for horizontal scroll rows. Square
+// image, floating "add" button straddling the image/content
+// seam, wishlist toggle pinned on the image.
+// ============================================================
+
+const CAROUSEL_SIZE_CONFIG: Record<
+  CardSize,
+  { padding: string; title: string; fab: string; fabIcon: string }
+> = {
+  sm: {
+    padding: "px-3 pb-3 pt-4",
+    title: "text-sm",
+    fab: "h-8 w-8",
+    fabIcon: "h-3.5 w-3.5",
+  },
+  md: {
+    padding: "px-4 pb-4 pt-5",
+    title: "text-base",
+    fab: "h-9 w-9",
+    fabIcon: "h-4 w-4",
+  },
+  lg: {
+    padding: "px-5 pb-5 pt-6",
+    title: "text-lg",
+    fab: "h-10 w-10",
+    fabIcon: "h-4 w-4",
+  },
+};
+
+type CarouselProductCardProps = {
+  product: ProductCardData;
+  size?: CardSize;
+  onAddToCart?: (slug: string) => void;
+  className?: string;
+};
+
+export function CarouselProductCard({
+  product,
+  size = "md",
+  onAddToCart,
+  className,
+}: CarouselProductCardProps) {
+  const { addToCart } = useCart();
+  const { isFavorited, toggleFavorite } = useFavorites();
+  const favoriteProductId = product.cart?.productId;
+  const isWishlisted = favoriteProductId
+    ? isFavorited(favoriteProductId)
+    : false;
+  const config = CAROUSEL_SIZE_CONFIG[size];
+  const coverImage = product.images[0] ?? "/placeholder-product.png";
+  const outOfStock = product.cart !== undefined && product.cart.stock <= 0;
+
+  function handleAddToCart() {
+    if (!product.cart) {
+      onAddToCart?.(product.slug);
+      return;
+    }
+
+    addToCart({
+      shopId: product.cart.shopId,
+      variantId: product.cart.variantId,
+      quantity: 1,
+      variant: {
+        id: product.cart.variantId,
+        name: null,
+        attributes: null,
+        price: product.cart.price,
+        stock: product.cart.stock,
+        product: {
+          id: product.cart.productId,
+          name: product.name,
+          slug: product.slug,
+          currency: product.currency,
+          status: "PUBLISHED",
+          images: product.images.map((url, position) => ({ url, position })),
+        },
+      },
+    });
+  }
+
+  return (
+    <div
+      data-slot="carousel-product-card"
+      className={cn(
+        "group/card flex w-full flex-col overflow-visible rounded-2xl bg-card ring-1 ring-foreground/10 transition-shadow hover:shadow-md",
+        className,
+      )}
+    >
+      <Link
+        href={`/products/${product.slug}`}
+        className="relative block aspect-square w-full overflow-hidden rounded-2xl bg-muted"
+      >
+        <Image
+          src={coverImage}
+          alt={product.name}
+          fill
+          sizes="(max-width: 640px) 55vw, 260px"
+          className="object-cover transition-transform duration-500 group-hover/card:scale-105"
+        />
+
+        {product.brand && (
+          <span className="absolute left-2.5 top-2.5 rounded-full bg-background/85 px-2.5 py-1 text-[0.65rem] font-medium uppercase tracking-wide text-foreground backdrop-blur">
+            {product.brand}
+          </span>
+        )}
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            if (favoriteProductId) toggleFavorite(favoriteProductId);
+          }}
+          disabled={!favoriteProductId}
+          aria-label={
+            isWishlisted ? "Retirer des favoris" : "Ajouter aux favoris"
+          }
+          className="absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-background/85 backdrop-blur transition-colors hover:bg-background"
+        >
+          <Heart
+            className={cn(
+              "h-4 w-4 transition-colors",
+              isWishlisted
+                ? "fill-primary text-primary"
+                : "text-muted-foreground",
+            )}
+          />
+        </button>
+
+        {outOfStock && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-sm">
+            <Badge variant="secondary">Rupture de stock</Badge>
+          </div>
+        )}
+      </Link>
+
+      <div className={cn("relative flex flex-1 flex-col", config.padding)}>
+        <Link href={`/products/${product.slug}`} className="pr-10">
+          <h3
+            className={cn(
+              "font-semibold text-foreground line-clamp-2 hover:underline",
+              config.title,
+            )}
+          >
+            {product.name}
+          </h3>
+        </Link>
+
+        <span className="mt-1.5 text-base font-bold text-foreground">
+          {formatPrice(product.price, product.currency)}
+        </span>
+
+        <button
+          type="button"
+          onClick={handleAddToCart}
+          disabled={outOfStock}
+          aria-label="Ajouter au panier"
+          className={cn(
+            "absolute -top-4 right-3 flex items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-card transition-transform hover:scale-105 active:scale-95 disabled:pointer-events-none disabled:opacity-50",
+            config.fab,
+          )}
+        >
+          <Plus className={config.fabIcon} />
+        </button>
+      </div>
+    </div>
+  );
+}
