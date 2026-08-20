@@ -2,39 +2,59 @@
 
 import React, { useEffect, useState } from "react";
 import { Eye, EyeOff, KeyRound } from "lucide-react";
-
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-
 import { DEFAULT_LOCALE, getClientLocale, Locale } from "@/lib/language";
-
-import { GoogleIcon, IllustrationPanel, STRINGS } from "@/lib/constants/auth";
-
+import { IllustrationPanel, STRINGS } from "@/lib/constants/auth";
 import Link from "next/link";
-
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth/auth-context";
+import {
+  requestLoginOtp,
+  verifyLoginOtp,
+  loginWithPassword,
+  loginWithTotp,
+  loginWithGoogle,
+  generatePasskeyLoginOptions,
+  verifyPasskeyLogin,
+} from "@/lib/api/routes/auth.routes";
+import { isApiError } from "@/lib/api/client";
+import { toast } from "@/components/ui/toast";
 import {
   OtpDialog,
   OtpMode,
   OtpStatus,
 } from "@/components/auth/modals/otp-dialog";
+import { GoogleAuthButton } from "./google-auth-button";
+import { startAuthentication } from "@simplewebauthn/browser";
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (isApiError(error) && error.response?.data?.error?.message) {
+    return error.response.data.error.message;
+  }
+  return fallback;
+}
 
 export default function SignInPage() {
   const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE);
   const [useEmailPassword, setUseEmailPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [otpOpen, setOtpOpen] = useState(false);
   const [otpMode, setOtpMode] = useState<OtpMode>("otp-login");
-
   const [otpLoading, setOtpLoading] = useState(false);
-
   const [otpStatus, setOtpStatus] = useState<OtpStatus>("idle");
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
+
+  const router = useRouter();
+  const { setUser } = useAuth();
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     setLocale(getClientLocale());
@@ -58,74 +78,168 @@ export default function SignInPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
     if (!email) return;
 
-    if (useEmailPassword) {
-      openOtpDialog("totp");
-      return;
+    setIsSubmitting(true);
+    try {
+      if (useEmailPassword) {
+        if (!password) return;
+        const result = await loginWithPassword({ email, password, locale });
+        if ("requiresTotp" in result) {
+          setPendingToken(result.pendingToken);
+          openOtpDialog("totp");
+        } else {
+          setUser(result.user);
+          router.push("/account");
+        }
+      } else {
+        await requestLoginOtp({ email, locale });
+        openOtpDialog("otp-login");
+      }
+    } catch (error) {
+      toast.add({
+        title: "Couldn't sign in",
+        description: extractErrorMessage(
+          error,
+          "Something went wrong. Please try again.",
+        ),
+        type: "error",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    openOtpDialog("otp-login");
   };
 
-  const handleGoogleLogin = () => {
-    openOtpDialog("2fa");
+  const handleGoogleCredential = async (idToken: string) => {
+    setIsGoogleLoading(true);
+    try {
+      const result = await loginWithGoogle({ idToken });
+      if ("requiresTotp" in result) {
+        setPendingToken(result.pendingToken);
+        openOtpDialog("2fa");
+      } else {
+        setUser(result.user);
+        router.push("/account");
+      }
+    } catch (error) {
+      toast.add({
+        title: "Couldn't sign in",
+        description: extractErrorMessage(
+          error,
+          "Something went wrong. Please try again.",
+        ),
+        type: "error",
+      });
+    } finally {
+      setIsGoogleLoading(false);
+    }
   };
 
-  const handleOtpSubmit = (code: string) => {
-    console.log("OTP submitted:", code);
+  const handlePasskeyLogin = async () => {
+    setIsPasskeyLoading(true);
+    try {
+      // If an email has been typed, scope the passkey prompt to that
+      // account's registered credentials. Otherwise fall back to the
+      // usernameless (discoverable-credential) flow.
+      const trimmedEmail = email.trim();
+      const options = await generatePasskeyLoginOptions(
+        trimmedEmail ? { email: trimmedEmail } : {},
+      );
 
+      const response = await startAuthentication({ optionsJSON: options });
+
+      const result = await verifyPasskeyLogin({
+        email: trimmedEmail || undefined,
+        challengeId: options.challengeId,
+        response,
+        locale,
+      });
+
+      if ("requiresTotp" in result) {
+        setPendingToken(result.pendingToken);
+        openOtpDialog("2fa");
+      } else {
+        setUser(result.user);
+        router.push("/account");
+      }
+    } catch (error) {
+      // The user cancelling or dismissing the browser's passkey prompt
+      // throws too — don't show a scary error toast for that case.
+      const isCancelled =
+        error instanceof Error && error.name === "NotAllowedError";
+      if (!isCancelled) {
+        toast.add({
+          title: "Couldn't sign in with passkey",
+          description: extractErrorMessage(
+            error,
+            "Something went wrong. Please try again.",
+          ),
+          type: "error",
+        });
+      }
+    } finally {
+      setIsPasskeyLoading(false);
+    }
+  };
+
+  const handleOtpSubmit = async (code: string) => {
     setOtpLoading(true);
     setOtpStatus("idle");
 
-    setTimeout(() => {
-      setOtpLoading(false);
-
-      if (code === "123456") {
-        setOtpStatus("success");
+    try {
+      if (otpMode === "totp" || otpMode === "2fa") {
+        if (!pendingToken) throw new Error("Missing login session.");
+        const result = await loginWithTotp({ pendingToken, code });
+        if (!("user" in result)) throw new Error("Unexpected TOTP response.");
+        setUser(result.user);
       } else {
-        setOtpStatus("error");
+        const result = await verifyLoginOtp({ email, code });
+        if (!("user" in result)) throw new Error("Unexpected OTP response.");
+        setUser(result.user);
       }
-    }, 1000);
+      setOtpStatus("success");
+    } catch (error) {
+      console.error(error);
+      setOtpStatus("error");
+    } finally {
+      setOtpLoading(false);
+    }
   };
 
-  const handleBackupCode = (code: string) => {
-    console.log("Backup code submitted:", code);
-
+  const handleBackupCode = async (code: string) => {
     setOtpLoading(true);
     setOtpStatus("idle");
 
-    setTimeout(() => {
+    try {
+      if (!pendingToken) throw new Error("Missing login session.");
+      const result = await loginWithTotp({ pendingToken, code });
+      if (!("user" in result)) throw new Error("Unexpected TOTP response.");
+      setUser(result.user);
+      setOtpStatus("success");
+    } catch (error) {
+      console.error(error);
+      setOtpStatus("error");
+    } finally {
       setOtpLoading(false);
-
-      if (code === "BACKUP01") {
-        setOtpStatus("success");
-      } else {
-        setOtpStatus("error");
-      }
-    }, 1000);
+    }
   };
 
-  const handleResend = () => {
-    setOtpStatus("idle");
+  const handleResend = async () => {
+    if (otpMode !== "otp-login") return;
 
-    console.log("Resending OTP...", {
-      mode: otpMode,
-      email,
-    });
+    try {
+      await requestLoginOtp({ email, locale });
+    } catch (error) {
+      console.error("Failed to resend login code", error);
+    }
   };
 
   const handleOtpSuccess = () => {
-    console.log("User clicked Continue");
-
     setOtpOpen(false);
     setOtpStatus("idle");
-
-    // Later:
-    // router.push("/dashboard");
+    router.push("/account");
   };
 
   return (
@@ -157,20 +271,21 @@ export default function SignInPage() {
               </p>
 
               <div className="mt-3 flex gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1 gap-2 font-medium"
-                  onClick={handleGoogleLogin}
-                >
-                  <GoogleIcon />
-                  {t.google}
-                </Button>
+                <div className="flex-1">
+                  <GoogleAuthButton
+                    onCredential={handleGoogleCredential}
+                    disabled={isGoogleLoading}
+                    label={t.google}
+                    locale={locale}
+                  />
+                </div>
 
                 <Button
                   type="button"
                   variant="outline"
                   className="flex-1 gap-2 font-medium"
+                  onClick={handlePasskeyLogin}
+                  disabled={isPasskeyLoading}
                 >
                   <KeyRound className="h-4 w-4" />
                   {t.passkey}
@@ -257,9 +372,15 @@ export default function SignInPage() {
                 <Button
                   type="submit"
                   className="mt-2 w-full font-semibold"
-                  disabled={!email || (useEmailPassword && !password)}
+                  disabled={
+                    !email || (useEmailPassword && !password) || isSubmitting
+                  }
                 >
-                  {useEmailPassword ? t.signInButton : t.continueWithEmail}
+                  {isSubmitting
+                    ? "…"
+                    : useEmailPassword
+                      ? t.signInButton
+                      : t.continueWithEmail}
                 </Button>
               </form>
             </div>

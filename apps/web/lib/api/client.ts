@@ -35,6 +35,11 @@ function flushQueue(error: unknown) {
   queue = [];
 }
 
+interface ApiEnvelope<T> {
+  success: boolean;
+  data: T;
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -66,6 +71,9 @@ apiClient.interceptors.response.use(
     isRefreshing = true;
 
     try {
+      // This call hits /auth/refresh-token directly on the API domain, so the
+      // browser correctly attaches the refresh cookie (its Path matches here) —
+      // unlike the middleware's attempt to do this server-side (see proxy.ts).
       await apiClient.post("/auth/refresh-token");
       flushQueue(null);
       return apiClient(originalRequest);
@@ -98,8 +106,8 @@ export function isNetworkError(error: unknown): boolean {
 }
 
 export async function apiGet<T>(url: string, config?: AxiosRequestConfig) {
-  const { data } = await apiClient.get<T>(url, config);
-  return data;
+  const { data } = await apiClient.get<ApiEnvelope<T>>(url, config);
+  return data.data;
 }
 
 export async function apiPost<T>(
@@ -107,8 +115,8 @@ export async function apiPost<T>(
   body?: unknown,
   config?: AxiosRequestConfig,
 ) {
-  const { data } = await apiClient.post<T>(url, body, config);
-  return data;
+  const { data } = await apiClient.post<ApiEnvelope<T>>(url, body, config);
+  return data.data;
 }
 
 export async function apiPatch<T>(
@@ -116,11 +124,11 @@ export async function apiPatch<T>(
   body?: unknown,
   config?: AxiosRequestConfig,
 ) {
-  const { data } = await apiClient.patch<T>(url, body, config);
-  return data;
+  const { data } = await apiClient.patch<ApiEnvelope<T>>(url, body, config);
+  return data.data;
 }
 
 export async function apiDelete<T>(url: string, config?: AxiosRequestConfig) {
-  const { data } = await apiClient.delete<T>(url, config);
-  return data;
+  const { data } = await apiClient.delete<ApiEnvelope<T>>(url, config);
+  return data.data;
 }

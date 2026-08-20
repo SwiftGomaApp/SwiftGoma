@@ -29,33 +29,25 @@ import {
 } from "@/components/ui/input-otp";
 
 export type OtpMode = "totp" | "2fa" | "email-verification" | "otp-login";
-
 export type OtpStatus = "idle" | "error" | "success";
 
 type OtpDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-
   mode: OtpMode;
   locale?: Locale;
-
   onSubmit?: (code: string) => void;
   onResend?: () => void;
   onUseBackupCode?: (code: string) => void;
-
   loading?: boolean;
-
+  resendLoading?: boolean;
   status?: OtpStatus;
-
   onStatusChange?: (status: OtpStatus) => void;
-
   errorMessage?: string;
-
   onSuccessAction?: () => void;
   successButtonLabel?: string;
   successTitle?: string;
   successDescription?: string;
-
   email?: string;
   title?: string;
   description?: string;
@@ -113,6 +105,7 @@ const OTP_STRINGS = {
 
     common: {
       verifying: "Verifying...",
+      sending: "Sending...",
       emailSentTo: "We sent the code to",
       resendIn: "Resend code in",
       invalidCode: "The code you entered is incorrect. Please try again.",
@@ -170,6 +163,7 @@ const OTP_STRINGS = {
 
     common: {
       verifying: "Vérification...",
+      sending: "Envoi...",
       emailSentTo: "Nous avons envoyé le code à",
       resendIn: "Renvoyer le code dans",
       invalidCode: "Le code que vous avez entré est incorrect. Réessayez.",
@@ -200,33 +194,24 @@ export function OtpDialog({
   email,
   title,
   description,
+  resendLoading = false,
 }: OtpDialogProps) {
   const [code, setCode] = useState("");
   const [usingBackupCode, setUsingBackupCode] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const t = OTP_STRINGS[locale];
-
   const canUseBackupCode = mode === "totp" || mode === "2fa";
-
   const isBackupCode = canUseBackupCode && usingBackupCode;
-
   const otpLength = isBackupCode ? BACKUP_CODE_LENGTH : OTP_LENGTH;
-
   const hasError = status === "error";
   const isSuccess = status === "success";
 
-  /*
-   * Reset code whenever the authentication mode changes.
-   */
   useEffect(() => {
     setCode("");
     setUsingBackupCode(false);
   }, [mode]);
 
-  /*
-   * Start or restart resend cooldown.
-   */
   useEffect(() => {
     if (open && (mode === "email-verification" || mode === "otp-login")) {
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
@@ -235,34 +220,22 @@ export function OtpDialog({
     }
   }, [open, mode]);
 
-  /*
-   * Countdown timer.
-   */
   useEffect(() => {
     if (resendCooldown <= 0) return;
-
     const timer = setInterval(() => {
       setResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
-
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
-  /*
-   * Reset dialog state when closed.
-   */
   const handleOpenChange = (value: boolean) => {
     if (!value) {
       setCode("");
       setUsingBackupCode(false);
     }
-
     onOpenChange(value);
   };
 
-  /*
-   * Get content according to the current mode.
-   */
   const getContent = (): {
     title: string;
     description: string;
@@ -275,41 +248,29 @@ export function OtpDialog({
     if (isBackupCode) {
       return t.backup;
     }
-
     switch (mode) {
       case "totp":
         return t.totp;
-
       case "2fa":
         return t.twoFactor;
-
       case "email-verification":
         return t.emailVerification;
-
       case "otp-login":
         return t.otpLogin;
     }
   };
 
   const content = getContent();
-
-  /*
-   * Icon according to authentication state.
-   */
   const Icon = isBackupCode
     ? KeyRound
     : mode === "email-verification" || mode === "otp-login"
       ? Mail
       : ShieldCheck;
 
-  /*
-   * Handle OTP / backup code input.
-   */
   const handleCodeChange = (value: string) => {
     if (status === "error") {
       onStatusChange?.("idle");
     }
-
     if (isBackupCode) {
       const sanitized = value
         .replace(/[^a-zA-Z0-9]/g, "")
@@ -319,38 +280,24 @@ export function OtpDialog({
       setCode(sanitized);
       return;
     }
-
     const numericValue = value.replace(/\D/g, "").slice(0, OTP_LENGTH);
-
     setCode(numericValue);
   };
 
-  /*
-   * Submit OTP or backup code.
-   */
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
     const trimmedCode = code.trim();
-
     if (!trimmedCode) return;
-
     if (isBackupCode) {
       onUseBackupCode?.(trimmedCode);
       return;
     }
-
     onSubmit?.(trimmedCode);
   };
 
-  /*
-   * Resend the code.
-   */
   const handleResendClick = () => {
     if (loading || resendCooldown > 0) return;
-
     onResend?.();
-
     setResendCooldown(RESEND_COOLDOWN_SECONDS);
   };
 
@@ -360,9 +307,6 @@ export function OtpDialog({
       ? code.length !== BACKUP_CODE_LENGTH
       : code.length !== OTP_LENGTH);
 
-  /*
-   * Success screen.
-   */
   if (isSuccess) {
     return (
       <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -540,12 +484,14 @@ export function OtpDialog({
                     <button
                       type="button"
                       onClick={handleResendClick}
-                      disabled={loading || resendCooldown > 0}
+                      disabled={loading || resendLoading || resendCooldown > 0}
                       className="font-medium text-primary underline-offset-4 transition-colors hover:underline disabled:pointer-events-none disabled:text-muted-foreground disabled:no-underline"
                     >
-                      {resendCooldown > 0
-                        ? `${t.common.resendIn} ${resendCooldown}s`
-                        : content.resendAction}
+                      {resendLoading
+                        ? t.common.sending
+                        : resendCooldown > 0
+                          ? `${t.common.resendIn} ${resendCooldown}s`
+                          : content.resendAction}
                     </button>
                   </p>
                 )}

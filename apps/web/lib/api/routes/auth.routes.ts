@@ -1,4 +1,10 @@
 import { apiGet, apiPost, apiDelete } from "@/lib/api/client";
+import type {
+  AuthenticationResponseJSON,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+} from "@simplewebauthn/browser";
 
 export const AUTH_ROUTES = {
   createAccount: "/auth/create-account",
@@ -90,7 +96,11 @@ export function verifyEmail(body: { email: string; code: string }) {
   return apiPost<AuthUser>(AUTH_ROUTES.verifyEmail, body);
 }
 
-export function registerWithGoogle(body: { idToken: string; locale?: string }) {
+export function registerWithGoogle(body: {
+  idToken: string;
+  locale?: string;
+  role: string;
+}) {
   return apiPost<WebAuthPayload | MobileAuthPayload>(
     AUTH_ROUTES.registerWithGoogle,
     body,
@@ -98,10 +108,7 @@ export function registerWithGoogle(body: { idToken: string; locale?: string }) {
 }
 
 export function loginWithGoogle(body: { idToken: string }) {
-  return apiPost<WebAuthPayload | MobileAuthPayload>(
-    AUTH_ROUTES.loginWithGoogle,
-    body,
-  );
+  return apiPost<LoginResult>(AUTH_ROUTES.loginWithGoogle, body);
 }
 
 export function resendEmailVerification(body: {
@@ -115,8 +122,12 @@ export function requestLoginOtp(body: { email: string; locale?: string }) {
   return apiPost(AUTH_ROUTES.requestLoginOtp, body);
 }
 
+export interface PasskeyLoginOptions extends PublicKeyCredentialRequestOptionsJSON {
+  challengeId?: string;
+}
+
 export function generatePasskeyLoginOptions(body: { email?: string }) {
-  return apiPost(AUTH_ROUTES.passkeyLoginOptions, body);
+  return apiPost<PasskeyLoginOptions>(AUTH_ROUTES.passkeyLoginOptions, body);
 }
 
 export function forgotPassword(body: { email: string; locale?: string }) {
@@ -144,7 +155,13 @@ export function loginWithTotp(body: { pendingToken: string; code: string }) {
   return apiPost<LoginResult>(AUTH_ROUTES.loginWithTotp, body);
 }
 
-export function verifyPasskeyLogin(body: { credential: unknown }) {
+export function verifyPasskeyLogin(body: {
+  email?: string;
+  challengeId?: string;
+  response: AuthenticationResponseJSON;
+  deviceName?: string;
+  locale?: string;
+}) {
   return apiPost<LoginResult>(AUTH_ROUTES.verifyPasskeyLogin, body);
 }
 
@@ -208,14 +225,16 @@ export function regenerateBackupCodes() {
 }
 
 export function generatePasskeyRegistrationOptions() {
-  return apiPost(AUTH_ROUTES.passkeyRegisterOptions);
+  return apiPost<PublicKeyCredentialCreationOptionsJSON>(
+    AUTH_ROUTES.passkeyRegisterOptions,
+  );
 }
 
 export function verifyPasskeyRegistration(body: {
-  credential: unknown;
+  response: RegistrationResponseJSON;
   deviceName?: string;
 }) {
-  return apiPost(AUTH_ROUTES.passkeyRegisterVerify, body);
+  return apiPost<Passkey>(AUTH_ROUTES.passkeyRegisterVerify, body);
 }
 
 export function listPasskeys() {

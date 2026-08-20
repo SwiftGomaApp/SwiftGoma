@@ -6,6 +6,7 @@ import { getServerLocale } from "@/lib/language";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import { SessionExpiredModal } from "@/components/global/session-expired";
 import { ServerUnreachableBanner } from "@/lib/auth/server-unreachable-banner";
+import { Toaster } from "@/components/ui/toast";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -120,6 +121,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <AuthProvider>
             <ServerUnreachableBanner />
             {children}
+            <Toaster />
             <SessionExpiredModal />
           </AuthProvider>
         </ThemeProvider>
