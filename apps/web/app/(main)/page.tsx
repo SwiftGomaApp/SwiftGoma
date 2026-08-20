@@ -1,9 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/lib/auth/auth-context";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { LogoutButton } from "@/components/global/logout-button";
 
 export default function Home() {
-  const { user, isLoading, isAuthenticated, serverUnreachable } = useAuth();
+  const { user, isLoading, isAuthenticated, serverUnreachable, logout } =
+    useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const router = useRouter();
 
   if (isLoading) {
     return (
@@ -21,9 +29,15 @@ export default function Home() {
         <>
           <p className="text-lg font-semibold">Logged in as {user?.name}</p>
           <p className="text-sm text-muted-foreground">{user?.email}</p>
+          <LogoutButton redirectTo="/" />
         </>
       ) : (
-        <p>Not logged in</p>
+        <div>
+          <p>Not logged in</p>
+          <Button onClick={() => router.push("/auth/sign-in")}>
+            Connexion a votre compte
+          </Button>
+        </div>
       )}
     </div>
   );
