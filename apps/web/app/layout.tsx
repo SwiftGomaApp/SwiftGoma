@@ -3,6 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { getServerLocale } from "@/lib/language";
+import { AuthProvider } from "@/lib/auth/auth-context";
+import { SessionExpiredModal } from "@/components/global/session-expired";
+import { ServerUnreachableBanner } from "@/lib/auth/server-unreachable-banner";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -114,7 +117,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <AuthProvider>
+            <ServerUnreachableBanner />
+            {children}
+            <SessionExpiredModal />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

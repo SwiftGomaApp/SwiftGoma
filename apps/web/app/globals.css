@@ -56,7 +56,7 @@
 :root {
   /* Neutral / Base */
   --background: oklch(1 0 0);
-  --foreground: oklch(0.244 0.008 272.8);
+  --foreground: oklch(0% 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.244 0.008 272.8);
   --popover: oklch(1 0 0);
