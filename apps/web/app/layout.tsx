@@ -7,6 +7,7 @@ import { AuthProvider } from "@/lib/auth/auth-context";
 import { SessionExpiredModal } from "@/components/global/session-expired";
 import { ServerUnreachableBanner } from "@/lib/auth/server-unreachable-banner";
 import { Toaster } from "@/components/ui/toast";
+import { LegalConsentProvider } from "@/components/legal/legal-consent-provider";
 
 const geistSans = Geist({
   variable: "--font-sans",
@@ -123,6 +124,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             {children}
             <Toaster />
             <SessionExpiredModal />
+            <LegalConsentProvider />
           </AuthProvider>
         </ThemeProvider>
       </body>
