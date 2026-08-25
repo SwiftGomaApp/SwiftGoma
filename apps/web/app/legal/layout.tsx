@@ -6,6 +6,7 @@ import { ContactSupportForm } from "@/components/legal/contact-support-form";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import Footer from "@/components/global/footer";
+import Header from "@/components/global/header";
 
 const LEGAL_LAYOUT_HEIGHT = "h-dvh";
 
@@ -18,6 +19,7 @@ export default async function LegalLayout({
 
   return (
     <>
+      <Header />
       <div className={`flex w-full ${LEGAL_LAYOUT_HEIGHT} overflow-hidden`}>
         <aside className="hidden w-64 shrink-0 border-r border-border lg:block">
           <ScrollArea className="h-full">
@@ -48,7 +50,6 @@ export default async function LegalLayout({
           </ScrollArea>
         </aside>
       </div>
-
       <Footer />
     </>
   );

@@ -48,6 +48,9 @@ export function GoogleAuthButton({
   const clientId = getGoogleClientId();
   const isConfigured = Boolean(clientId);
 
+  const onCredentialRef = useRef(onCredential);
+  onCredentialRef.current = onCredential;
+
   useEffect(() => {
     if (!clientId) return;
 
@@ -58,7 +61,7 @@ export function GoogleAuthButton({
         window.google.accounts.id.initialize({
           client_id: clientId,
           callback: (response) => {
-            void onCredential(response.credential);
+            void onCredentialRef.current(response.credential);
           },
         });
         window.google.accounts.id.renderButton(hiddenButtonRef.current, {
@@ -78,7 +81,8 @@ export function GoogleAuthButton({
     return () => {
       cancelled = true;
     };
-  }, [clientId, onCredential]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
 
   function handleClick() {
     if (!isConfigured) return;

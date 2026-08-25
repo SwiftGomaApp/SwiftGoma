@@ -4,6 +4,36 @@ const { generateSlug } = require("../../product/utils/product.utils");
 
 const prisma = getPrismaClient();
 
+const ALLOWED_RICH_TEXT_TAGS = new Set([
+  "a",
+  "blockquote",
+  "br",
+  "em",
+  "h1",
+  "h2",
+  "h3",
+  "li",
+  "ol",
+  "p",
+  "s",
+  "strong",
+  "u",
+  "ul",
+]);
+
+function sanitizeRichText(content) {
+  return content.replace(/<\/?([a-zA-Z0-9-]+)(?:\s[^<>]*)?>/g, (tag, name) => {
+    const tagName = name.toLowerCase();
+    if (!ALLOWED_RICH_TEXT_TAGS.has(tagName)) return "";
+    if (tag.startsWith("</")) return `</${tagName}>`;
+    if (tagName !== "a") return `<${tagName}>`;
+
+    const href = tag.match(/\bhref\s*=\s*["']([^"']*)["']/i)?.[1]?.trim();
+    if (!href || !/^(https?:|mailto:|tel:|\/|#)/i.test(href)) return "<a>";
+    return `<a href="${href.replace(/"/g, "&quot;")}" rel="noreferrer noopener">`;
+  });
+}
+
 async function generateUniqueSlug(title) {
   const baseSlug = generateSlug(title);
   let slug = baseSlug;
@@ -29,8 +59,16 @@ function assertValidContent({ title, excerpt, content }) {
   }
 }
 
-async function createPost({ authorId, title, excerpt, content, coverImageUrl, status }) {
-  assertValidContent({ title, excerpt, content });
+async function createPost({
+  authorId,
+  title,
+  excerpt,
+  content,
+  coverImageUrl,
+  status,
+}) {
+  const safeContent = sanitizeRichText(content || "");
+  assertValidContent({ title, excerpt, content: safeContent });
 
   const resolvedStatus = status === "PUBLISHED" ? "PUBLISHED" : "DRAFT";
   const slug = await generateUniqueSlug(title);
@@ -40,7 +78,7 @@ async function createPost({ authorId, title, excerpt, content, coverImageUrl, st
       title: title.trim(),
       slug,
       excerpt: excerpt.trim(),
-      content: content.trim(),
+      content: safeContent.trim(),
       coverImageUrl: coverImageUrl || null,
       status: resolvedStatus,
       publishedAt: resolvedStatus === "PUBLISHED" ? new Date() : null,
@@ -49,29 +87,43 @@ async function createPost({ authorId, title, excerpt, content, coverImageUrl, st
   });
 }
 
-async function updatePost(id, { title, excerpt, content, coverImageUrl, status }) {
+async function updatePost(
+  id,
+  { title, excerpt, content, coverImageUrl, status },
+) {
   const existing = await prisma.blogPost.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError("Article introuvable.");
 
-  if (title !== undefined || excerpt !== undefined || content !== undefined) {
+  const safeContent =
+    content === undefined ? undefined : sanitizeRichText(content);
+
+  if (
+    title !== undefined ||
+    excerpt !== undefined ||
+    safeContent !== undefined
+  ) {
     assertValidContent({
       title: title ?? existing.title,
       excerpt: excerpt ?? existing.excerpt,
-      content: content ?? existing.content,
+      content: safeContent ?? existing.content,
     });
   }
 
-  const becomingPublished = status === "PUBLISHED" && existing.status !== "PUBLISHED";
+  const becomingPublished =
+    status === "PUBLISHED" && existing.status !== "PUBLISHED";
 
   return prisma.blogPost.update({
     where: { id },
     data: {
       ...(title !== undefined && { title: title.trim() }),
       ...(excerpt !== undefined && { excerpt: excerpt.trim() }),
-      ...(content !== undefined && { content: content.trim() }),
-      ...(coverImageUrl !== undefined && { coverImageUrl: coverImageUrl || null }),
+      ...(safeContent !== undefined && { content: safeContent.trim() }),
+      ...(coverImageUrl !== undefined && {
+        coverImageUrl: coverImageUrl || null,
+      }),
       ...(status !== undefined && { status }),
-      ...(becomingPublished && !existing.publishedAt && { publishedAt: new Date() }),
+      ...(becomingPublished &&
+        !existing.publishedAt && { publishedAt: new Date() }),
     },
   });
 }

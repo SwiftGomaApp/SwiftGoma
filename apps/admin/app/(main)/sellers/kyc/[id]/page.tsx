@@ -18,7 +18,7 @@ import {
 } from "@/lib/api/routes/sellers";
 import { ApiError } from "@/lib/api/client";
 import { useAuth } from "@/providers/auth-provider";
-import { formatDateTime } from "@/lib/i18n/format";x
+import { formatDateTime } from "@/lib/i18n/format";
 import {
   labelOf,
   kycStatusLabels,

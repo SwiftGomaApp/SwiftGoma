@@ -1,7 +1,4 @@
-const { neonConfig } = require("@neondatabase/serverless");
-const ws = require("ws");
-neonConfig.webSocketConstructor = ws;
-const { PrismaNeon } = require("@prisma/adapter-neon");
+const { PrismaPg } = require("@prisma/adapter-pg");
 const { PrismaClient } = require("../../generated/prisma");
 
 const { env } = require("./env");
@@ -10,7 +7,15 @@ let prisma = null;
 
 function getPrismaClient() {
   if (!prisma) {
-    const adapter = new PrismaNeon({ connectionString: env.databaseUrl });
+    // Plain Postgres over TCP (via `pg`), not Neon's WebSocket adapter — the
+    // WebSocket handshake to Neon was intermittently hanging for ~75s on
+    // networks that silently drop WS upgrades (VPN/firewall) while plain
+    // Postgres/TCP is unaffected. Uses the direct (non-pooler) endpoint since
+    // `pg.Pool` manages its own connection pool.
+    const adapter = new PrismaPg({
+      connectionString: env.directUrl || env.databaseUrl,
+      connectionTimeoutMillis: 8000,
+    });
     prisma = new PrismaClient({ adapter });
   }
   return prisma;

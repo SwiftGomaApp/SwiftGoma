@@ -8,11 +8,9 @@ import { SessionExpiredModal } from "@/components/global/session-expired";
 import { ServerUnreachableBanner } from "@/lib/auth/server-unreachable-banner";
 import { Toaster } from "@/components/ui/toast";
 import { LegalConsentProvider } from "@/components/legal/legal-consent-provider";
+import { cn } from "@/lib/utils";
 
-const geistSans = Geist({
-  variable: "--font-sans",
-  subsets: ["latin"],
-});
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -110,7 +108,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang={locale}
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={cn("h-full", "antialiased", geistMono.variable, "font-sans", geist.variable)}
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider

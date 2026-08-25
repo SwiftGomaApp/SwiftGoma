@@ -224,14 +224,15 @@ export function ContactSupportForm({ locale }: { locale: Locale }) {
 
           <Field>
             <FieldLabel htmlFor="contact-message">{t.message}</FieldLabel>
+
             <Textarea
               id="contact-message"
               name="message"
-              rows={4}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               required
               disabled={loading}
+              className="min-h-82.5 resize-y"
             />
           </Field>
 

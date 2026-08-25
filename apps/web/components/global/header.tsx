@@ -6,11 +6,9 @@ import { Search, LayoutGrid, X, Menu, User } from "lucide-react";
 import Logo from "./logo";
 import { DEFAULT_LOCALE, getClientLocale, type Locale } from "@/lib/language";
 import { useAuth } from "@/lib/auth/auth-context";
-import {
-  ProductSearchCommand,
-  type SearchProduct,
-} from "./product-search-command";
-import { MOCK_PRODUCTS } from "@/lib/mock-products";
+import { ProductFilters } from "@/components/products/product-filters";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import type { PublicCategory } from "@/lib/api/routes/products";
 
 const NAV_LINK_IDS = [
   "home",
@@ -73,23 +71,35 @@ const TRANSLATIONS: Record<
   },
 };
 
-const Header = () => {
+const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE);
   const { isAuthenticated, isLoading } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
-
-  const products: SearchProduct[] = [];
+  const [isMac, setIsMac] = useState(false);
 
   useEffect(() => {
     setLocale(getClientLocale());
+    setIsMac(/mac/i.test(navigator.platform || navigator.userAgent));
+  }, []);
+
+  // Cmd+K (Mac) / Ctrl+K (Windows/Linux) toggles the search dialog from anywhere.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   const t = TRANSLATIONS[locale];
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-border bg-background text-foreground">
+      <header className="sticky top-0 z-50 border-b backdrop-blur-sm border-border text-foreground">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Logo */}
           <Logo size={18} />
@@ -109,10 +119,25 @@ const Header = () => {
 
           {/* Right actions */}
           <div className="flex items-center gap-4 sm:gap-5">
+            {/* Search trigger — pill with shortcut hint on larger screens */}
             <button
               aria-label={t.search}
               onClick={() => setSearchOpen(true)}
-              className="text-foreground transition-colors hover:text-primary"
+              className="hidden items-center gap-2 rounded-full border border-border bg-muted/40 py-1.5 pr-2 pl-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:flex"
+            >
+              <Search size={16} strokeWidth={1.75} />
+              <span>{t.search}</span>
+              <KbdGroup>
+                <Kbd>{isMac ? "⌘" : "Ctrl"}</Kbd>
+                <Kbd>K</Kbd>
+              </KbdGroup>
+            </button>
+
+            {/* Search trigger — icon only on mobile, no keyboard shortcut to hint at */}
+            <button
+              aria-label={t.search}
+              onClick={() => setSearchOpen(true)}
+              className="text-foreground transition-colors hover:text-primary sm:hidden"
             >
               <Search size={20} strokeWidth={1.75} />
             </button>
@@ -200,10 +225,13 @@ const Header = () => {
         )}
       </header>
 
-      <ProductSearchCommand
+      <ProductFilters
+        categories={categories}
+        locale={locale}
         open={searchOpen}
         onOpenChange={setSearchOpen}
-        products={MOCK_PRODUCTS}
+        showTrigger={false}
+        autoApply={false}
       />
     </>
   );

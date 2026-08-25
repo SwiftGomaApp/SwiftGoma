@@ -74,7 +74,7 @@ export function ProductCard({
       aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
       aria-pressed={favorited}
       onClick={toggleFavorite}
-      className="shrink-0 rounded-full border-border"
+      className="shrink-0 border-border"
     >
       <Heart
         className={cn(
@@ -127,7 +127,7 @@ export function ProductCard({
               type="button"
               onClick={onAddToCart}
               size="sm"
-              className="h-8 flex-1 rounded-full bg-primary text-background hover:bg-primary/85"
+              className="h-8 flex-1 bg-primary text-background hover:bg-primary/85"
             >
               Add to Cart
             </Button>
@@ -140,7 +140,7 @@ export function ProductCard({
               }
               aria-pressed={favorited}
               onClick={toggleFavorite}
-              className="shrink-0 rounded-full border-border"
+              className="shrink-0 border-border"
             >
               <Heart
                 className={cn(
@@ -225,7 +225,7 @@ export function ProductCard({
           <Button
             type="button"
             onClick={onAddToCart}
-            className="h-11 flex-1 rounded-full bg-primary text-background hover:bg-primary/85"
+            className="h-11 flex-1 bg-primary text-background hover:bg-primary/85"
           >
             Add to Cart
           </Button>
