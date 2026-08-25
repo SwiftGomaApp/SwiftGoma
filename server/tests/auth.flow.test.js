@@ -24,20 +24,17 @@ jest.mock("../src/config/sms", () => ({
     .fn()
     .mockResolvedValue({ connected: true, latencyMs: 1, error: null }),
 }));
-jest.mock(
-  "../src/features/notification/services/notification.service",
-  () => ({
-    createNotification: jest.fn().mockResolvedValue({
-      id: "test-notification-id",
-      type: "ACCOUNT_SECURITY",
-      title: "Test",
-      body: "Test",
-      data: {},
-      isRead: false,
-      createdAt: new Date().toISOString(),
-    }),
+jest.mock("../src/features/notification/services/notification.service", () => ({
+  createNotification: jest.fn().mockResolvedValue({
+    id: "test-notification-id",
+    type: "ACCOUNT_SECURITY",
+    title: "Test",
+    body: "Test",
+    data: {},
+    isRead: false,
+    createdAt: new Date().toISOString(),
   }),
-);
+}));
 jest.mock("../src/config/sms", () => ({
   sendSms: jest.fn().mockResolvedValue(true),
   checkSmsConnection: jest
@@ -47,6 +44,7 @@ jest.mock("../src/config/sms", () => ({
 
 const createApp = require("../src/app");
 const { getPrismaClient } = require("../src/config/prisma");
+const { sendOtpLoginEmail } = require("../src/common/emails");
 
 const app = createApp();
 const prisma = getPrismaClient();
@@ -63,18 +61,9 @@ const TEST_PASSWORD = "FlowTestPassword123";
 let accessToken;
 let refreshToken;
 
-async function getUserField(field) {
-  const user = await prisma.user.findFirst({
-    where: { emails: { some: { email: TEST_EMAIL.toLowerCase() } } },
-  });
-  return user ? user[field] : null;
-}
-
-async function getUserEmailField(field) {
-  const userEmail = await prisma.userEmail.findFirst({
-    where: { email: TEST_EMAIL.toLowerCase() },
-  });
-  return userEmail ? userEmail[field] : null;
+function getLastSentCode() {
+  const lastCall = sendOtpLoginEmail.mock.calls.at(-1);
+  return lastCall ? lastCall[1].code : null;
 }
 
 afterAll(async () => {
@@ -124,7 +113,7 @@ describe("Full auth flow", () => {
   });
 
   test("POST /verify-email succeeds with the real code", async () => {
-    const code = await getUserEmailField("verificationCode");
+    const code = getLastSentCode();
     expect(code).toBeTruthy();
 
     const res = await req("post", "/api/v1/auth/verify-email").send({
@@ -146,7 +135,7 @@ describe("Full auth flow", () => {
   });
 
   test("POST /login/verify-otp logs in and issues real, usable tokens", async () => {
-    const code = await getUserField("loginOtp");
+    const code = getLastSentCode();
     expect(code).toBeTruthy();
 
     const res = await req("post", "/api/v1/auth/login/verify-otp")

@@ -10,7 +10,9 @@ const TRUSTED_USER_AGENT_PREFIXES = [
 function looksLikeBot(req) {
   const userAgent = req.headers["user-agent"] || "";
   if (!userAgent) return true;
-  if (TRUSTED_USER_AGENT_PREFIXES.some((prefix) => userAgent.startsWith(prefix))) {
+  if (
+    TRUSTED_USER_AGENT_PREFIXES.some((prefix) => userAgent.startsWith(prefix))
+  ) {
     return false;
   }
   return isbot(userAgent);
@@ -40,4 +42,13 @@ function botDetection({ mode = "flag" } = {}) {
   };
 }
 
-module.exports = { botDetection };
+function blockSuspectedBots(req, res, next) {
+  if (req.isSuspectedBot) {
+    return next(
+      new ForbiddenError("Automated access is not allowed on this endpoint."),
+    );
+  }
+  next();
+}
+
+module.exports = { botDetection, blockSuspectedBots };

@@ -1,4 +1,9 @@
-const { createRateLimiter, userOrIpKey, emailOrIpKey } = require("./rateLimit");
+const {
+  createRateLimiter,
+  userOrIpKey,
+  emailOrIpKey,
+  emailOnlyKey,
+} = require("./rateLimit");
 const { env } = require("../../config/env");
 
 const isDevRelaxedLimits = env.nodeEnv === "development";
@@ -93,12 +98,49 @@ const credentialGuessLimiter = createRateLimiter({
   trackViolations: true,
 });
 
+const credentialGuessAccountLimiter = createRateLimiter({
+  name: "credential-guess-account",
+  windowMs: FIFTEEN_MINUTES_MS,
+  max: isDevRelaxedLimits ? 100_000 : 20,
+  message:
+    "Trop de tentatives pour ce compte. Veuillez patienter quelques minutes avant de réessayer.",
+  keyGenerator: emailOnlyKey,
+  trackViolations: true,
+});
+
+const credentialGuessUserLimiter = createRateLimiter({
+  name: "credential-guess-user",
+  windowMs: FIFTEEN_MINUTES_MS,
+  max: isDevRelaxedLimits ? 100_000 : 8,
+  message:
+    "Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.",
+  keyGenerator: userOrIpKey,
+  trackViolations: true,
+});
+
 const otpRequestLimiter = createRateLimiter({
   name: "otp-request",
   windowMs: FIFTEEN_MINUTES_MS,
   max: isDevRelaxedLimits ? 100_000 : 5,
   message: "Trop de demandes. Veuillez patienter avant de réessayer.",
   keyGenerator: emailOrIpKey,
+});
+
+const otpRequestAccountLimiter = createRateLimiter({
+  name: "otp-request-account",
+  windowMs: FIFTEEN_MINUTES_MS,
+  max: isDevRelaxedLimits ? 100_000 : 15,
+  message:
+    "Trop de demandes pour ce compte. Veuillez patienter avant de réessayer.",
+  keyGenerator: emailOnlyKey,
+});
+
+const otpRequestUserLimiter = createRateLimiter({
+  name: "otp-request-user",
+  windowMs: FIFTEEN_MINUTES_MS,
+  max: isDevRelaxedLimits ? 100_000 : 5,
+  message: "Trop de demandes. Veuillez patienter avant de réessayer.",
+  keyGenerator: userOrIpKey,
 });
 
 const accountLimiter = createRateLimiter({
@@ -135,7 +177,11 @@ module.exports = {
   chatMessageLimiter,
   sessionLimiter,
   credentialGuessLimiter,
+  credentialGuessAccountLimiter,
+  credentialGuessUserLimiter,
   otpRequestLimiter,
+  otpRequestAccountLimiter,
+  otpRequestUserLimiter,
   accountLimiter,
   authenticatedActionLimiter,
   refreshTokenLimiter,
