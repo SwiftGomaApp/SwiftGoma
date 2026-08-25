@@ -292,6 +292,8 @@ async function getProductBySlug(slug) {
             slug: true,
             status: true,
             deletedAt: true,
+            logoUrl: true,
+            sellerProfile: { select: { city: true } },
           },
         },
       },

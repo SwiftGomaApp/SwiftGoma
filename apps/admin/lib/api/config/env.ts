@@ -33,17 +33,15 @@ function resolveServerApiBaseUrl(publicApiBaseUrl: string): string {
     const appUrl = required(
       process.env.NEXT_PUBLIC_APP_URL ||
         process.env.NEXT_PUBLIC_ADMIN_URL ||
-        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined),
+        (process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : undefined),
       "NEXT_PUBLIC_APP_URL",
     );
     return `${appUrl.replace(/\/$/, "")}${publicApiBaseUrl}`;
   }
 
-  return (
-    process.env.API_BASE_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    ""
-  );
+  return process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
 }
 
 const publicApiBaseUrl = resolvePublicApiBaseUrl();

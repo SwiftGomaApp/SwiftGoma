@@ -39,7 +39,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       <footer className="shrink-0 flex items-center justify-center gap-4 px-6 py-4 text-sm text-muted-foreground">
         <Link
           href="/legal/terms"
-          className="transition-colors hover:text-foreground"
+          className="transition-colors hover:text-foreground text-xs"
         >
           Terms of Service
         </Link>
@@ -48,7 +48,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
         <Link
           href="/legal/privacy"
-          className="transition-colors hover:text-foreground"
+          className="transition-colors hover:text-foreground text-xs"
         >
           Privacy Policy
         </Link>
@@ -57,7 +57,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
         <Link
           href="/legal/cookies"
-          className="transition-colors hover:text-foreground"
+          className="transition-colors hover:text-foreground text-xs"
         >
           Cookie Policy
         </Link>

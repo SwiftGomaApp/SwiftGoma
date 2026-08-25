@@ -8,7 +8,7 @@ const prisma = getPrismaClient();
 const SHOP_ID =
   process.env.SEED_SHOP_ID ||
   process.argv[2] ||
-  "4ac32413-feae-4bf2-8aec-a63d3173c0eb";
+  "e3d12247-bf8d-4e52-b372-ac69e6abe993";
 
 const SUBCATEGORIES = [
   {
@@ -121,7 +121,11 @@ const SUBCATEGORIES = [
     name: "Cuisine & salle à manger",
     isFood: false,
   },
-  { key: "3f8a2675-b3a2-419b-a41b-c897e318b9d4", name: "Bureau", isFood: false },
+  {
+    key: "3f8a2675-b3a2-419b-a41b-c897e318b9d4",
+    name: "Bureau",
+    isFood: false,
+  },
   {
     key: "81c21020-8f12-46df-9dfd-6014b90e25cd",
     name: "Décoration",
@@ -3347,7 +3351,9 @@ async function loadSubcategoryIdsByName() {
 }
 
 async function ensureSubcategoriesExist(subcategoryByName) {
-  const missing = SUBCATEGORIES.filter((sub) => !subcategoryByName.has(sub.name));
+  const missing = SUBCATEGORIES.filter(
+    (sub) => !subcategoryByName.has(sub.name),
+  );
   if (missing.length === 0) return subcategoryByName;
 
   console.log(
@@ -3374,7 +3380,9 @@ async function seed() {
     if (shops.length > 0) {
       console.error("\nAvailable shops:");
       for (const candidate of shops) {
-        console.error(`  - ${candidate.name} (${candidate.slug}): ${candidate.id}`);
+        console.error(
+          `  - ${candidate.name} (${candidate.slug}): ${candidate.id}`,
+        );
       }
       console.error(
         "\nRe-run with: SEED_SHOP_ID=<shop-id> npm run seed:products",

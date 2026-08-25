@@ -73,8 +73,12 @@ export function ProductCard({
       size="icon-lg"
       aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
       aria-pressed={favorited}
-      onClick={toggleFavorite}
-      className="shrink-0 rounded-full border-border"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleFavorite();
+      }}
+      className="shrink-0 border-border"
     >
       <Heart
         className={cn(
@@ -125,9 +129,13 @@ export function ProductCard({
           <div className="flex items-center gap-2">
             <Button
               type="button"
-              onClick={onAddToCart}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onAddToCart?.();
+              }}
               size="sm"
-              className="h-8 flex-1 rounded-full bg-primary text-background hover:bg-primary/85"
+              className="h-8 flex-1 bg-primary text-background hover:bg-primary/85"
             >
               Add to Cart
             </Button>
@@ -139,8 +147,12 @@ export function ProductCard({
                 favorited ? "Remove from favorites" : "Add to favorites"
               }
               aria-pressed={favorited}
-              onClick={toggleFavorite}
-              className="shrink-0 rounded-full border-border"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleFavorite();
+              }}
+              className="shrink-0 border-border"
             >
               <Heart
                 className={cn(
@@ -188,7 +200,11 @@ export function ProductCard({
                   type="button"
                   aria-label={`View ${img.alt ?? name} variant ${idx + 1}`}
                   aria-pressed={isActive}
-                  onClick={() => setActiveIndex(idx)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setActiveIndex(idx);
+                  }}
                   className={cn(
                     "relative size-10 shrink-0 overflow-hidden rounded-full ring-1 ring-background/40 transition-all",
                     isActive && "ring-2 ring-primary",
@@ -224,8 +240,12 @@ export function ProductCard({
         <div className="flex items-center gap-2">
           <Button
             type="button"
-            onClick={onAddToCart}
-            className="h-11 flex-1 rounded-full bg-primary text-background hover:bg-primary/85"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onAddToCart?.();
+            }}
+            className="h-11 flex-1 bg-primary text-background hover:bg-primary/85"
           >
             Add to Cart
           </Button>
