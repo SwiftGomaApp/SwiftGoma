@@ -128,6 +128,15 @@ export async function apiPatch<T>(
   return data.data;
 }
 
+export async function apiPut<T>(
+  url: string,
+  body?: unknown,
+  config?: AxiosRequestConfig,
+) {
+  const { data } = await apiClient.put<ApiEnvelope<T>>(url, body, config);
+  return data.data;
+}
+
 export async function apiDelete<T>(url: string, config?: AxiosRequestConfig) {
   const { data } = await apiClient.delete<ApiEnvelope<T>>(url, config);
   return data.data;

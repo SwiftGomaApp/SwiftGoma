@@ -23,6 +23,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { PublicCategory } from "@/lib/api/routes/products";
 import {
+  PRODUCT_CURRENCIES,
   PRODUCT_SORT_OPTIONS,
   type ProductSortValue,
 } from "@/lib/constants/products";
@@ -32,6 +33,7 @@ export type ProductFilterValues = {
   search: string;
   categoryId: string; // "all" or a category id
   subcategoryId: string; // "all" or a subcategory id (scoped to categoryId)
+  currency: string; // "" (any) | "USD" | "CDF"
   minPrice: string;
   maxPrice: string;
   inStockOnly: boolean;
@@ -42,6 +44,7 @@ const DEFAULT_VALUES: ProductFilterValues = {
   search: "",
   categoryId: "all",
   subcategoryId: "all",
+  currency: "",
   minPrice: "",
   maxPrice: "",
   inStockOnly: false,
@@ -66,6 +69,9 @@ const FILTER_STRINGS: Record<
     allCategories: string;
     subcategory: string;
     allSubcategories: string;
+    currency: string;
+    anyCurrency: string;
+    priceHint: string;
     price: string;
     min: string;
     max: string;
@@ -82,13 +88,17 @@ const FILTER_STRINGS: Record<
 > = {
   en: {
     title: "Filter products",
-    description: "Category, price, and sort apply instantly. Search applies when you submit it.",
+    description:
+      "Category, price, and sort apply instantly. Search applies when you submit it.",
     search: "Search",
     searchPlaceholder: "Search by keyword…",
     category: "Category",
     allCategories: "All categories",
     subcategory: "Subcategory",
     allSubcategories: "All",
+    currency: "Currency",
+    anyCurrency: "Any currency",
+    priceHint: "Select a currency to filter by price.",
     price: "Price",
     min: "Min",
     max: "Max",
@@ -104,13 +114,17 @@ const FILTER_STRINGS: Record<
   },
   fr: {
     title: "Filtrer les produits",
-    description: "Catégorie, prix et tri s'appliquent instantanément. La recherche s'applique à la soumission.",
+    description:
+      "Catégorie, prix et tri s'appliquent instantanément. La recherche s'applique à la soumission.",
     search: "Recherche",
     searchPlaceholder: "Rechercher par mot-clé…",
     category: "Catégorie",
     allCategories: "Toutes les catégories",
     subcategory: "Sous-catégorie",
     allSubcategories: "Toutes",
+    currency: "Devise",
+    anyCurrency: "Toute devise",
+    priceHint: "Sélectionnez une devise pour filtrer par prix.",
     price: "Prix",
     min: "Min",
     max: "Max",
@@ -131,6 +145,7 @@ function countActiveFilters(values: ProductFilterValues): number {
   if (values.search.trim()) count++;
   if (values.categoryId !== "all") count++;
   if (values.subcategoryId !== "all") count++;
+  if (values.currency) count++;
   if (values.minPrice.trim()) count++;
   if (values.maxPrice.trim()) count++;
   if (values.inStockOnly) count++;
@@ -144,6 +159,7 @@ function buildQueryString(values: ProductFilterValues): string {
   if (values.categoryId !== "all") params.set("categoryId", values.categoryId);
   if (values.subcategoryId !== "all")
     params.set("subcategoryId", values.subcategoryId);
+  if (values.currency) params.set("currency", values.currency);
   if (values.minPrice.trim()) params.set("minPrice", values.minPrice.trim());
   if (values.maxPrice.trim()) params.set("maxPrice", values.maxPrice.trim());
   if (values.inStockOnly) params.set("inStockOnly", "true");
@@ -308,7 +324,39 @@ export function ProductFilters({
 
             <div className="flex flex-col gap-3">
               <span className="text-sm font-medium text-foreground">
+                {t.currency}
+              </span>
+              <RadioGroup
+                value={local.currency}
+                onValueChange={(value) =>
+                  applyNow(
+                    value
+                      ? { currency: value as string }
+                      : { currency: "", minPrice: "", maxPrice: "" },
+                  )
+                }
+                className="flex flex-row flex-wrap gap-4"
+              >
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <RadioGroupItem value="" />
+                  {t.anyCurrency}
+                </label>
+                {PRODUCT_CURRENCIES.map((currency) => (
+                  <label
+                    key={currency}
+                    className="flex items-center gap-2 text-sm text-muted-foreground"
+                  >
+                    <RadioGroupItem value={currency} />
+                    {currency}
+                  </label>
+                ))}
+              </RadioGroup>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <span className="text-sm font-medium text-foreground">
                 {t.price}
+                {local.currency ? ` (${local.currency})` : ""}
               </span>
               <div className="flex items-center gap-2">
                 <Input
@@ -316,9 +364,8 @@ export function ProductFilters({
                   min={0}
                   placeholder={t.min}
                   value={local.minPrice}
-                  onChange={(e) =>
-                    applyDebounced({ minPrice: e.target.value })
-                  }
+                  disabled={!local.currency}
+                  onChange={(e) => applyDebounced({ minPrice: e.target.value })}
                 />
                 <span className="text-muted-foreground">–</span>
                 <Input
@@ -326,11 +373,13 @@ export function ProductFilters({
                   min={0}
                   placeholder={t.max}
                   value={local.maxPrice}
-                  onChange={(e) =>
-                    applyDebounced({ maxPrice: e.target.value })
-                  }
+                  disabled={!local.currency}
+                  onChange={(e) => applyDebounced({ maxPrice: e.target.value })}
                 />
               </div>
+              {!local.currency && (
+                <p className="text-xs text-muted-foreground">{t.priceHint}</p>
+              )}
             </div>
 
             <label className="flex items-center gap-2 text-sm text-foreground">

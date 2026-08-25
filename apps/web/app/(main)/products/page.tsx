@@ -113,6 +113,7 @@ export default async function ProductsPage({ searchParams }: Props) {
     search: firstValue(sp.search),
     categoryId: rawCategoryId || "all",
     subcategoryId: rawSubcategoryId || "all",
+    currency: firstValue(sp.currency),
     minPrice: firstValue(sp.minPrice),
     maxPrice: firstValue(sp.maxPrice),
     inStockOnly: sp.inStockOnly !== undefined,
@@ -144,6 +145,7 @@ export default async function ProductsPage({ searchParams }: Props) {
           filterValues.subcategoryId !== "all"
             ? filterValues.subcategoryId
             : undefined,
+        currency: filterValues.currency || undefined,
         minPrice: parsePriceInput(filterValues.minPrice),
         maxPrice: parsePriceInput(filterValues.maxPrice),
         search: filterValues.search || undefined,

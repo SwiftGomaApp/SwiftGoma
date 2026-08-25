@@ -10,7 +10,11 @@ import type { ProductListPagination } from "@/lib/api/routes/products";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-function buildPageHref(searchParams: SearchParams, page: number): string {
+function buildPageHref(
+  searchParams: SearchParams,
+  page: number,
+  basePath: string,
+): string {
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(searchParams)) {
@@ -25,7 +29,7 @@ function buildPageHref(searchParams: SearchParams, page: number): string {
   if (page > 1) params.set("page", String(page));
 
   const qs = params.toString();
-  return qs ? `/products?${qs}` : "/products";
+  return qs ? `${basePath}?${qs}` : basePath;
 }
 
 function getPageNumbers(
@@ -52,9 +56,11 @@ function getPageNumbers(
 export function ProductPagination({
   pagination,
   searchParams,
+  basePath = "/products",
 }: {
   pagination: ProductListPagination;
   searchParams: SearchParams;
+  basePath?: string;
 }) {
   const { page, totalPages } = pagination;
   if (totalPages <= 1) return null;
@@ -66,7 +72,7 @@ export function ProductPagination({
       <PaginationContent>
         <PaginationItem>
           <PaginationPrevious
-            href={buildPageHref(searchParams, Math.max(1, page - 1))}
+            href={buildPageHref(searchParams, Math.max(1, page - 1), basePath)}
             aria-disabled={page <= 1}
             className={page <= 1 ? "pointer-events-none opacity-50" : undefined}
           />
@@ -82,7 +88,7 @@ export function ProductPagination({
           ) : (
             <PaginationItem key={entry}>
               <PaginationLink
-                href={buildPageHref(searchParams, entry)}
+                href={buildPageHref(searchParams, entry, basePath)}
                 isActive={entry === page}
               >
                 {entry}
@@ -93,7 +99,11 @@ export function ProductPagination({
 
         <PaginationItem>
           <PaginationNext
-            href={buildPageHref(searchParams, Math.min(totalPages, page + 1))}
+            href={buildPageHref(
+              searchParams,
+              Math.min(totalPages, page + 1),
+              basePath,
+            )}
             aria-disabled={page >= totalPages}
             className={
               page >= totalPages ? "pointer-events-none opacity-50" : undefined

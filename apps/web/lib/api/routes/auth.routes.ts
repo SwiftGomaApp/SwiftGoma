@@ -47,6 +47,13 @@ export interface AuthUser {
   name: string;
   email: string;
   role: string;
+  avatarUrl?: string | null;
+  preferredCurrency?: string | null;
+  hasPassword?: boolean;
+  twoFactorEnabled?: boolean;
+  isEmailVerified?: boolean;
+  emails?: { id: string; email: string; isPrimary: boolean; isVerified: boolean }[];
+  passkeys?: Passkey[];
   [key: string]: unknown;
 }
 
@@ -78,6 +85,10 @@ export interface SessionSummary {
 export interface Passkey {
   id: string;
   deviceName: string | null;
+  deviceType: string | null;
+  backedUp: boolean;
+  transports: string[];
+  lastUsedAt: string | null;
   createdAt: string;
 }
 
@@ -181,7 +192,7 @@ export function updatePassword(body: {
 }
 
 export function confirmTotp(body: { code: string }) {
-  return apiPost(AUTH_ROUTES.confirmTotp, body);
+  return apiPost<{ backupCodes: string[] }>(AUTH_ROUTES.confirmTotp, body);
 }
 
 export function disableTotp(body: { code: string }) {
@@ -217,11 +228,16 @@ export function createPassword(body: { password: string }) {
 }
 
 export function setupTotp() {
-  return apiPost<{ secret: string; otpauthUrl: string }>(AUTH_ROUTES.setupTotp);
+  return apiPost<{ qrCodeDataUrl: string; manualEntryKey: string }>(
+    AUTH_ROUTES.setupTotp,
+  );
 }
 
-export function regenerateBackupCodes() {
-  return apiPost<{ backupCodes: string[] }>(AUTH_ROUTES.regenerateBackupCodes);
+export function regenerateBackupCodes(body: { code: string }) {
+  return apiPost<{ backupCodes: string[] }>(
+    AUTH_ROUTES.regenerateBackupCodes,
+    body,
+  );
 }
 
 export function generatePasskeyRegistrationOptions() {

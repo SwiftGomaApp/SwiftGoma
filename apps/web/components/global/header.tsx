@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Search, LayoutGrid, X, Menu, User } from "lucide-react";
+import { Bell, Search, ShoppingCart, X, Menu, User } from "lucide-react";
 import Logo from "./logo";
 import { DEFAULT_LOCALE, getClientLocale, type Locale } from "@/lib/language";
 import { useAuth } from "@/lib/auth/auth-context";
+import { useCart } from "@/lib/cart/cart-context";
+import { useNotifications } from "@/lib/notifications/notifications-context";
 import { ProductFilters } from "@/components/products/product-filters";
+import { CartModal } from "@/components/global/cart-modal";
+import { NotificationModal } from "@/components/global/notification-modal";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import type { PublicCategory } from "@/lib/api/routes/products";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 
 const NAV_LINK_IDS = [
   "home",
@@ -32,6 +36,8 @@ const TRANSLATIONS: Record<
   {
     nav: Record<NavLinkId, string>;
     search: string;
+    cart: string;
+    notifications: string;
     menu: string;
     openMenu: string;
     closeMenu: string;
@@ -48,6 +54,8 @@ const TRANSLATIONS: Record<
       categories: "Categories",
     },
     search: "Search",
+    cart: "Cart",
+    notifications: "Notifications",
     menu: "Menu",
     openMenu: "Open menu",
     closeMenu: "Close menu",
@@ -63,6 +71,8 @@ const TRANSLATIONS: Record<
       categories: "Catégories",
     },
     search: "Rechercher",
+    cart: "Panier",
+    notifications: "Notifications",
     menu: "Menu",
     openMenu: "Ouvrir le menu",
     closeMenu: "Fermer le menu",
@@ -75,7 +85,11 @@ const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE);
   const { isAuthenticated, isLoading } = useAuth();
+  const { totalCount } = useCart();
+  const { unreadCount } = useNotifications();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [isMac, setIsMac] = useState(false);
 
   useEffect(() => {
@@ -163,12 +177,35 @@ const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
                 </Link>
               ))}
 
+            {/* Notifications */}
+            {isAuthenticated && (
+              <button
+                aria-label={t.notifications}
+                onClick={() => setNotificationsOpen(true)}
+                className="relative text-foreground transition-colors hover:text-primary"
+              >
+                <Bell size={20} strokeWidth={1.75} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             {/* Menu grid — desktop */}
+            {/* Cart */}
             <button
-              aria-label={t.menu}
-              className="hidden text-foreground transition-colors hover:text-primary sm:block"
+              aria-label={t.cart}
+              onClick={() => setCartOpen(true)}
+              className="relative text-foreground transition-colors hover:text-primary"
             >
-              <LayoutGrid size={20} strokeWidth={1.75} />
+              <ShoppingCart size={20} strokeWidth={1.75} />
+              {totalCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+                  {totalCount > 9 ? "9+" : totalCount}
+                </span>
+              )}
             </button>
 
             {/* Hamburger — mobile only, toggles nav */}
@@ -232,6 +269,14 @@ const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
         onOpenChange={setSearchOpen}
         showTrigger={false}
         autoApply={false}
+      />
+
+      <CartModal open={cartOpen} onOpenChange={setCartOpen} locale={locale} />
+
+      <NotificationModal
+        open={notificationsOpen}
+        onOpenChange={setNotificationsOpen}
+        locale={locale}
       />
     </>
   );

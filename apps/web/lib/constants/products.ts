@@ -14,3 +14,7 @@ export const PRODUCT_SORT_OPTIONS = [
 ] as const;
 
 export type ProductSortValue = (typeof PRODUCT_SORT_OPTIONS)[number]["value"];
+
+export const PRODUCT_CURRENCIES = ["USD", "CDF"] as const;
+
+export type ProductCurrency = (typeof PRODUCT_CURRENCIES)[number];
