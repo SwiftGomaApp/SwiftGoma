@@ -30,7 +30,8 @@ const {
   generateVerificationOtp,
   getOtpExpiry,
   isOtpExpired,
-  safeCompareCode,
+  hashVerificationCode,
+  verifyHashedCode,
 } = require("../../auth/utils/auth");
 const {
   issueSessionAndNotify,
@@ -256,6 +257,7 @@ async function requestAccountRecovery({ email, locale = "en" }) {
   }
 
   const code = generateVerificationOtp();
+  const codeHash = hashVerificationCode(code);
   const expiresAt = getOtpExpiry(
     ACCOUNT_DELETION_CONFIG.RECOVERY_OTP_TTL_MINUTES,
   );
@@ -263,7 +265,7 @@ async function requestAccountRecovery({ email, locale = "en" }) {
   await prisma.user.update({
     where: { id: user.id },
     data: {
-      accountRecoveryCode: code,
+      accountRecoveryCode: codeHash,
       accountRecoveryCodeExpiresAt: expiresAt,
     },
   });
@@ -314,7 +316,7 @@ async function verifyAccountRecovery({
       "OTP_EXPIRED",
     );
   }
-  if (!safeCompareCode(user.accountRecoveryCode, code)) {
+  if (!verifyHashedCode(user.accountRecoveryCode, code)) {
     throw new AppError(
       "Le code de récupération est incorrect.",
       422,
@@ -417,6 +419,7 @@ async function requestPhoneVerification({ userId, phone }) {
   }
 
   const code = generateVerificationOtp();
+  const codeHash = hashVerificationCode(code);
   const expiresAt = getOtpExpiry(PHONE_OTP_TTL_MINUTES);
 
   await prisma.user.update({
@@ -424,7 +427,7 @@ async function requestPhoneVerification({ userId, phone }) {
     data: {
       phone,
       isPhoneVerified: false,
-      phoneVerificationCode: code,
+      phoneVerificationCode: codeHash,
       phoneVerificationCodeExpiresAt: expiresAt,
     },
   });
@@ -479,7 +482,7 @@ async function verifyPhone({ userId, code, locale = "en" }) {
       "OTP_EXPIRED",
     );
   }
-  if (!safeCompareCode(user.phoneVerificationCode, code)) {
+  if (!verifyHashedCode(user.phoneVerificationCode, code)) {
     throw new AppError(
       "Le code de vérification est incorrect.",
       422,
@@ -586,13 +589,14 @@ async function requestPhoneUpdate({ userId, newPhone }) {
   }
 
   const code = generateVerificationOtp();
+  const codeHash = hashVerificationCode(code);
   const expiresAt = getOtpExpiry(PHONE_OTP_TTL_MINUTES);
 
   await prisma.user.update({
     where: { id: userId },
     data: {
       pendingPhone: newPhone,
-      phoneVerificationCode: code,
+      phoneVerificationCode: codeHash,
       phoneVerificationCodeExpiresAt: expiresAt,
     },
   });
@@ -651,7 +655,7 @@ async function verifyPhoneUpdate({ userId, code, locale = "en" }) {
       "OTP_EXPIRED",
     );
   }
-  if (!safeCompareCode(user.phoneVerificationCode, code)) {
+  if (!verifyHashedCode(user.phoneVerificationCode, code)) {
     throw new AppError(
       "Le code de vérification est incorrect.",
       422,
@@ -727,6 +731,7 @@ async function requestSecondaryEmail({ userId, email, locale = "en" }) {
   }
 
   const code = generateVerificationOtp();
+  const codeHash = hashVerificationCode(code);
   const expiresAt = getOtpExpiry(SECONDARY_EMAIL_OTP_TTL_MINUTES);
 
   if (existingSecondary) {
@@ -734,7 +739,7 @@ async function requestSecondaryEmail({ userId, email, locale = "en" }) {
       where: { id: existingSecondary.id },
       data: {
         email: normalizedEmail,
-        verificationCode: code,
+        verificationCode: codeHash,
         verificationCodeExpiresAt: expiresAt,
       },
     });
@@ -745,7 +750,7 @@ async function requestSecondaryEmail({ userId, email, locale = "en" }) {
         email: normalizedEmail,
         isPrimary: false,
         isVerified: false,
-        verificationCode: code,
+        verificationCode: codeHash,
         verificationCodeExpiresAt: expiresAt,
       },
     });
@@ -792,7 +797,7 @@ async function verifySecondaryEmail({ userId, code, locale = "en" }) {
       "OTP_EXPIRED",
     );
   }
-  if (!safeCompareCode(pending.verificationCode, code)) {
+  if (!verifyHashedCode(pending.verificationCode, code)) {
     throw new AppError(
       "Le code de vérification est incorrect.",
       422,

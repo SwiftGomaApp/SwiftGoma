@@ -7,7 +7,14 @@ const {
   verifyImageContents,
 } = require("../../../common/middleware/upload");
 const { authorize } = require("../../../common/middleware/authorize");
-const { authLimiter } = require("../../../common/middleware/rateLimiters");
+const {
+  otpRequestLimiter,
+  otpRequestAccountLimiter,
+  otpRequestUserLimiter,
+  credentialGuessLimiter,
+  credentialGuessAccountLimiter,
+  credentialGuessUserLimiter,
+} = require("../../../common/middleware/rateLimiters");
 
 const UserRouter = express.Router();
 
@@ -22,48 +29,50 @@ UserRouter.post(
 UserRouter.post("/delete", authenticate, userController.deleteAccount);
 UserRouter.post(
   "/recovery/request",
-  authLimiter,
+  otpRequestLimiter,
+  otpRequestAccountLimiter,
   userController.requestAccountRecovery,
 );
 UserRouter.post(
   "/recovery/verify",
-  authLimiter,
+  credentialGuessLimiter,
+  credentialGuessAccountLimiter,
   userController.verifyAccountRecovery,
 );
 UserRouter.post(
   "/phone/request",
   authenticate,
-  authLimiter,
+  otpRequestUserLimiter,
   userController.requestPhoneVerification,
 );
 UserRouter.post(
   "/phone/verify",
   authenticate,
-  authLimiter,
+  credentialGuessUserLimiter,
   userController.verifyPhone,
 );
 UserRouter.post(
   "/phone/update/request",
   authenticate,
-  authLimiter,
+  otpRequestUserLimiter,
   userController.requestPhoneUpdate,
 );
 UserRouter.post(
   "/phone/update/verify",
   authenticate,
-  authLimiter,
+  credentialGuessUserLimiter,
   userController.verifyPhoneUpdate,
 );
 UserRouter.post(
   "/email/secondary/request",
   authenticate,
-  authLimiter,
+  otpRequestUserLimiter,
   userController.requestSecondaryEmail,
 );
 UserRouter.post(
   "/email/secondary/verify",
   authenticate,
-  authLimiter,
+  credentialGuessUserLimiter,
   userController.verifySecondaryEmail,
 );
 

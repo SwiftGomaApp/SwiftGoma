@@ -61,7 +61,8 @@ const {
   isOtpExpired,
   hashPassword,
   comparePassword,
-  safeCompareCode,
+  hashVerificationCode,
+  verifyHashedCode,
 } = require("../utils/auth");
 const {
   createNotification,
@@ -73,9 +74,12 @@ const {
 const EMAIL_VERIFICATION_OTP_TTL_MINUTES = 10;
 const LOGIN_OTP_TTL_MINUTES = 10;
 const LOGIN_OTP_RESEND_COOLDOWN_SECONDS = 30;
-
+const PASSWORD_RESET_OTP_TTL_MINUTES = 15;
+const PASSWORD_RESET_RESEND_COOLDOWN_SECONDS = 30;
 const SELF_ASSIGNABLE_ROLES = ["BUYER", "SELLER", "RIDER"];
 const DEFAULT_SELF_REGISTRATION_ROLE = "BUYER";
+const DUMMY_PASSWORD_HASH =
+  "$2b$12$L2xlJWisCiwHogzvkpxHkOlYbru4PPOAyK7.21qNtAFX/wuwlrGaS";
 
 function passkeyUsernamelessChallengeKey(challengeId) {
   return `webauthn:auth:usernameless:${challengeId}`;
@@ -120,6 +124,36 @@ const PASSKEY_SENSITIVE_FIELDS = ["publicKey", "credentialId", "counter"];
 
 function getPrimaryEmail(user) {
   return (user.emails || []).find((e) => e.isPrimary) || null;
+}
+
+async function recordAccountAction({
+  actorId = null,
+  actorRole = null,
+  targetUserId = null,
+  targetUserEmail,
+  action,
+  reason = null,
+  metadata = null,
+}) {
+  try {
+    const prisma = getPrismaClient();
+    await prisma.accountActionLog.create({
+      data: {
+        actorId,
+        actorRole,
+        targetUserId,
+        targetUserEmail: targetUserEmail || "",
+        action,
+        reason,
+        metadata,
+      },
+    });
+  } catch (err) {
+    console.error(
+      `[auth] Failed to record account action "${action}":`,
+      err.message,
+    );
+  }
 }
 
 function sanitizeUser(user) {
@@ -169,6 +203,7 @@ async function createAccount({ name, email, locale = "en", role }) {
   }
 
   const code = generateVerificationOtp();
+  const codeHash = hashVerificationCode(code);
   const expiresAt = getOtpExpiry(EMAIL_VERIFICATION_OTP_TTL_MINUTES);
 
   let user;
@@ -182,7 +217,7 @@ async function createAccount({ name, email, locale = "en", role }) {
           update: {
             where: { id: existingEmail.id },
             data: {
-              verificationCode: code,
+              verificationCode: codeHash,
               verificationCodeExpiresAt: expiresAt,
             },
           },
@@ -199,7 +234,7 @@ async function createAccount({ name, email, locale = "en", role }) {
           create: {
             email: normalizedEmail,
             isPrimary: true,
-            verificationCode: code,
+            verificationCode: codeHash,
             verificationCodeExpiresAt: expiresAt,
           },
         },
@@ -245,7 +280,7 @@ async function verifyEmail({ email, code }) {
       "OTP_EXPIRED",
     );
   }
-  if (!safeCompareCode(userEmail.verificationCode, code)) {
+  if (!verifyHashedCode(userEmail.verificationCode, code)) {
     throw new AppError(
       "Le code de vérification est incorrect.",
       422,
@@ -292,6 +327,7 @@ async function resendEmailVerification({ email, locale = "en" }) {
   }
 
   const code = generateVerificationOtp();
+  const codeHash = hashVerificationCode(code);
   const expiresAt = getOtpExpiry(EMAIL_VERIFICATION_OTP_TTL_MINUTES);
 
   const updated = await prisma.user.update({
@@ -301,7 +337,7 @@ async function resendEmailVerification({ email, locale = "en" }) {
         update: {
           where: { id: userEmail.id },
           data: {
-            verificationCode: code,
+            verificationCode: codeHash,
             verificationCodeExpiresAt: expiresAt,
           },
         },
@@ -360,11 +396,12 @@ async function requestLoginOtp({ email, locale = "en" }) {
   }
 
   const code = generateAuthOtp();
+  const codeHash = hashVerificationCode(code);
   const expiresAt = getOtpExpiry(LOGIN_OTP_TTL_MINUTES);
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { loginOtp: code, loginOtpExpiresAt: expiresAt },
+    data: { loginOtp: codeHash, loginOtpExpiresAt: expiresAt },
   });
 
   await sendOtpLoginEmail(normalizedEmail, {
@@ -471,13 +508,23 @@ async function verifyLoginOtp({
   });
 
   if (!userEmail) {
+    await recordAccountAction({
+      targetUserEmail: normalizedEmail,
+      action: "LOGIN_FAILED",
+      metadata: {
+        method: "otp",
+        reason: "unknown_email",
+        ip: ipAddress,
+        userAgent,
+      },
+    });
     throw new NotFoundError("Aucun compte trouvé avec cet email.");
   }
   const user = userEmail.user;
   if (user.isBlocked) {
     throw new ForbiddenError("Ce compte a été bloqué. Contactez le support.");
   }
-  assertAccountNotDeleted(user);
+
   if (isOtpExpired(user.loginOtpExpiresAt)) {
     throw new AppError(
       "Votre code de connexion a expiré. Demandez-en un nouveau.",
@@ -485,7 +532,21 @@ async function verifyLoginOtp({
       "OTP_EXPIRED",
     );
   }
-  if (!safeCompareCode(user.loginOtp, code)) {
+
+  if (!verifyHashedCode(user.loginOtp, code)) {
+    await recordAccountAction({
+      actorId: user.id,
+      actorRole: user.role,
+      targetUserId: user.id,
+      targetUserEmail: normalizedEmail,
+      action: "LOGIN_FAILED",
+      metadata: {
+        method: "otp",
+        reason: "wrong_code",
+        ip: ipAddress,
+        userAgent,
+      },
+    });
     throw new AppError(
       "Le code de connexion est incorrect.",
       422,
@@ -493,10 +554,21 @@ async function verifyLoginOtp({
     );
   }
 
+  assertAccountNotDeleted(user);
+
   await prisma.user.update({
     where: { id: user.id },
     data: { loginOtp: null, loginOtpExpiresAt: null },
   });
+
+  if (user.twoFactorAuth && user.twoFactorAuth.isEnabled) {
+    return {
+      requiresTotp: true,
+      pendingToken: signMfaPendingToken({
+        userId: user.id,
+      }),
+    };
+  }
 
   const { accessToken, refreshToken, sessionId } = await issueSessionAndNotify(
     user,
@@ -533,21 +605,22 @@ async function loginWithPassword({
   });
 
   if (!userEmail) {
+    await comparePassword(password, DUMMY_PASSWORD_HASH);
+    await recordAccountAction({
+      targetUserEmail: normalizedEmail,
+      action: "LOGIN_FAILED",
+      metadata: {
+        method: "password",
+        reason: "unknown_email",
+        ip: ipAddress,
+        userAgent,
+      },
+    });
     throw new UnauthorizedError("Email ou mot de passe incorrect.");
   }
   const user = userEmail.user;
-  if (user.isBlocked) {
-    throw new ForbiddenError("Ce compte a été bloqué. Contactez le support.");
-  }
-  assertAccountNotDeleted(user);
-  if (!userEmail.isVerified) {
-    throw new AppError(
-      "Veuillez vérifier votre email avant de vous connecter.",
-      403,
-      "EMAIL_NOT_VERIFIED",
-    );
-  }
   if (!user.password) {
+    await comparePassword(password, DUMMY_PASSWORD_HASH);
     throw new AppError(
       "Ce compte n'a pas de mot de passe défini. Connectez-vous avec un code par email à la place.",
       409,
@@ -557,8 +630,33 @@ async function loginWithPassword({
 
   const matches = await comparePassword(password, user.password);
   if (!matches) {
+    await recordAccountAction({
+      actorId: user.id,
+      actorRole: user.role,
+      targetUserId: user.id,
+      targetUserEmail: normalizedEmail,
+      action: "LOGIN_FAILED",
+      metadata: {
+        method: "password",
+        reason: "wrong_password",
+        ip: ipAddress,
+        userAgent,
+      },
+    });
     throw new UnauthorizedError("Email ou mot de passe incorrect.");
   }
+
+  if (user.isBlocked) {
+    throw new ForbiddenError("Ce compte a été bloqué. Contactez le support.");
+  }
+  if (!userEmail.isVerified) {
+    throw new AppError(
+      "Veuillez vérifier votre email avant de vous connecter.",
+      403,
+      "EMAIL_NOT_VERIFIED",
+    );
+  }
+  assertAccountNotDeleted(user);
 
   if (user.twoFactorAuth && user.twoFactorAuth.isEnabled) {
     return {
@@ -631,13 +729,19 @@ async function refreshAccessToken({ refreshToken }) {
     sessionId: session.id,
   });
 
-  await prisma.session.update({
-    where: { id: session.id },
+  const rotation = await prisma.session.updateMany({
+    where: { id: session.id, refreshTokenHash: hashToken(refreshToken) },
     data: {
       refreshTokenHash: hashToken(newRefreshToken),
       lastUsedAt: new Date(),
     },
   });
+
+  if (rotation.count === 0) {
+    throw new UnauthorizedError(
+      "Ce jeton vient d'être utilisé par une autre requête. Veuillez réessayer.",
+    );
+  }
 
   return {
     user: sanitizeUser(user),
@@ -674,9 +778,9 @@ async function logout(sessionId) {
   return { message: "Déconnexion réussie." };
 }
 
-async function logoutAll(userId, { exceptSessionId } = {}) {
+async function logoutAll(userId, { exceptSessionId, targetUserEmail } = {}) {
   const prisma = getPrismaClient();
-  await prisma.session.updateMany({
+  const result = await prisma.session.updateMany({
     where: {
       userId,
       isRevoked: false,
@@ -684,6 +788,27 @@ async function logoutAll(userId, { exceptSessionId } = {}) {
     },
     data: { isRevoked: true },
   });
+
+  if (result.count > 0) {
+    let email = targetUserEmail;
+    if (!email) {
+      const primaryEmail = await prisma.userEmail.findFirst({
+        where: { userId, isPrimary: true },
+      });
+      email = primaryEmail?.email || "";
+    }
+    await recordAccountAction({
+      actorId: userId,
+      targetUserId: userId,
+      targetUserEmail: email,
+      action: "ALL_SESSIONS_REVOKED",
+      metadata: {
+        revokedCount: result.count,
+        exceptCurrentSession: Boolean(exceptSessionId),
+      },
+    });
+  }
+
   return { message: "Déconnecté de tous les appareils." };
 }
 
@@ -707,7 +832,10 @@ async function listSessions({ userId, currentSessionId }) {
 
 async function revokeSession({ userId, sessionId }) {
   const prisma = getPrismaClient();
-  const session = await prisma.session.findUnique({ where: { id: sessionId } });
+  const session = await prisma.session.findUnique({
+    where: { id: sessionId },
+    include: { user: { include: { emails: true } } },
+  });
 
   if (!session || session.userId !== userId || session.isRevoked) {
     throw new NotFoundError("Session introuvable.");
@@ -718,11 +846,17 @@ async function revokeSession({ userId, sessionId }) {
     data: { isRevoked: true },
   });
 
+  await recordAccountAction({
+    actorId: userId,
+    actorRole: session.user?.role || null,
+    targetUserId: userId,
+    targetUserEmail: getPrimaryEmail(session.user)?.email || "",
+    action: "SESSION_REVOKED",
+    metadata: { sessionId },
+  });
+
   return { id: sessionId, revoked: true };
 }
-
-const PASSWORD_RESET_OTP_TTL_MINUTES = 15;
-const PASSWORD_RESET_RESEND_COOLDOWN_SECONDS = 30;
 
 async function createPassword({ userId, password, locale = "en" }) {
   if (!isValidPassword(password)) {
@@ -772,6 +906,14 @@ async function createPassword({ userId, password, locale = "en" }) {
   } catch (err) {
     console.error("[auth] Failed to notify password-created:", err.message);
   }
+
+  await recordAccountAction({
+    actorId: updated.id,
+    actorRole: updated.role,
+    targetUserId: updated.id,
+    targetUserEmail: getPrimaryEmail(updated)?.email || "",
+    action: "PASSWORD_CREATED",
+  });
 
   return sanitizeUser(updated);
 }
@@ -841,7 +983,20 @@ async function updatePassword({
     console.error("[auth] Failed to notify password-updated:", err.message);
   }
 
-  await logoutAll(userId, { exceptSessionId: currentSessionId });
+  const primaryEmail = getPrimaryEmail(updated);
+
+  await recordAccountAction({
+    actorId: updated.id,
+    actorRole: updated.role,
+    targetUserId: updated.id,
+    targetUserEmail: primaryEmail?.email || "",
+    action: "PASSWORD_CHANGED",
+  });
+
+  await logoutAll(userId, {
+    exceptSessionId: currentSessionId,
+    targetUserEmail: primaryEmail?.email || "",
+  });
 
   return sanitizeUser(updated);
 }
@@ -882,11 +1037,15 @@ async function forgotPassword({ email, locale = "en" }) {
   }
 
   const code = generateVerificationOtp();
+  const codeHash = hashVerificationCode(code);
   const expiresAt = getOtpExpiry(PASSWORD_RESET_OTP_TTL_MINUTES);
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { passwordResetCode: code, passwordResetCodeExpiresAt: expiresAt },
+    data: {
+      passwordResetCode: codeHash,
+      passwordResetCodeExpiresAt: expiresAt,
+    },
   });
 
   await sendPasswordResetOtpEmail(normalizedEmail, {
@@ -929,7 +1088,7 @@ async function resetPassword({ email, code, newPassword, locale = "en" }) {
   if (
     !userEmail ||
     isOtpExpired(userEmail.user.passwordResetCodeExpiresAt) ||
-    !safeCompareCode(userEmail.user.passwordResetCode, code)
+    !verifyHashedCode(userEmail.user.passwordResetCode, code)
   ) {
     throw INVALID_CODE_ERROR;
   }
@@ -949,10 +1108,19 @@ async function resetPassword({ email, code, newPassword, locale = "en" }) {
     include: { emails: true, twoFactorAuth: true },
   });
 
-  await logoutAll(user.id);
+  const primaryEmail = getPrimaryEmail(updated);
+
+  await recordAccountAction({
+    actorId: updated.id,
+    actorRole: updated.role,
+    targetUserId: updated.id,
+    targetUserEmail: primaryEmail?.email || "",
+    action: "PASSWORD_RESET",
+  });
+
+  await logoutAll(user.id, { targetUserEmail: primaryEmail?.email || "" });
 
   try {
-    const primaryEmail = getPrimaryEmail(updated);
     if (primaryEmail) {
       const emailContent = passwordChangedEmail({
         name: updated.name,
@@ -1023,18 +1191,12 @@ async function verifyTotpOrBackupCode(prisma, twoFactorRecord, code) {
   }
 
   const codeHash = hashToken(trimmedCode.toUpperCase());
-  const backupCode = await prisma.twoFactorBackupCode.findFirst({
+  const claim = await prisma.twoFactorBackupCode.updateMany({
     where: { twoFactorId: twoFactorRecord.id, codeHash, isUsed: false },
+    data: { isUsed: true, usedAt: new Date() },
   });
-  if (backupCode) {
-    await prisma.twoFactorBackupCode.update({
-      where: { id: backupCode.id },
-      data: { isUsed: true, usedAt: new Date() },
-    });
-    return true;
-  }
 
-  return false;
+  return claim.count === 1;
 }
 
 async function setupTotp({ userId }) {
@@ -1123,11 +1285,12 @@ async function confirmTotp({ userId, code, locale = "en" }) {
     }),
   ]);
 
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { emails: true },
+  });
+
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { emails: true },
-    });
     const primaryEmail = getPrimaryEmail(user);
     if (primaryEmail) {
       const emailContent = twoFactorChangedEmail({
@@ -1150,10 +1313,18 @@ async function confirmTotp({ userId, code, locale = "en" }) {
     console.error("[auth] Failed to notify 2FA-enabled:", err.message);
   }
 
+  await recordAccountAction({
+    actorId: userId,
+    actorRole: user?.role || null,
+    targetUserId: userId,
+    targetUserEmail: getPrimaryEmail(user)?.email || "",
+    action: "TWO_FACTOR_ENABLED",
+  });
+
   return { backupCodes };
 }
 
-async function disableTotp({ userId, code, locale = "en" }) {
+async function disableTotp({ userId, currentSessionId, code, locale = "en" }) {
   const prisma = getPrismaClient();
   const record = await prisma.twoFactorAuth.findUnique({ where: { userId } });
 
@@ -1196,6 +1367,21 @@ async function disableTotp({ userId, code, locale = "en" }) {
   } catch (err) {
     console.error("[auth] Failed to notify 2FA-disabled:", err.message);
   }
+
+  const primaryEmail = getPrimaryEmail(user);
+
+  await recordAccountAction({
+    actorId: userId,
+    actorRole: user?.role || null,
+    targetUserId: userId,
+    targetUserEmail: primaryEmail?.email || "",
+    action: "TWO_FACTOR_DISABLED",
+  });
+
+  await logoutAll(userId, {
+    exceptSessionId: currentSessionId,
+    targetUserEmail: primaryEmail?.email || "",
+  });
 
   return { message: "L'authentification à deux facteurs a été désactivée." };
 }
@@ -1253,6 +1439,19 @@ async function loginWithTotp({
 
   const isValid = await verifyTotpOrBackupCode(prisma, record, code);
   if (!isValid) {
+    await recordAccountAction({
+      actorId: user.id,
+      actorRole: user.role,
+      targetUserId: user.id,
+      targetUserEmail: getPrimaryEmail(user)?.email || "",
+      action: "LOGIN_FAILED",
+      metadata: {
+        method: "totp",
+        reason: "wrong_code",
+        ip: ipAddress,
+        userAgent,
+      },
+    });
     throw new AppError("Code à deux facteurs invalide.", 422, "TOTP_INVALID");
   }
 
@@ -1327,6 +1526,14 @@ async function regenerateBackupCodes({ userId, code, locale = "en" }) {
       err.message,
     );
   }
+
+  await recordAccountAction({
+    actorId: userId,
+    actorRole: user?.role || null,
+    targetUserId: userId,
+    targetUserEmail: getPrimaryEmail(user)?.email || "",
+    action: "BACKUP_CODES_REGENERATED",
+  });
 
   return { backupCodes };
 }

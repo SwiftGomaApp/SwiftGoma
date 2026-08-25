@@ -30,6 +30,16 @@ function emailOrIpKey(req, res) {
   return email ? `ip:${ip}|email:${email}` : `ip:${ip}`;
 }
 
+function emailOnlyKey(req, res) {
+  const email =
+    typeof req.body?.email === "string"
+      ? req.body.email.trim().toLowerCase()
+      : null;
+  return email
+    ? `account:${email}`
+    : `ip:${rateLimit.ipKeyGenerator(req, res)}`;
+}
+
 const VIOLATIONS_BEFORE_BLOCK = 5;
 const VIOLATIONS_WINDOW_MS = 15 * 60 * 1000;
 const BLOCK_DURATION_MS = 15 * 60 * 1000;
@@ -83,4 +93,4 @@ function createRateLimiter({
   });
 }
 
-module.exports = { createRateLimiter, userOrIpKey, emailOrIpKey };
+module.exports = { createRateLimiter, userOrIpKey, emailOrIpKey, emailOnlyKey };

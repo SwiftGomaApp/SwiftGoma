@@ -3,9 +3,14 @@ const express = require("express");
 const authController = require("../controllers/auth.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const {
+  blockSuspectedBots,
+} = require("../../../common/middleware/botDetection");
+const {
   sessionLimiter,
   credentialGuessLimiter,
+  credentialGuessAccountLimiter,
   otpRequestLimiter,
+  otpRequestAccountLimiter,
   accountLimiter,
   authenticatedActionLimiter,
   refreshTokenLimiter,
@@ -16,17 +21,25 @@ const AuthRouter = express.Router();
 // --- Tier C: account creation / social login ---
 AuthRouter.post(
   "/create-account",
+  blockSuspectedBots,
   accountLimiter,
   authController.createAccount,
 );
-AuthRouter.post("/verify-email", accountLimiter, authController.verifyEmail);
+AuthRouter.post(
+  "/verify-email",
+  blockSuspectedBots,
+  accountLimiter,
+  authController.verifyEmail,
+);
 AuthRouter.post(
   "/register/google",
+  blockSuspectedBots,
   accountLimiter,
   authController.registerWithGoogle,
 );
 AuthRouter.post(
   "/login/google",
+  blockSuspectedBots,
   accountLimiter,
   authController.loginWithGoogle,
 );
@@ -34,49 +47,66 @@ AuthRouter.post(
 // --- Tier B: request/initiation (spam & enumeration risk) ---
 AuthRouter.post(
   "/resend-verification",
+  blockSuspectedBots,
   otpRequestLimiter,
+  otpRequestAccountLimiter,
   authController.resendEmailVerification,
 );
 AuthRouter.post(
   "/login/request-otp",
+  blockSuspectedBots,
   otpRequestLimiter,
+  otpRequestAccountLimiter,
   authController.requestLoginOtp,
 );
 AuthRouter.post(
   "/passkey/login/options",
+  blockSuspectedBots,
   otpRequestLimiter,
+  otpRequestAccountLimiter,
   authController.generatePasskeyLoginOptions,
 );
 AuthRouter.post(
   "/password/forgot",
+  blockSuspectedBots,
   otpRequestLimiter,
+  otpRequestAccountLimiter,
   authController.forgotPassword,
 );
 
 // --- Tier A: credential guessing (tight, feeds IP auto-block) ---
 AuthRouter.post(
   "/login/verify-otp",
+  blockSuspectedBots,
   credentialGuessLimiter,
+  credentialGuessAccountLimiter,
   authController.verifyLoginOtp,
 );
 AuthRouter.post(
   "/login/password",
+  blockSuspectedBots,
   credentialGuessLimiter,
+  credentialGuessAccountLimiter,
   authController.loginWithPassword,
 );
 AuthRouter.post(
   "/login/totp",
+  blockSuspectedBots,
   credentialGuessLimiter,
   authController.loginWithTotp,
 );
 AuthRouter.post(
   "/passkey/login/verify",
+  blockSuspectedBots,
   credentialGuessLimiter,
+  credentialGuessAccountLimiter,
   authController.verifyPasskeyLogin,
 );
 AuthRouter.post(
   "/password/reset",
+  blockSuspectedBots,
   credentialGuessLimiter,
+  credentialGuessAccountLimiter,
   authController.resetPassword,
 );
 AuthRouter.post(

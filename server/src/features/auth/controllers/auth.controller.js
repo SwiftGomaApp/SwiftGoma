@@ -38,13 +38,22 @@ async function verifyLoginOtp(req, res) {
   const ipAddress = getClientIp(req);
   const isMobile = req.headers["x-client-type"] === "mobile";
 
-  const { user, accessToken, refreshToken } = await authService.verifyLoginOtp({
+  const result = await authService.verifyLoginOtp({
     email,
     code,
     userAgent,
     ipAddress,
     deviceName,
   });
+
+  if (result.requiresTotp) {
+    return res.status(200).json({
+      success: true,
+      data: { requiresTotp: true, pendingToken: result.pendingToken },
+    });
+  }
+
+  const { user, accessToken, refreshToken } = result;
 
   if (isMobile) {
     return res
@@ -206,6 +215,7 @@ async function disableTotp(req, res) {
   const { code, locale } = req.body;
   const result = await authService.disableTotp({
     userId: req.user.id,
+    currentSessionId: req.user.sessionId,
     code,
     locale,
   });

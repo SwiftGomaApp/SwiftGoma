@@ -6,6 +6,7 @@ const {
   isValidPhone,
   generateVerificationOtp,
   getOtpExpiry,
+  hashVerificationCode,
 } = require("../../auth/utils/auth");
 const { sendOtpLoginEmail } = require("../../../common/emails");
 const {
@@ -132,6 +133,7 @@ async function createRiderAccount({
   }
 
   const code = generateVerificationOtp();
+  const codeHash = hashVerificationCode(code);
   const expiresAt = getOtpExpiry(RIDER_INVITE_OTP_TTL_MINUTES);
 
   const result = await prisma.$transaction(async (tx) => {
@@ -144,7 +146,7 @@ async function createRiderAccount({
           create: {
             email: normalizedEmail,
             isPrimary: true,
-            verificationCode: code,
+            verificationCode: codeHash,
             verificationCodeExpiresAt: expiresAt,
           },
         },

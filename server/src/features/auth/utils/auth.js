@@ -68,6 +68,30 @@ function safeCompareCode(storedCode, submittedCode) {
   return crypto.timingSafeEqual(stored, submitted);
 }
 
+function hashVerificationCode(code) {
+  return crypto
+    .createHash("sha256")
+    .update(String(code).trim().toUpperCase())
+    .digest("hex");
+}
+
+function verifyHashedCode(storedHash, submittedCode) {
+  if (
+    !storedHash ||
+    typeof submittedCode !== "string" ||
+    !submittedCode.trim()
+  ) {
+    return false;
+  }
+
+  const stored = Buffer.from(storedHash);
+  const submitted = Buffer.from(hashVerificationCode(submittedCode));
+
+  if (stored.length !== submitted.length) return false;
+
+  return crypto.timingSafeEqual(stored, submitted);
+}
+
 module.exports = {
   isValidName,
   isValidEmail,
@@ -80,4 +104,6 @@ module.exports = {
   hashPassword,
   comparePassword,
   safeCompareCode,
+  hashVerificationCode,
+  verifyHashedCode,
 };
