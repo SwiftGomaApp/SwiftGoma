@@ -32,11 +32,11 @@ const {
   isOtpExpired,
   hashVerificationCode,
   verifyHashedCode,
+  comparePassword,
 } = require("../../auth/utils/auth");
 const {
   issueSessionAndNotify,
   sanitizeUser,
-  logoutAll,
 } = require("../../auth/services/auth.service");
 const { ACCOUNT_DELETION_CONFIG } = require("../config/accountDeletion.config");
 const { signMfaPendingToken } = require("../../../config/jwt");
@@ -82,8 +82,6 @@ const SENSITIVE_FIELDS = [
   "accountRecoveryCodeExpiresAt",
 ];
 
-const prisma = getPrismaClient();
-
 function getPrimaryEmail(user) {
   return (user.emails || []).find((e) => e.isPrimary) || null;
 }
@@ -124,6 +122,7 @@ function assertCanActOnTarget(actor, targetUser) {
 }
 
 async function getTargetUserOrThrow(targetUserId) {
+  const prisma = getPrismaClient();
   const targetUser = await prisma.user.findUnique({
     where: { id: targetUserId },
     include: { emails: { where: { isPrimary: true }, take: 1 } },
@@ -132,7 +131,7 @@ async function getTargetUserOrThrow(targetUserId) {
   return { ...targetUser, email: targetUser.emails[0]?.email ?? "" };
 }
 
-async function updateProfile({ userId, name, avatarUrl, preferredCurrency }) {
+async function updateProfile({ userId, name, preferredCurrency }) {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
@@ -146,10 +145,6 @@ async function updateProfile({ userId, name, avatarUrl, preferredCurrency }) {
       throw new ValidationError("Veuillez entrer un nom valide.");
     }
     data.name = name.trim();
-  }
-
-  if (avatarUrl !== undefined) {
-    data.avatarUrl = avatarUrl;
   }
 
   if (preferredCurrency !== undefined) {
@@ -172,7 +167,12 @@ async function updateProfile({ userId, name, avatarUrl, preferredCurrency }) {
   return sanitizeUser(updated);
 }
 
-async function deleteAccount({ userId, reason, locale = "en" }) {
+async function deleteAccount({
+  userId,
+  currentPassword,
+  reason,
+  locale = "en",
+}) {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -186,15 +186,41 @@ async function deleteAccount({ userId, reason, locale = "en" }) {
     throw new ConflictError("Ce compte est déjà supprimé.");
   }
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { deletedAt: new Date(), deletionReason: reason || null },
-  });
+  if (user.password) {
+    if (!currentPassword || typeof currentPassword !== "string") {
+      throw new ValidationError(
+        "Veuillez confirmer votre mot de passe actuel.",
+      );
+    }
+    const matches = await comparePassword(currentPassword, user.password);
+    if (!matches) {
+      throw new UnauthorizedError("Le mot de passe actuel est incorrect.");
+    }
+  }
 
-  await logoutAll(userId);
+  const primaryEmail = getPrimaryEmail(user);
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { deletedAt: new Date(), deletionReason: reason || null },
+    }),
+    prisma.session.updateMany({
+      where: { userId, isRevoked: false },
+      data: { isRevoked: true },
+    }),
+    prisma.accountActionLog.create({
+      data: {
+        actorId: userId,
+        targetUserId: userId,
+        targetUserEmail: primaryEmail?.email ?? "",
+        action: "ALL_SESSIONS_REVOKED",
+        reason: "Compte supprimé par l'utilisateur.",
+      },
+    }),
+  ]);
 
   try {
-    const primaryEmail = getPrimaryEmail(user);
     if (primaryEmail) {
       await sendAccountDeletionEmail(primaryEmail.email, {
         name: user.name,
@@ -1017,6 +1043,7 @@ async function getUserDetail(userId) {
 }
 
 async function blockUser(actor, targetUserId, reason) {
+  const prisma = getPrismaClient();
   const targetUser = await getTargetUserOrThrow(targetUserId);
   if (targetUser.deletedAt)
     throw new BadRequestError("Impossible de bloquer un compte supprimé.");
@@ -1073,6 +1100,7 @@ async function blockUser(actor, targetUserId, reason) {
 }
 
 async function unblockUser(actor, targetUserId, reason) {
+  const prisma = getPrismaClient();
   const targetUser = await getTargetUserOrThrow(targetUserId);
   if (!targetUser.isBlocked)
     throw new BadRequestError("L'utilisateur n'est pas bloqué.");
@@ -1120,6 +1148,7 @@ async function unblockUser(actor, targetUserId, reason) {
 }
 
 async function forceLogout(actor, targetUserId, sessionId, reason) {
+  const prisma = getPrismaClient();
   const targetUser = await getTargetUserOrThrow(targetUserId);
 
   assertCanActOnTarget(actor, targetUser);
@@ -1177,6 +1206,7 @@ async function forceLogout(actor, targetUserId, sessionId, reason) {
 }
 
 async function verifyUserEmail(actor, targetUserId, emailId) {
+  const prisma = getPrismaClient();
   const targetUser = await getTargetUserOrThrow(targetUserId);
 
   const userEmail = await prisma.userEmail.findFirst({
@@ -1223,6 +1253,7 @@ async function verifyUserEmail(actor, targetUserId, emailId) {
 }
 
 async function verifyUserPhone(actor, targetUserId) {
+  const prisma = getPrismaClient();
   const targetUser = await getTargetUserOrThrow(targetUserId);
 
   if (!targetUser.phone)
@@ -1260,6 +1291,7 @@ async function verifyUserPhone(actor, targetUserId) {
 }
 
 async function adminDeleteUser(actor, targetUserId, reason) {
+  const prisma = getPrismaClient();
   const targetUser = await getTargetUserOrThrow(targetUserId);
 
   if (targetUser.deletedAt) {
@@ -1321,6 +1353,7 @@ async function adminDeleteUser(actor, targetUserId, reason) {
 }
 
 async function adminRestoreUser(actor, targetUserId, reason) {
+  const prisma = getPrismaClient();
   const targetUser = await getTargetUserOrThrow(targetUserId);
 
   if (!targetUser.deletedAt) {
@@ -1372,6 +1405,7 @@ async function changeUserRole(actor, targetUserId, newRole, reason) {
     throw new BadRequestError("Rôle invalide.");
   }
 
+  const prisma = getPrismaClient();
   const targetUser = await getTargetUserOrThrow(targetUserId);
 
   if (targetUser.deletedAt) {

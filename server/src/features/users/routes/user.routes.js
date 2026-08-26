@@ -14,11 +14,17 @@ const {
   credentialGuessLimiter,
   credentialGuessAccountLimiter,
   credentialGuessUserLimiter,
+  authenticatedActionLimiter,
 } = require("../../../common/middleware/rateLimiters");
 
 const UserRouter = express.Router();
 
-UserRouter.patch("/profile", authenticate, userController.updateProfile);
+UserRouter.patch(
+  "/profile",
+  authenticate,
+  authenticatedActionLimiter,
+  userController.updateProfile,
+);
 UserRouter.post(
   "/profile/avatar",
   authenticate,
@@ -26,7 +32,12 @@ UserRouter.post(
   verifyImageContents,
   userController.uploadProfilePicture,
 );
-UserRouter.post("/delete", authenticate, userController.deleteAccount);
+UserRouter.post(
+  "/delete",
+  authenticate,
+  credentialGuessUserLimiter,
+  userController.deleteAccount,
+);
 UserRouter.post(
   "/recovery/request",
   otpRequestLimiter,

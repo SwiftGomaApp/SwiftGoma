@@ -9,20 +9,20 @@ const {
 } = require("../../auth/utils/cookies");
 
 async function updateProfile(req, res) {
-  const { name, avatarUrl, preferredCurrency } = req.body;
+  const { name, preferredCurrency } = req.body;
   const user = await userService.updateProfile({
     userId: req.user.id,
     name,
-    avatarUrl,
     preferredCurrency,
   });
   res.status(200).json({ success: true, data: user });
 }
 
 async function deleteAccount(req, res) {
-  const { reason, locale } = req.body;
+  const { currentPassword, reason, locale } = req.body;
   const result = await userService.deleteAccount({
     userId: req.user.id,
+    currentPassword,
     reason,
     locale,
   });
