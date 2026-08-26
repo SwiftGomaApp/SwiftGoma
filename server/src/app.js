@@ -64,6 +64,7 @@ const AdminInvoiceRouter = require("./features/invoicing/routes/adminInvoice.rou
 const { ipBlockGuard } = require("./common/middleware/ipBlockGuard");
 const AdminHeroSlideRouter = require("./features/storefront/routes/adminHeroslides.routes");
 const HeroSlideRouter = require("./features/storefront/routes/heroslides.routes");
+const SitemapRouter = require("./features/sitemap/routes/sitemap.routes");
 
 const createApp = () => {
   const app = express();
@@ -219,6 +220,7 @@ const createApp = () => {
   app.use("/api/v1/expenses", ExpenseRouter);
   app.use("/api/v1/storefront/admin/hero-slides", AdminHeroSlideRouter);
   app.use("/api/v1/storefront", HeroSlideRouter);
+  app.use("/api/v1/sitemap", SitemapRouter);
 
   app.use(notFound);
 
