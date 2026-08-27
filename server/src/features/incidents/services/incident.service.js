@@ -12,13 +12,21 @@ const prisma = getPrismaClient();
 
 const SEVERITIES = ["MINOR", "MAJOR", "CRITICAL"];
 const STATUSES = ["INVESTIGATING", "IDENTIFIED", "MONITORING", "RESOLVED"];
+const TITLE_MAX_LENGTH = 200;
+const DESCRIPTION_MAX_LENGTH = 5000;
 
 async function createIncident({ createdBy, title, description, severity }) {
   if (!title || typeof title !== "string" || !title.trim()) {
     throw new ValidationError(t("incidents.titleRequired"));
   }
+  if (title.trim().length > TITLE_MAX_LENGTH) {
+    throw new ValidationError(t("incidents.titleTooLong"));
+  }
   if (!description || typeof description !== "string" || !description.trim()) {
     throw new ValidationError(t("incidents.descriptionRequired"));
+  }
+  if (description.trim().length > DESCRIPTION_MAX_LENGTH) {
+    throw new ValidationError(t("incidents.descriptionTooLong"));
   }
   const resolvedSeverity = severity || "MINOR";
   if (!SEVERITIES.includes(resolvedSeverity)) {
@@ -55,6 +63,15 @@ async function updateIncident(id, { status, description, severity }) {
   if (severity !== undefined && !SEVERITIES.includes(severity)) {
     throw new ValidationError(t("incidents.invalidSeverity"));
   }
+  if (
+    description !== undefined &&
+    typeof description === "string" &&
+    description.trim().length > DESCRIPTION_MAX_LENGTH
+  ) {
+    throw new ValidationError(t("incidents.descriptionTooLong"));
+  }
+
+  const statusChanged = status !== undefined && status !== existing.status;
 
   const resolvedAt =
     status === "RESOLVED"
@@ -76,12 +93,14 @@ async function updateIncident(id, { status, description, severity }) {
     },
   });
 
-  await broadcastNotification({
-    type: NOTIFICATION_TYPES.SYSTEM,
-    title: `Mise à jour : ${incident.title}`,
-    body: `Statut : ${incident.status}.${incident.description ? ` ${incident.description}` : ""}`,
-    data: { incidentId: incident.id },
-  });
+  if (statusChanged) {
+    await broadcastNotification({
+      type: NOTIFICATION_TYPES.SYSTEM,
+      title: `Mise à jour : ${incident.title}`,
+      body: `Statut : ${incident.status}.${incident.description ? ` ${incident.description}` : ""}`,
+      data: { incidentId: incident.id },
+    });
+  }
 
   return incident;
 }
@@ -90,6 +109,16 @@ async function listIncidents(limit = 50) {
   return prisma.incident.findMany({
     orderBy: { createdAt: "desc" },
     take: limit,
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      severity: true,
+      status: true,
+      resolvedAt: true,
+      createdAt: true,
+      updatedAt: true,
+    },
   });
 }
 
