@@ -127,28 +127,28 @@ function renderEmailLayout({
               style="padding: 16px 40px 32px 40px; font-family: ${FONT_FAMILY}; font-size: 12px; line-height: 1.6; color: ${colors.muted};"
             >
               ${t.reportIssue}
-              
+              <a
                 href="mailto:${BRAND.supportEmail}"
                 style="color: ${colors.muted}; text-decoration: underline;"
               >
                 ${BRAND.supportEmail}
               </a>.
               <br /><br />
-              
+              <a
                 href="${BRAND.social.instagram}"
                 style="color: ${colors.muted}; text-decoration: underline;"
               >
                 Instagram
               </a>
               &nbsp;&middot;&nbsp;
-              
+              <a
                 href="${BRAND.social.facebook}"
                 style="color: ${colors.muted}; text-decoration: underline;"
               >
                 Facebook
               </a>
               &nbsp;&middot;&nbsp;
-              
+              <a
                 href="${BRAND.social.tiktok}"
                 style="color: ${colors.muted}; text-decoration: underline;"
               >

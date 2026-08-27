@@ -6,7 +6,11 @@ const {
   sendAdminPayoutOtpEmail,
   sendAdminPayoutInitiatedEmail,
 } = require("../../../common/emails");
-const { generateAuthOtp, safeCompareCode } = require("../../auth/utils/auth");
+const {
+  generateAuthOtp,
+  hashVerificationCode,
+  verifyHashedCode,
+} = require("../../auth/utils/auth");
 const {
   ValidationError,
   UnauthorizedError,
@@ -137,7 +141,9 @@ function assertValidPawaPayPayoutInput(input) {
 
 function assertValidPawaPayRefundInput(input) {
   if (!input.depositId) {
-    throw new ValidationError("L'identifiant de dépôt est requis pour un remboursement.");
+    throw new ValidationError(
+      "L'identifiant de dépôt est requis pour un remboursement.",
+    );
   }
   if (input.amount !== undefined && !isValidAmount(input.amount)) {
     throw new ValidationError("Montant de remboursement invalide.");
@@ -160,6 +166,7 @@ async function requestPayoutApproval(
 
   const { email, name } = await getAdminPrimaryEmail(adminId);
   const code = generateAuthOtp();
+  const codeHash = hashVerificationCode(code);
   const pendingId = crypto.randomUUID();
   const expiresAt = new Date(
     Date.now() + PAYOUT_OTP_TTL_MINUTES * 60 * 1000,
@@ -170,7 +177,7 @@ async function requestPayoutApproval(
     adminId,
     {
       pendingId,
-      code,
+      codeHash,
       expiresAt,
       provider,
       kind,
@@ -250,7 +257,9 @@ async function confirmPayoutApproval(
 ) {
   return withPayoutConfirmLock(adminId, async () => {
     if (!pendingId || !code) {
-      throw new ValidationError("Identifiant de session et code de vérification requis.");
+      throw new ValidationError(
+        "Identifiant de session et code de vérification requis.",
+      );
     }
 
     const otpScope =
@@ -266,13 +275,17 @@ async function confirmPayoutApproval(
       );
     }
     if (pending.pendingId !== pendingId) {
-      throw new UnauthorizedError("Session d'approbation de paiement invalide.");
+      throw new UnauthorizedError(
+        "Session d'approbation de paiement invalide.",
+      );
     }
     if (pending.provider !== provider) {
       throw new UnauthorizedError("Fournisseur de paiement incompatible.");
     }
     if (pending.kind && pending.kind !== kind) {
-      throw new UnauthorizedError("Type d'approbation de paiement incompatible.");
+      throw new UnauthorizedError(
+        "Type d'approbation de paiement incompatible.",
+      );
     }
     if (new Date(pending.expiresAt).getTime() < Date.now()) {
       await clearPendingApproval(provider, adminId, kind);
@@ -280,7 +293,7 @@ async function confirmPayoutApproval(
         "Code de vérification expiré. Demandez une nouvelle approbation de paiement.",
       );
     }
-    if (!safeCompareCode(pending.code, code)) {
+    if (!verifyHashedCode(pending.codeHash, code)) {
       await handleInvalidOtpAttempt(otpScope);
     }
 

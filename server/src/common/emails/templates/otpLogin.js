@@ -47,7 +47,7 @@ function otpLoginEmail(data) {
             background-color: #f5f5f5;
             border-radius: 6px;
             padding: 16px 24px;
-            font-family: ${FONT_FAMILY};
+            font-family: 'Courier New', monospace;
             font-size: 32px;
             font-weight: bold;
             letter-spacing: 6px;

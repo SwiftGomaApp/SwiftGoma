@@ -1,0 +1,121 @@
+import type { EndpointDoc } from "@/lib/types";
+
+const BASE = "/api/v1/riders";
+
+const sampleRider = {
+  id: "rider_1a2b3c",
+  userId: "9c8d7e6f",
+  sellerProfileId: "sp_2b3c4d",
+  name: "Jean Kabila",
+  status: "ACTIVE",
+  createdAt: "2026-01-20T09:00:00.000Z",
+};
+
+const sampleDelivery = {
+  id: "ord_5e6f7a",
+  status: "COMPLETED",
+  shopId: "shop_2b3c4d",
+  deliveryFee: "2.00",
+  currency: "USD",
+  createdAt: "2026-02-14T10:00:00.000Z",
+};
+
+export const RIDER_GROUPS = ["Riders"] as const;
+
+export const riderEndpoints: EndpointDoc[] = [
+  {
+    slug: "list-sellers-riders",
+    method: "GET",
+    path: BASE,
+    title: "List my riders",
+    group: "Riders",
+    auth: "bearer",
+    roles: ["SELLER"],
+    rateLimit: "Session",
+    description: "Lists the riders working for the signed-in seller.",
+    successStatus: 200,
+    responseExample: { success: true, data: [sampleRider] },
+  },
+  {
+    slug: "create-rider",
+    method: "POST",
+    path: BASE,
+    title: "Invite a rider",
+    group: "Riders",
+    auth: "bearer",
+    roles: ["SELLER"],
+    rateLimit: "Authenticated action",
+    description: "Creates a rider account for the seller and emails them a verification code to complete onboarding.",
+    bodyParams: [
+      { name: "name", type: "string", required: true, description: "" },
+      { name: "email", type: "string", required: true, description: "" },
+      { name: "phone", type: "string", required: true, description: "" },
+      { name: "locale", type: "string", required: false, description: "en or fr — controls the invite email language." },
+    ],
+    successStatus: 201,
+    responseExample: { success: true, data: { userId: "9c8d7e6f", riderId: "rider_1a2b3c", status: "PENDING" } },
+  },
+  {
+    slug: "suspend-rider",
+    method: "POST",
+    path: `${BASE}/:id/suspend`,
+    title: "Suspend rider",
+    group: "Riders",
+    auth: "bearer",
+    roles: ["SELLER"],
+    rateLimit: "Authenticated action",
+    description: "Temporarily disables a rider, e.g. while investigating a delivery issue.",
+    pathParams: [{ name: "id", type: "string", required: true, description: "Rider ID." }],
+    bodyParams: [{ name: "reason", type: "string", required: false, description: "" }],
+    successStatus: 200,
+    responseExample: { success: true, data: { ...sampleRider, status: "SUSPENDED" } },
+  },
+  {
+    slug: "reactivate-rider",
+    method: "POST",
+    path: `${BASE}/:id/reactivate`,
+    title: "Reactivate rider",
+    group: "Riders",
+    auth: "bearer",
+    roles: ["SELLER"],
+    rateLimit: "Authenticated action",
+    description: "Lifts a rider suspension.",
+    pathParams: [{ name: "id", type: "string", required: true, description: "Rider ID." }],
+    successStatus: 200,
+    responseExample: { success: true, data: { ...sampleRider, status: "ACTIVE" } },
+  },
+  {
+    slug: "delete-rider",
+    method: "DELETE",
+    path: `${BASE}/:id`,
+    title: "Remove rider",
+    group: "Riders",
+    auth: "bearer",
+    roles: ["SELLER"],
+    rateLimit: "Authenticated action",
+    description: "Removes a rider from the seller's team.",
+    pathParams: [{ name: "id", type: "string", required: true, description: "Rider ID." }],
+    successStatus: 200,
+    responseExample: { success: true, data: { removed: true } },
+  },
+  {
+    slug: "get-my-delivery-history",
+    method: "GET",
+    path: `${BASE}/me/deliveries`,
+    title: "Get my delivery history",
+    group: "Riders",
+    auth: "bearer",
+    roles: ["RIDER"],
+    rateLimit: "Session",
+    description: "Lists the signed-in rider's completed and past deliveries. For deliveries currently in progress, see the Orders reference instead.",
+    queryParams: [
+      { name: "page", type: "number", required: false, description: "Defaults to 1." },
+      { name: "limit", type: "number", required: false, description: "Max 100. Defaults to 20." },
+    ],
+    successStatus: 200,
+    responseExample: {
+      success: true,
+      data: { deliveries: [sampleDelivery], pagination: { page: 1, limit: 20, total: 1, totalPages: 1 } },
+    },
+  },
+];

@@ -5,6 +5,7 @@ jest.mock("../src/features/auth/config/google.config", () => ({
 }));
 jest.mock("../src/common/emails", () => ({
   sendOtpLoginEmail: jest.fn().mockResolvedValue(true),
+  sendEmailVerificationOtpEmail: jest.fn().mockResolvedValue(true),
   sendPasswordResetOtpEmail: jest.fn().mockResolvedValue(true),
   loginDetectedEmail: jest.fn(() => ({ subject: "Test", html: "<p>test</p>" })),
   passwordChangedEmail: jest.fn(() => ({

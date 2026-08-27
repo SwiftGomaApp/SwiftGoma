@@ -23,6 +23,7 @@ const {
 } = require("../../../config/jwt");
 const {
   sendOtpLoginEmail,
+  sendEmailVerificationOtpEmail,
   sendPasswordResetOtpEmail,
   loginDetectedEmail,
   passwordChangedEmail,
@@ -243,7 +244,7 @@ async function createAccount({ name, email, locale = "en", role }) {
     });
   }
 
-  await sendOtpLoginEmail(normalizedEmail, {
+  await sendEmailVerificationOtpEmail(normalizedEmail, {
     name: user.name,
     code,
     expiresInMinutes: EMAIL_VERIFICATION_OTP_TTL_MINUTES,
@@ -346,7 +347,7 @@ async function resendEmailVerification({ email, locale = "en" }) {
     include: { emails: true, twoFactorAuth: true },
   });
 
-  await sendOtpLoginEmail(normalizedEmail, {
+  await sendEmailVerificationOtpEmail(normalizedEmail, {
     name: updated.name,
     code,
     expiresInMinutes: EMAIL_VERIFICATION_OTP_TTL_MINUTES,

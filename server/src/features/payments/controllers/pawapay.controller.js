@@ -2,7 +2,6 @@ const crypto = require("crypto");
 const {
   initiateDeposit,
   checkDepositStatus,
-  initiatePayout,
   checkPayoutStatus,
   checkRefundStatus,
   getWalletBalances,
@@ -56,24 +55,6 @@ async function getDepositStatus(req, res, next) {
   try {
     const result = await checkDepositStatus(req.params.depositId);
     res.status(200).json({ success: true, data: result });
-  } catch (err) {
-    next(err);
-  }
-}
-
-async function postInitiatePayout(req, res, next) {
-  try {
-    const result = await initiatePayout({
-      amount: req.body.amount,
-      currency: req.body.currency,
-      country: req.body.country,
-      provider: req.body.provider,
-      recipientPhoneNumber: req.body.recipientPhoneNumber,
-      customerMessage: req.body.customerMessage,
-      clientReferenceId: req.body.clientReferenceId,
-      metadata: req.body.metadata || {},
-    });
-    res.status(201).json({ success: true, data: result });
   } catch (err) {
     next(err);
   }
@@ -197,7 +178,6 @@ async function getPayoutHistory(req, res, next) {
 module.exports = {
   postInitiateDeposit,
   getDepositStatus,
-  postInitiatePayout,
   postRequestPayoutApproval,
   postConfirmPayout,
   postRequestRefundApproval,

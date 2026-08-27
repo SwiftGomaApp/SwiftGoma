@@ -117,6 +117,14 @@ function assertValidVariantInput(variant, currency) {
   }
 }
 
+function assertValidVariantCount(count) {
+  if (count > PRODUCT_CONFIG.MAX_VARIANTS_PER_PRODUCT) {
+    throw new ValidationError(
+      `Un produit ne peut pas avoir plus de ${PRODUCT_CONFIG.MAX_VARIANTS_PER_PRODUCT} variantes.`,
+    );
+  }
+}
+
 function assertValidStatusTransition(currentStatus, nextStatus) {
   const allowed =
     PRODUCT_CONFIG.ALLOWED_STATUS_TRANSITIONS[currentStatus] || [];
@@ -160,6 +168,7 @@ module.exports = {
   assertExpiryRequiredIfFood,
   assertValidProductInput,
   assertValidVariantInput,
+  assertValidVariantCount,
   assertValidStatusTransition,
   assertCanCreateProduct,
   assertPhotoLimitNotExceeded,

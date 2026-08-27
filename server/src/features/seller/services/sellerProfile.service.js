@@ -194,42 +194,6 @@ async function updateSellerProfile({
   return updated;
 }
 
-async function activateSellerProfile(userId) {
-  const profile = await getSellerProfile(userId);
-  assertValidStatusTransition(profile.status, "ACTIVE");
-
-  const updated = await prisma.sellerProfile.update({
-    where: { userId },
-    data: { status: "ACTIVE" },
-  });
-
-  try {
-    const emailContent = sellerProfileStatusEmail({
-      name: updated.businessName,
-      businessName: updated.businessName,
-      action: "activated",
-      actionUrl: `${env.appUrl}/seller/dashboard`,
-      locale: "fr",
-    });
-
-    await createNotification({
-      userId,
-      type: NOTIFICATION_TYPES.SELLER_ONBOARDING,
-      title: emailContent.subject,
-      body: `Votre profil vendeur pour ${updated.businessName} est maintenant actif.`,
-      data: { action: "sellerProfileActivated" },
-      emailOverride: emailContent,
-    });
-  } catch (err) {
-    console.error(
-      "[seller] Failed to notify seller-profile-activated:",
-      err.message,
-    );
-  }
-
-  return updated;
-}
-
 async function suspendSellerProfile(userId, reason) {
   if (!reason || !reason.trim()) {
     throw new ValidationError(
@@ -313,7 +277,6 @@ module.exports = {
   createSellerProfile,
   getSellerProfile,
   updateSellerProfile,
-  activateSellerProfile,
   suspendSellerProfile,
   reactivateSellerProfile,
 };

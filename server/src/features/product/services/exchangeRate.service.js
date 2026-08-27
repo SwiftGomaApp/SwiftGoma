@@ -1,5 +1,9 @@
 const { getPrismaClient } = require("../../../config/prisma");
-const { NotFoundError, ConflictError } = require("../../../common/errors");
+const {
+  NotFoundError,
+  ConflictError,
+  ValidationError,
+} = require("../../../common/errors");
 const {
   assertValidExchangeRateInput,
   getExchangeRate,
@@ -104,10 +108,15 @@ async function deleteExchangeRate(id) {
 }
 
 async function previewConversion({ amount, fromCurrency, toCurrency }) {
+  const numericAmount = Number(amount);
+  if (!Number.isFinite(numericAmount) || numericAmount < 0) {
+    throw new ValidationError("Montant invalide.");
+  }
+
   const rate = await getExchangeRate(fromCurrency, toCurrency);
-  const convertedAmount = Math.round(Number(amount) * rate * 100) / 100;
+  const convertedAmount = Math.round(numericAmount * rate * 100) / 100;
   return {
-    amount: Number(amount),
+    amount: numericAmount,
     fromCurrency,
     toCurrency,
     rate,

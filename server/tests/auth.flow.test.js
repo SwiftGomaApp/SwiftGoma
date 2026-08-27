@@ -4,6 +4,7 @@ const request = require("supertest");
 
 jest.mock("../src/common/emails", () => ({
   sendOtpLoginEmail: jest.fn().mockResolvedValue(true),
+  sendEmailVerificationOtpEmail: jest.fn().mockResolvedValue(true),
   sendPasswordResetOtpEmail: jest.fn().mockResolvedValue(true),
   loginDetectedEmail: jest.fn(() => ({
     subject: "Test - New sign-in",
@@ -44,7 +45,10 @@ jest.mock("../src/config/sms", () => ({
 
 const createApp = require("../src/app");
 const { getPrismaClient } = require("../src/config/prisma");
-const { sendOtpLoginEmail } = require("../src/common/emails");
+const {
+  sendOtpLoginEmail,
+  sendEmailVerificationOtpEmail,
+} = require("../src/common/emails");
 
 const app = createApp();
 const prisma = getPrismaClient();
@@ -63,6 +67,11 @@ let refreshToken;
 
 function getLastSentCode() {
   const lastCall = sendOtpLoginEmail.mock.calls.at(-1);
+  return lastCall ? lastCall[1].code : null;
+}
+
+function getLastVerificationCode() {
+  const lastCall = sendEmailVerificationOtpEmail.mock.calls.at(-1);
   return lastCall ? lastCall[1].code : null;
 }
 
@@ -113,7 +122,7 @@ describe("Full auth flow", () => {
   });
 
   test("POST /verify-email succeeds with the real code", async () => {
-    const code = getLastSentCode();
+    const code = getLastVerificationCode();
     expect(code).toBeTruthy();
 
     const res = await req("post", "/api/v1/auth/verify-email").send({

@@ -58,7 +58,9 @@ module.exports = {
   },
   incidents: {
     titleRequired: "Please provide a title.",
+    titleTooLong: "Title must be 200 characters or fewer.",
     descriptionRequired: "Please provide a description.",
+    descriptionTooLong: "Description must be 5000 characters or fewer.",
     invalidSeverity: "Invalid severity.",
     notFound: "Incident not found.",
     invalidStatus: "Invalid status.",

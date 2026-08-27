@@ -3,6 +3,7 @@ const {
   getIncidents,
   postCreateIncident,
   patchUpdateIncident,
+  patchUpdateIncidentStatus,
 } = require("../controllers/incident.controller");
 const { authenticate } = require("../../../common/middleware/authenticate");
 const { authorize } = require("../../../common/middleware/authorize");
@@ -27,7 +28,7 @@ IncidentRouter.patch(
   "/:id/status",
   authenticate,
   authorize("ADMIN", "SUPPORT"),
-  patchUpdateIncident,
+  patchUpdateIncidentStatus,
 );
 
 module.exports = IncidentRouter;

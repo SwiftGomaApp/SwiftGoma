@@ -10,8 +10,16 @@ const { PRODUCT_CONFIG } = require("../../product/config/product.config");
 const prisma = getPrismaClient();
 
 async function getOrCreateCart(buyerId, shopId) {
-  const shop = await prisma.shop.findUnique({ where: { id: shopId } });
-  if (!shop || shop.deletedAt || shop.status !== "PUBLISHED") {
+  const shop = await prisma.shop.findUnique({
+    where: { id: shopId },
+    include: { sellerProfile: { select: { status: true } } },
+  });
+  if (
+    !shop ||
+    shop.deletedAt ||
+    shop.status !== "PUBLISHED" ||
+    shop.sellerProfile?.status === "SUSPENDED"
+  ) {
     throw new NotFoundError("Boutique introuvable.");
   }
 
@@ -137,7 +145,11 @@ async function getPreferredCurrency(buyerId) {
   return user?.preferredCurrency ?? null;
 }
 
-function resolveDisplayCurrency(requestedCurrency, preferredCurrency, fallbackCurrency) {
+function resolveDisplayCurrency(
+  requestedCurrency,
+  preferredCurrency,
+  fallbackCurrency,
+) {
   if (
     requestedCurrency &&
     PRODUCT_CONFIG.SUPPORTED_CURRENCIES.includes(requestedCurrency)
@@ -223,7 +235,12 @@ async function attachDisplayPrices(cart, displayCurrency) {
     }
   }
 
-  return { ...cart, cartCurrency, displayDeliveryFee, items: itemsWithConversion };
+  return {
+    ...cart,
+    cartCurrency,
+    displayDeliveryFee,
+    items: itemsWithConversion,
+  };
 }
 
 async function getCart(buyerId, shopId, requestedCurrency = null) {

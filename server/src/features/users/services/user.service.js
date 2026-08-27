@@ -2,7 +2,7 @@ const { getPrismaClient } = require("../../../config/prisma");
 const { env } = require("../../../config/env");
 const { PRODUCT_CONFIG } = require("../../product/config/product.config");
 const {
-  sendOtpLoginEmail,
+  sendEmailVerificationOtpEmail,
   sendPhoneChangedEmail,
   sendAccountDeletionEmail,
   sendAccountRecoveryOtpEmail,
@@ -782,7 +782,7 @@ async function requestSecondaryEmail({ userId, email, locale = "en" }) {
     });
   }
 
-  await sendOtpLoginEmail(normalizedEmail, {
+  await sendEmailVerificationOtpEmail(normalizedEmail, {
     name: user.name,
     code,
     expiresInMinutes: SECONDARY_EMAIL_OTP_TTL_MINUTES,
