@@ -19,15 +19,14 @@ async function getViewCounts(productIds) {
   }
 
   const keys = productIds.map((id) => `product:views:${id}`);
-  const values = await redis.mget(...keys);
-
-  const counts = new Map(
-    productIds.map((id, i) => [id, Number(values[i]) || 0]),
-  );
 
   const pipeline = redis.pipeline();
-  keys.forEach((key) => pipeline.del(key));
-  await pipeline.exec();
+  keys.forEach((key) => pipeline.getdel(key));
+  const results = await pipeline.exec();
+
+  const counts = new Map(
+    productIds.map((id, i) => [id, Number(results[i]?.[1]) || 0]),
+  );
 
   return counts;
 }

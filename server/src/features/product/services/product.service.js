@@ -1,5 +1,9 @@
 const { getPrismaClient } = require("../../../config/prisma");
-const { NotFoundError, ConflictError } = require("../../../common/errors");
+const {
+  NotFoundError,
+  ConflictError,
+  ForbiddenError,
+} = require("../../../common/errors");
 const {
   uploadImage,
   deleteAsset,
@@ -12,6 +16,7 @@ const {
   generateSlug,
   assertValidProductInput,
   assertValidVariantInput,
+  assertValidVariantCount,
   assertValidStatusTransition,
   assertCanCreateProduct,
   assertPhotoLimitNotExceeded,
@@ -73,9 +78,16 @@ OFFSET ${skip};
 }
 
 async function assertShopOwnedBySeller(shopId, sellerProfileId) {
-  const shop = await prisma.shop.findUnique({ where: { id: shopId } });
-  if (!shop || shop.sellerProfileId !== sellerProfileId || shop.deletedAt) {
+  const shop = await prisma.shop.findUnique({
+    where: { id: shopId },
+  });
+  if (!shop || !shop.sellerProfileId !== sellerProfileId || !shop.deletedAt) {
     throw new NotFoundError("Boutique introuvable.");
+  }
+  if (shop.status === "SUSPENDED") {
+    throw new ForbiddenError(
+      "Votre boutique est suspendue. Contactez le support pour plus d'informations.",
+    );
   }
   return shop;
 }
@@ -155,6 +167,7 @@ async function createProduct({
   if (!variants || variants.length === 0) {
     throw new ConflictError("Au moins une variante est requise.");
   }
+  assertValidVariantCount(variants.length);
   const hasVariants = variants.length > 1;
   variants.forEach((v) => assertValidVariantInput(v, currency));
 
@@ -168,19 +181,32 @@ async function createProduct({
 
   const slug = await generateUniqueSlug(name);
 
-  const uploadedImages = imageBuffers?.length
-    ? await Promise.all(
-        imageBuffers.map((img, i) =>
-          uploadImage(img.buffer, CLOUDINARY_FOLDERS.PRODUCT_IMAGES).then(
-            (res) => ({
-              url: res.url,
-              publicId: res.publicId,
-              position: i,
-            }),
-          ),
+  let uploadedImages = [];
+  if (imageBuffers?.length) {
+    const uploadResults = await Promise.allSettled(
+      imageBuffers.map((img, i) =>
+        uploadImage(img.buffer, CLOUDINARY_FOLDERS.PRODUCT_IMAGES).then(
+          (res) => ({
+            url: res.url,
+            publicId: res.publicId,
+            position: i,
+          }),
         ),
-      )
-    : [];
+      ),
+    );
+
+    uploadedImages = uploadResults
+      .filter((r) => r.status === "fulfilled")
+      .map((r) => r.value);
+
+    const failedUpload = uploadResults.find((r) => r.status === "rejected");
+    if (failedUpload) {
+      await Promise.all(
+        uploadedImages.map((img) => deleteAsset(img.publicId, "image")),
+      );
+      throw failedUpload.reason;
+    }
+  }
 
   try {
     return await prisma.$transaction(
@@ -371,6 +397,10 @@ async function updateProduct(productId, sellerProfileId, data) {
   if (data.weightGrams !== undefined) updateData.weightGrams = data.weightGrams;
   if (data.expiresAt !== undefined) {
     updateData.expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
+    assertExpiryRequiredIfFood(
+      product.subcategory.category.slug,
+      updateData.expiresAt,
+    );
   }
 
   assertValidProductInput({

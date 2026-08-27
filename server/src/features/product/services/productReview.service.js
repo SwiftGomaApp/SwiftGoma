@@ -1,11 +1,16 @@
 const { getPrismaClient } = require("../../../config/prisma");
-const { ValidationError, ForbiddenError, NotFoundError } = require("../../../common/errors");
+const {
+  ValidationError,
+  ForbiddenError,
+  NotFoundError,
+} = require("../../../common/errors");
 const { invalidateProductCaches } = require("./product.service");
 const { invalidateShopCache } = require("../../seller/services/shop.service");
 
 const prisma = getPrismaClient();
 
 const QUALIFYING_ORDER_STATUSES = ["DELIVERED", "COMPLETED"];
+const REVIEW_COMMENT_MAX_LENGTH = 1000;
 
 async function assertPurchased(userId, productId) {
   const item = await prisma.orderItem.findFirst({
@@ -24,10 +29,17 @@ async function assertPurchased(userId, productId) {
 async function submitReview({ userId, productId, rating, comment }) {
   const ratingInt = Number(rating);
   if (!Number.isInteger(ratingInt) || ratingInt < 1 || ratingInt > 5) {
-    throw new ValidationError("La note doit être un nombre entier entre 1 et 5.");
+    throw new ValidationError(
+      "La note doit être un nombre entier entre 1 et 5.",
+    );
   }
   if (!comment || typeof comment !== "string" || !comment.trim()) {
     throw new ValidationError("Veuillez rédiger un commentaire.");
+  }
+  if (comment.trim().length > REVIEW_COMMENT_MAX_LENGTH) {
+    throw new ValidationError(
+      `Le commentaire ne doit pas dépasser ${REVIEW_COMMENT_MAX_LENGTH} caractères.`,
+    );
   }
 
   const product = await prisma.product.findUnique({

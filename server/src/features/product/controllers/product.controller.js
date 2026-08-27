@@ -41,6 +41,12 @@ function parseVariants(body) {
   return body.variants;
 }
 
+function parseOptionalNumber(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : undefined;
+}
+
 async function postCreateProduct(req, res, next) {
   try {
     const sellerProfileId = await getSellerProfileIdForUser(req.user.id);
@@ -162,8 +168,8 @@ async function getProducts(req, res, next) {
       categoryId: req.query.categoryId,
       subcategoryId: req.query.subcategoryId,
       shopId: req.query.shopId,
-      minPrice: req.query.minPrice ? Number(req.query.minPrice) : undefined,
-      maxPrice: req.query.maxPrice ? Number(req.query.maxPrice) : undefined,
+      minPrice: parseOptionalNumber(req.query.minPrice),
+      maxPrice: parseOptionalNumber(req.query.maxPrice),
       currency: req.query.currency,
       search: req.query.search,
       inStockOnly: req.query.inStockOnly,

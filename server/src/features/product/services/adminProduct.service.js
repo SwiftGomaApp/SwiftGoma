@@ -1,5 +1,6 @@
 const { getPrismaClient } = require("../../../config/prisma");
 const { NotFoundError, BadRequestError } = require("../../../common/errors");
+const { invalidateProductCaches } = require("./product.service");
 const {
   createNotification,
 } = require("../../notification/services/notification.service");
@@ -125,6 +126,8 @@ async function adminUpdateProductStatus(productId, actor, { status, reason }) {
       variants: { select: { price: true } },
     },
   });
+
+  await invalidateProductCaches(product.slug);
 
   try {
     const sellerUserId = product.shop.sellerProfile.userId;
