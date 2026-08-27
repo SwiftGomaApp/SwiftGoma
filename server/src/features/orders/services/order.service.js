@@ -64,7 +64,12 @@ async function getShopOrThrow(shopId) {
     where: { id: shopId },
     include: { sellerProfile: { include: { user: true } } },
   });
-  if (!shop || shop.deletedAt || shop.status !== "PUBLISHED") {
+  if (
+    !shop ||
+    shop.deletedAt ||
+    shop.status !== "PUBLISHED" ||
+    shop.sellerProfile?.status === "SUSPENDED"
+  ) {
     throw new NotFoundError("Boutique introuvable.");
   }
   return shop;

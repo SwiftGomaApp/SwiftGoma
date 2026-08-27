@@ -53,6 +53,12 @@ async function uploadKycSelfie(file, folder) {
   return { ...result, resourceType: "image" };
 }
 
+function getResourceTypeFromUrl(url) {
+  if (!url) return "image";
+  const match = url.match(/\/(image|raw|video)\/upload\//);
+  return match ? match[1] : "image";
+}
+
 const SENSITIVE_USER_FIELDS = [
   "password",
   "phoneVerificationCode",
@@ -378,7 +384,7 @@ async function rejectKyc(actor, kycId, reason) {
     const emailContent = sellerKycStatusEmail({
       name: kyc.sellerProfile.businessName,
       action: "rejected",
-      reason,
+      reason: trimmedReason,
       actionUrl: `${env.appUrl}/seller/onboarding`,
       locale: "fr",
     });
@@ -426,6 +432,7 @@ async function resubmitKyc({
     rejectionReason: null,
   };
   const newlyUploaded = [];
+  const oldAssetsToDelete = [];
 
   if (idDocumentFile) {
     uploads.push(
@@ -434,6 +441,10 @@ async function resubmitKyc({
           data.idDocumentUrl = r.url;
           data.idDocumentPublicId = r.publicId;
           newlyUploaded.push(r);
+          oldAssetsToDelete.push({
+            publicId: kyc.idDocumentPublicId,
+            resourceType: getResourceTypeFromUrl(kyc.idDocumentUrl),
+          });
         },
       ),
     );
@@ -447,6 +458,10 @@ async function resubmitKyc({
         data.proofOfAddressUrl = r.url;
         data.proofOfAddressPublicId = r.publicId;
         newlyUploaded.push(r);
+        oldAssetsToDelete.push({
+          publicId: kyc.proofOfAddressPublicId,
+          resourceType: getResourceTypeFromUrl(kyc.proofOfAddressUrl),
+        });
       }),
     );
   }
@@ -457,6 +472,10 @@ async function resubmitKyc({
           data.selfieUrl = r.url;
           data.selfiePublicId = r.publicId;
           newlyUploaded.push(r);
+          oldAssetsToDelete.push({
+            publicId: kyc.selfiePublicId,
+            resourceType: "image",
+          });
         },
       ),
     );
@@ -470,6 +489,12 @@ async function resubmitKyc({
         data.rccmDocumentUrl = r.url;
         data.rccmDocumentPublicId = r.publicId;
         newlyUploaded.push(r);
+        if (kyc.rccmDocumentPublicId) {
+          oldAssetsToDelete.push({
+            publicId: kyc.rccmDocumentPublicId,
+            resourceType: getResourceTypeFromUrl(kyc.rccmDocumentUrl),
+          });
+        }
       }),
     );
   }
@@ -503,6 +528,14 @@ async function resubmitKyc({
     where: { id: kyc.id },
     data,
   });
+
+  if (oldAssetsToDelete.length > 0) {
+    await Promise.all(
+      oldAssetsToDelete.map((asset) =>
+        deleteAsset(asset.publicId, asset.resourceType),
+      ),
+    );
+  }
 
   return updated;
 }

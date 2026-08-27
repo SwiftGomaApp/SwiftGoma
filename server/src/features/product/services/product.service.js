@@ -80,11 +80,15 @@ OFFSET ${skip};
 async function assertShopOwnedBySeller(shopId, sellerProfileId) {
   const shop = await prisma.shop.findUnique({
     where: { id: shopId },
+    include: { sellerProfile: { select: { status: true } } },
   });
-  if (!shop || !shop.sellerProfileId !== sellerProfileId || !shop.deletedAt) {
+  if (!shop || shop.sellerProfileId !== sellerProfileId || shop.deletedAt) {
     throw new NotFoundError("Boutique introuvable.");
   }
-  if (shop.status === "SUSPENDED") {
+  if (
+    shop.status === "SUSPENDED" ||
+    shop.sellerProfile?.status === "SUSPENDED"
+  ) {
     throw new ForbiddenError(
       "Votre boutique est suspendue. Contactez le support pour plus d'informations.",
     );
