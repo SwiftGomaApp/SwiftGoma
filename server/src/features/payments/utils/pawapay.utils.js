@@ -1,8 +1,6 @@
 const crypto = require("crypto");
 const { ValidationError } = require("../../../common/errors");
 
-const ZERO_DECIMAL_CURRENCIES = ["CDF", "XAF", "XOF", "RWF", "USD"];
-
 function generateTransactionId() {
   return crypto.randomUUID();
 }
@@ -26,13 +24,8 @@ function isValidMsisdn(msisdn) {
   return /^[0-9]{9,15}$/.test(msisdn.replace(/^\+/, ""));
 }
 
-function normalizeMsisdn(phone) {
-  if (!phone) return "";
-  return phone
-    .replace(/[^0-9]/g, "")
-    .replace(/^0+/, (match) =>
-      match.length === phone.replace(/[^0-9]/g, "").length ? match : "",
-    );
+function toMsisdn(msisdn) {
+  return msisdn.replace(/^\+/, "");
 }
 
 function isValidStatementDescription(description) {
@@ -53,7 +46,9 @@ function buildMetadata(entries) {
     });
 
   if (metadata.length > 10) {
-    throw new ValidationError("Les métadonnées ne peuvent pas dépasser 10 éléments.");
+    throw new ValidationError(
+      "Les métadonnées ne peuvent pas dépasser 10 éléments.",
+    );
   }
   return metadata;
 }
@@ -63,7 +58,7 @@ module.exports = {
   isValidAmount,
   formatAmount,
   isValidMsisdn,
-  normalizeMsisdn,
+  toMsisdn,
   isValidStatementDescription,
   buildMetadata,
 };

@@ -4,6 +4,7 @@ const {
   isValidAmount,
   formatAmount,
   isValidMsisdn,
+  toMsisdn,
   isValidStatementDescription,
   buildMetadata,
 } = require("../utils/pawapay.utils");
@@ -91,7 +92,7 @@ async function initiateDeposit({
     depositId,
     payer: {
       type: "MMO",
-      accountDetails: { phoneNumber: payerPhoneNumber, provider },
+      accountDetails: { phoneNumber: toMsisdn(payerPhoneNumber), provider },
     },
     amount: formatAmount(amount, decimalsInAmount),
     currency,
@@ -169,7 +170,10 @@ async function initiatePayout({
     payoutId,
     recipient: {
       type: "MMO",
-      accountDetails: { phoneNumber: recipientPhoneNumber, provider },
+      accountDetails: {
+        phoneNumber: toMsisdn(recipientPhoneNumber),
+        provider,
+      },
     },
     amount: formatAmount(amount, decimalsInAmount),
     currency,
@@ -221,7 +225,10 @@ async function initiateRefund({
 
   refundId: requestedRefundId,
 }) {
-  if (!depositId) throw new ValidationError("Identifiant de dépôt manquant pour le remboursement.");
+  if (!depositId)
+    throw new ValidationError(
+      "Identifiant de dépôt manquant pour le remboursement.",
+    );
   if (amount !== undefined && !isValidAmount(amount))
     throw new ValidationError("Montant de remboursement invalide.");
 

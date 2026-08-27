@@ -4,6 +4,12 @@
     {
       "name": "web",
       "url": "http://localhost:3001"
+    },
+    {
+      "name": "docs",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "apps/docs", "--", "-p", "3002"],
+      "port": 3002
     }
   ]
 }
