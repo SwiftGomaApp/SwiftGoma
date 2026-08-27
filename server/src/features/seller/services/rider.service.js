@@ -8,7 +8,9 @@ const {
   getOtpExpiry,
   hashVerificationCode,
 } = require("../../auth/utils/auth");
-const { sendOtpLoginEmail } = require("../../../common/emails");
+const {
+  sendEmailVerificationOtpEmail,
+} = require("../../../common/emails");
 const {
   createNotification,
 } = require("../../notification/services/notification.service");
@@ -165,7 +167,7 @@ async function createRiderAccount({
   });
 
   try {
-    await sendOtpLoginEmail(normalizedEmail, {
+    await sendEmailVerificationOtpEmail(normalizedEmail, {
       name: name.trim(),
       code,
       expiresInMinutes: RIDER_INVITE_OTP_TTL_MINUTES,

@@ -5,6 +5,18 @@ const FONT_FAMILY =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
 const COPY = {
+  en: {
+    heading: "Approve a SwiftGoma expense",
+    hello: (name) => `Hello, <strong>${name}</strong>.`,
+    intro: (reference, title, amount, currency, vendor) =>
+      `The expense <strong>${reference}</strong> — "${title}" — of <strong>${amount} ${currency}</strong> to <strong>${vendor}</strong> is awaiting your approval. Enter this code to trigger the PawaPay payment:`,
+    expiry: (mins) =>
+      `This code expires in ${mins} minutes. If you did not request this, contact support immediately.`,
+    subject: (code) => `[${BRAND.name} Admin] Expense approval code: ${code}`,
+    preheader: (reference, code) =>
+      `Approve expense ${reference}: ${code}`,
+    reason: `You're receiving this because a SwiftGoma expense is awaiting your approval in the admin dashboard.`,
+  },
   fr: {
     heading: "Approuver une dépense SwiftGoma",
     hello: (name) => `Bonjour, <strong>${name}</strong>.`,
@@ -41,9 +53,24 @@ function adminExpenseOtpEmail(data) {
     <p style="margin: 0 0 16px 0; font-family: ${FONT_FAMILY};">
       ${t.intro(expenseReference, expenseTitle, amount, currency, vendorName)}
     </p>
-    <div style="margin: 24px 0; text-align: center;">
-      <span style="display: inline-block; font-family: ${FONT_FAMILY}; font-size: 32px; font-weight: 700; letter-spacing: 8px; color: #111827;">${code}</span>
-    </div>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 24px 0;">
+      <tr>
+        <td
+          style="
+            background-color: #f5f5f5;
+            border-radius: 6px;
+            padding: 16px 24px;
+            font-family: 'Courier New', monospace;
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 6px;
+            color: ${BRAND.colors.text};
+          "
+        >
+          ${code}
+        </td>
+      </tr>
+    </table>
     <p style="margin: 0; font-family: ${FONT_FAMILY}; color: #6b7280; font-size: 14px;">
       ${t.expiry(expiresInMinutes)}
     </p>

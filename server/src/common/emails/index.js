@@ -1,6 +1,9 @@
 const { sendMail } = require("../../config/mailer");
 const { loginDetectedEmail } = require("./templates/loginDetected");
 const { otpLoginEmail } = require("./templates/otpLogin");
+const {
+  emailVerificationOtpEmail,
+} = require("./templates/emailVerificationOtp");
 const { paymentReceiptEmail } = require("./templates/paymentReceipt");
 const { subscriptionEmail } = require("./templates/subscription");
 const { newsEmail } = require("./templates/news");
@@ -30,6 +33,11 @@ async function sendLoginDetectedEmail(to, data) {
 
 async function sendOtpLoginEmail(to, data) {
   const { subject, html } = otpLoginEmail(data);
+  return sendMail({ to, subject, html });
+}
+
+async function sendEmailVerificationOtpEmail(to, data) {
+  const { subject, html } = emailVerificationOtpEmail(data);
   return sendMail({ to, subject, html });
 }
 
@@ -128,6 +136,7 @@ async function sendAdminExpenseOtpEmail(to, data) {
 module.exports = {
   sendLoginDetectedEmail,
   sendOtpLoginEmail,
+  sendEmailVerificationOtpEmail,
   sendPaymentReceiptEmail,
   sendSubscriptionEmail,
   sendNewsEmail,
