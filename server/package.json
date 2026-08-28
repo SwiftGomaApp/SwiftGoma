@@ -32,6 +32,7 @@
     "@simplewebauthn/server": "^13.3.2",
     "@socket.io/redis-adapter": "^8.3.0",
     "africastalking": "^0.8.3",
+    "apple-signin-auth": "^2.1.0",
     "async_hooks": "^1.0.0",
     "axios": "^1.18.1",
     "bcryptjs": "^3.0.3",

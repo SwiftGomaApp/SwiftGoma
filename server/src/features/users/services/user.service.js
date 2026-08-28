@@ -42,6 +42,7 @@ const { ACCOUNT_DELETION_CONFIG } = require("../config/accountDeletion.config");
 const { signMfaPendingToken } = require("../../../config/jwt");
 const { isWithinRecoveryGracePeriod } = require("../utils/accountDeletion");
 const { verifyGoogleIdToken } = require("../../auth/config/google.config");
+const { verifyAppleIdToken } = require("../../auth/config/apple.config");
 const { maskPhone } = require("../utils/phone");
 const {
   accountStatusEmail,
@@ -904,6 +905,60 @@ async function unlinkGoogleAccount(userId) {
   return { message: "Compte Google délié avec succès.", googleLinked: false };
 }
 
+async function linkAppleAccount(userId, idToken) {
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+
+  if (!user) throw new NotFoundError("Compte introuvable.");
+  if (user.deletedAt) throw new BadRequestError("Ce compte est supprimé.");
+  if (user.appleId) throw new ConflictError("Un compte Apple est déjà lié.");
+
+  const payload = await verifyAppleIdToken(idToken);
+  if (!payload?.appleId) throw new UnauthorizedError("Token Apple invalide.");
+
+  const existing = await prisma.user.findUnique({
+    where: { appleId: payload.appleId },
+  });
+
+  if (existing) {
+    throw new ConflictError("Ce compte est déjà lié a un aute utilisateur. ");
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { appleId: payload.appleId },
+  });
+
+  return { message: "Compte Apple lié avec succès.", appleLinked: true };
+}
+
+async function unlinkAppleAccount(userId) {
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { emails: { where: { isPrimary: true }, take: 1 } },
+  });
+
+  if (!user) throw new NotFoundError("Compte introuvable.");
+  if (!user.appleId) throw new BadRequestError("Aucun compte Apple n'est lié.");
+
+  const hasPassword = Boolean(user.password);
+  const hasVerifiedEmail = Boolean(user.emails[0]?.isVerified);
+
+  if (!hasPassword && !hasVerifiedEmail) {
+    throw new BadRequestError(
+      "Ajoutez un mot de passe ou vérifiez votre e-mail avant de délier Apple, pour éviter d'être bloqué hors de votre compte.",
+    );
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { appleId: null },
+  });
+
+  return { message: "Compte Apple délié avec succès.", appleLinked: false };
+}
+
 async function listUsers(query) {
   const { page, limit, skip } = parsePagination(query);
   const { role, status, search } = query;
@@ -1508,6 +1563,8 @@ module.exports = {
   verifySecondaryEmail,
   linkGoogleAccount,
   unlinkGoogleAccount,
+  linkAppleAccount,
+  unlinkAppleAccount,
   listUsers,
   getUserDetail,
   blockUser,

@@ -162,6 +162,27 @@ async function postUnlinkGoogle(req, res, next) {
   }
 }
 
+async function postLinkApple(req, res, next) {
+  try {
+    const result = await userService.linkAppleAccount(
+      req.user.id,
+      req.body.idToken,
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function postUnlinkApple(req, res, next) {
+  try {
+    const result = await userService.unlinkAppleAccount(req.user.id);
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function getUsers(req, res, next) {
   try {
     const result = await userService.listUsers(req.query);
@@ -301,6 +322,8 @@ module.exports = {
   verifySecondaryEmail,
   postLinkGoogle,
   postUnlinkGoogle,
+  postLinkApple,
+  postUnlinkApple,
   getUsers,
   getUserById,
   postBlockUser,

@@ -319,6 +319,68 @@ async function loginWithGoogle(req, res) {
   res.status(200).json({ success: true, data: { user } });
 }
 
+async function registerWithApple(req, res) {
+  const { idToken, name, role, deviceName, locale } = req.body;
+  const userAgent = req.headers["user-agent"] || null;
+  const ipAddress = getClientIp(req);
+  const isMobile = req.headers["x-client-type"] === "mobile";
+
+  const { user, accessToken, refreshToken } =
+    await authService.registerWithAppleId({
+      idToken,
+      name,
+      role,
+      userAgent,
+      ipAddress,
+      deviceName,
+      locale,
+    });
+
+  if (isMobile) {
+    return res
+      .status(201)
+      .json({ success: true, data: { user, accessToken, refreshToken } });
+  }
+
+  setAccessTokenCookie(res, accessToken, req);
+  setRefreshTokenCookie(res, refreshToken, req);
+  res.status(201).json({ success: true, data: { user } });
+}
+
+async function loginWithApple(req, res) {
+  const { idToken, deviceName, locale } = req.body;
+  const userAgent = req.headers["user-agent"] || null;
+  const ipAddress = getClientIp(req);
+  const isMobile = req.headers["x-client-type"] === "mobile";
+
+  const result = await authService.loginWithAppleId({
+    idToken,
+    userAgent,
+    ipAddress,
+    deviceName,
+    locale,
+  });
+
+  if (result.requiresTotp) {
+    return res.status(200).json({
+      success: true,
+      data: { requiresTotp: true, pendingToken: result.pendingToken },
+    });
+  }
+
+  const { user, accessToken, refreshToken } = result;
+
+  if (isMobile) {
+    return res
+      .status(200)
+      .json({ success: true, data: { user, accessToken, refreshToken } });
+  }
+
+  setAccessTokenCookie(res, accessToken, req);
+  setRefreshTokenCookie(res, refreshToken, req);
+  res.status(200).json({ success: true, data: { user } });
+}
+
 async function generatePasskeyRegistrationOptions(req, res) {
   const options = await authService.generatePasskeyRegistrationOptions({
     userId: req.user.id,
@@ -416,6 +478,8 @@ module.exports = {
   regenerateBackupCodes,
   registerWithGoogle,
   loginWithGoogle,
+  registerWithApple,
+  loginWithApple,
   generatePasskeyRegistrationOptions,
   verifyPasskeyRegistration,
   generatePasskeyLoginOptions,

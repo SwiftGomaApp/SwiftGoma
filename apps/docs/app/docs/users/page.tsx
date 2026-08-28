@@ -164,20 +164,28 @@ export default function UsersGuidePage() {
 
       <h2 className="mb-3 text-xl font-semibold tracking-tight">Linked sign-in methods</h2>
       <p className="mb-4 text-[15px] leading-relaxed text-muted-foreground">
-        A Google account can be linked to or unlinked from an existing SwiftGoma account at any
-        time via{" "}
+        A Google or Apple account can be linked to or unlinked from an existing SwiftGoma
+        account at any time via{" "}
         <Link href="/reference/google-link" className="text-primary underline underline-offset-2">
           POST /google/link
         </Link>{" "}
-        and{" "}
+        /{" "}
         <Link href="/reference/google-unlink" className="text-primary underline underline-offset-2">
           POST /google/unlink
+        </Link>{" "}
+        and{" "}
+        <Link href="/reference/apple-link" className="text-primary underline underline-offset-2">
+          POST /apple/link
+        </Link>{" "}
+        /{" "}
+        <Link href="/reference/apple-unlink" className="text-primary underline underline-offset-2">
+          POST /apple/unlink
         </Link>
         .
       </p>
       <Callout variant="warning" title="Don&apos;t lock the user out">
-        Unlinking Google fails if it&apos;s the account&apos;s only sign-in method — the user needs a
-        password set first (see{" "}
+        Unlinking Google or Apple fails if it&apos;s the account&apos;s only sign-in method — the
+        user needs a password set first (see{" "}
         <Link href="/reference/password-create" className="text-primary underline underline-offset-2">
           POST /password/create
         </Link>{" "}

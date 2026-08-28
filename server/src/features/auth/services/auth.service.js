@@ -38,11 +38,13 @@ const { encryptSecret, decryptSecret } = require("../utils/totpEncryption");
 const { claimTotpStep } = require("../utils/totpReplayGuard");
 const { TOTP_CONFIG } = require("../config/totp.config");
 const { verifyGoogleIdToken } = require("../config/google.config");
+const { verifyAppleIdToken } = require("../config/apple.config");
 const { WEBAUTHN_CONFIG } = require("../config/webauthn.config");
 const cache = require("../../../common/services/cache");
 const {
   assertAccountNotDeleted,
 } = require("../../users/utils/accountDeletion");
+
 const {
   AppError,
   ValidationError,
@@ -71,6 +73,7 @@ const {
 const {
   NOTIFICATION_TYPES,
 } = require("../../notification/config/notificationTypes");
+const { isPrimary } = require("cluster");
 
 const EMAIL_VERIFICATION_OTP_TTL_MINUTES = 10;
 const LOGIN_OTP_TTL_MINUTES = 10;
@@ -1659,6 +1662,126 @@ async function loginWithGoogle({
   return { user: sanitizeUser(user), accessToken, refreshToken, sessionId };
 }
 
+async function registerWithAppleId({
+  idToken,
+  name,
+  role,
+  userAgent,
+  ipAddress,
+  deviceName,
+  locale = "en",
+}) {
+  const safeRole = assertSelfAssignableRole(role);
+  const profile = await verifyAppleIdToken(idToken);
+  const prisma = getPrismaClient();
+
+  if (profile.email) {
+    throw new UnauthorizedError(
+      "Apple n'a fourni aucune addresse email pour ce compte.",
+    );
+  }
+
+  const existingByAppleId = await prisma.user.findUnique({
+    where: { appleId: profile.appleId },
+  });
+
+  if (existingByAppleId) {
+    throw new ConflictError(
+      "Un compte est déjà lié à ce compte Apple. Veuillez vous connecter à la place.",
+    );
+  }
+
+  const normalizedEmail = profile.email.trim().toLowerCase();
+  const existingEmail = await prisma.userEmail.findUnique({
+    where: { email: normalizedEmail },
+  });
+
+  if (existingEmail) {
+    throw new AppError(
+      "Un compte avec cet email existe déjà. Connectez-vous et liez votre compte Apple depuis les paramètres.",
+      409,
+      "EMAIL_ALREADY_REGISTERED",
+    );
+  }
+
+  const user = await prisma.user.create({
+    data: {
+      name: (name && name.trim()) || normalizedEmail.split("@")[0],
+      appleId: profile.appleId,
+      role: safeRole,
+      emails: {
+        create: {
+          email: normalizedEmail,
+          isPrimary: true,
+          isVerified: profile.emailVerified,
+        },
+      },
+    },
+    include: { emails: true, twoFactorAuth: true },
+  });
+
+  const { accessToken, refreshToken, sessionId } = await issueSessionAndNotify(
+    user,
+    { userAgent, ipAddress, deviceName, locale },
+  );
+
+  return { user: sanitizeUser(user), accessToken, refreshToken, sessionId };
+}
+
+async function loginWithAppleId({
+  idToken,
+  userAgent,
+  ipAddress,
+  deviceName,
+  locale = "en",
+}) {
+  const profile = await verifyAppleIdToken(idToken);
+  const prisma = getPrismaClient();
+
+  const user = await prisma.user.findunq({
+    where: { appleId: profile.appleId },
+    include: { emails: true, twoFactorAuth: true },
+  });
+
+  if (!user) {
+    const normalizedEmail = profile.email
+      ? profile.email.trim().toLowerCase()
+      : null;
+    const existingEmail = normalizedEmail
+      ? await prisma.userEmail.findUnique({ where: { email: normalizedEmail } })
+      : null;
+    if (existingEmail) {
+      throw new AppError(
+        "Cet email est enregistré mais n'est pas encore lié à Apple. Connectez-vous autrement et liez votre compte Apple depuis les paramètres.",
+        409,
+        "APPLE_NOT_LINKED",
+      );
+    }
+    throw new NotFoundError(
+      "Aucun compte trouvé pour ce compte Apple. Veuillez vous inscrire d'abord.",
+    );
+  }
+
+  if (user.isBlocked) {
+    throw new ForbiddenError("Ce compte a été bloqué. Contactez le support.");
+  }
+  assertAccountNotDeleted(user);
+
+  if (user.twoFactorAuth && user.twoFactorAuth.isEnabled) {
+    return {
+      requiresTotp: true,
+      pendingToken: signMfaPendingToken({ userId: user.id }),
+    };
+  }
+
+  const { accessToken, refreshToken, sessionId } = await issueSessionAndNotify(
+    user,
+    { userAgent, ipAddress, deviceName, locale },
+  );
+
+  return { user: sanitizeUser(user), accessToken, refreshToken, sessionId };
+}
+
 const WEBAUTHN_CHALLENGE_TTL_SECONDS = Math.floor(
   WEBAUTHN_CONFIG.timeoutMs / 1000,
 );
@@ -2028,6 +2151,8 @@ module.exports = {
   loginWithTotp,
   regenerateBackupCodes,
   registerWithGoogle,
+  registerWithAppleId,
+  loginWithAppleId,
   loginWithGoogle,
   generatePasskeyRegistrationOptions,
   verifyPasskeyRegistration,
