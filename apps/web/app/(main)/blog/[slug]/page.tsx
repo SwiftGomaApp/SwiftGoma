@@ -125,13 +125,14 @@ export default async function BlogPostPage({ params }: Props) {
       </section>
 
       {/* Rich text content */}
-      <article className="mx-auto max-w-3xl px-4 pb-20 sm:px-6 lg:px-8">
+      <article className="mx-auto max-w-3xl overflow-x-hidden px-4 pb-20 sm:px-6 lg:px-8">
         <div
           className="
             prose
             prose-neutral
             dark:prose-invert
             max-w-none
+            wrap-break-word
 
             prose-headings:font-semibold
             prose-headings:tracking-tight
