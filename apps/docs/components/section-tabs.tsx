@@ -13,7 +13,7 @@ export function SectionTabs() {
   const pathname = usePathname();
 
   return (
-    <div className="border-b border-border px-6 sm:px-10 lg:px-16">
+    <div className="border-b border-border px-4 sm:px-10 lg:px-16">
       <nav className="mx-auto flex max-w-[1600px] items-center gap-6">
         {TABS.map((tab) => {
           const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);

@@ -30,7 +30,7 @@ const GUIDES = [
   { label: "Dashboard", href: "/docs/dashboard" },
 ];
 
-export function DocsSidebar() {
+export function DocsSidebar({ variant = "desktop" }: { variant?: "desktop" | "mobile" }) {
   const pathname = usePathname();
 
   const renderLinks = (items: { label: string; href: string }[]) =>
@@ -54,7 +54,13 @@ export function DocsSidebar() {
     });
 
   return (
-    <nav className="scrollbar-thin sticky top-[6.5rem] h-[calc(100vh-6.5rem)] w-64 shrink-0 overflow-y-auto border-r border-border px-3 py-6">
+    <nav
+      className={
+        variant === "mobile"
+          ? "px-1"
+          : "scrollbar-thin sticky top-[6.5rem] hidden h-[calc(100vh-6.5rem)] w-64 shrink-0 overflow-y-auto border-r border-border px-3 py-6 lg:block"
+      }
+    >
       <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         Introduction
       </p>
