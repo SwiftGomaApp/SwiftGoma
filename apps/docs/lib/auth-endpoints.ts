@@ -113,6 +113,29 @@ export const authEndpoints: EndpointDoc[] = [
       "On mobile clients (sending header x-client-type: mobile), the response body also includes accessToken and refreshToken.",
     ],
   },
+  {
+    slug: "register-apple",
+    method: "POST",
+    path: `${BASE}/register/apple`,
+    title: "Register with Apple",
+    group: "Account",
+    auth: "none",
+    rateLimit: "Account creation — tightly limited per IP",
+    description: "Creates a SwiftGoma account from a verified Apple ID token. Skips email verification since Apple already confirmed the address.",
+    bodyParams: [
+      { name: "idToken", type: "string", required: true, description: "Sign in with Apple identity token from the client SDK." },
+      { name: "name", type: "string", required: false, description: "Full name — only available from Apple on the very first authorization, so the client must capture and send it then." },
+      { name: "role", type: "string", required: false, description: "One of BUYER, SELLER, RIDER. Defaults to BUYER." },
+      { name: "deviceName", type: "string", required: false, description: "Human-readable device label for the new session." },
+      { name: "locale", type: "string", required: false, description: "en or fr." },
+    ],
+    successStatus: 201,
+    responseExample: { success: true, data: { user: sampleUser } },
+    notes: [
+      "On web, the access and refresh tokens are set as httpOnly cookies and are not present in the JSON body.",
+      "On mobile clients (sending header x-client-type: mobile), the response body also includes accessToken and refreshToken.",
+    ],
+  },
   // --- Login ---
   {
     slug: "login-google",
@@ -125,6 +148,26 @@ export const authEndpoints: EndpointDoc[] = [
     description: "Logs an existing user in using a Google ID token. If the account has TOTP enabled, this returns a pending token instead of a session.",
     bodyParams: [
       { name: "idToken", type: "string", required: true, description: "Google Sign-In ID token from the client SDK." },
+      { name: "deviceName", type: "string", required: false, description: "Human-readable device label for the new session." },
+      { name: "locale", type: "string", required: false, description: "en or fr." },
+    ],
+    successStatus: 200,
+    responseExample: { success: true, data: { user: sampleUser } },
+    notes: [
+      "If two-factor authentication is enabled, the response is { requiresTotp: true, pendingToken } instead — pass pendingToken to POST /login/totp.",
+    ],
+  },
+  {
+    slug: "login-apple",
+    method: "POST",
+    path: `${BASE}/login/apple`,
+    title: "Log in with Apple",
+    group: "Login",
+    auth: "none",
+    rateLimit: "Account creation — tightly limited per IP",
+    description: "Logs an existing user in using an Apple identity token. If the account has TOTP enabled, this returns a pending token instead of a session.",
+    bodyParams: [
+      { name: "idToken", type: "string", required: true, description: "Sign in with Apple identity token from the client SDK." },
       { name: "deviceName", type: "string", required: false, description: "Human-readable device label for the new session." },
       { name: "locale", type: "string", required: false, description: "en or fr." },
     ],

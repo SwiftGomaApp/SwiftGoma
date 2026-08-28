@@ -44,6 +44,19 @@ AuthRouter.post(
   authController.loginWithGoogle,
 );
 
+AuthRouter.post(
+  "/register/apple",
+  blockSuspectedBots,
+  accountLimiter,
+  authController.registerWithApple,
+);
+AuthRouter.post(
+  "/login/apple",
+  blockSuspectedBots,
+  accountLimiter,
+  authController.loginWithApple,
+);
+
 // --- Tier B: request/initiation (spam & enumeration risk) ---
 AuthRouter.post(
   "/resend-verification",

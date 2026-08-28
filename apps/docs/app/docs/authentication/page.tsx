@@ -32,9 +32,9 @@ export default function AuthenticationGuidePage() {
       <h1 className="mb-4 text-3xl font-semibold tracking-tight">Authentication</h1>
       <p className="mb-8 text-[15px] leading-relaxed text-muted-foreground">
         The SwiftGoma API uses short-lived access tokens paired with longer-lived refresh
-        tokens. Accounts can sign in with a password, a one-time email code, a passkey, or
-        Google — and can optionally add TOTP-based two-factor authentication on top of any of
-        them. Every endpoint mentioned on this page lives under{" "}
+        tokens. Accounts can sign in with a password, a one-time email code, a passkey,
+        Google, or Apple — and can optionally add TOTP-based two-factor authentication on
+        top of any of them. Every endpoint mentioned on this page lives under{" "}
         <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[13px]">
           https://api.swiftgoma.com/api/v1/auth
         </code>
@@ -71,8 +71,8 @@ export default function AuthenticationGuidePage() {
 
       <h2 className="mb-3 text-xl font-semibold tracking-tight">Ways to sign in</h2>
       <p className="mb-4 text-[15px] leading-relaxed text-muted-foreground">
-        All four methods converge on the same result — a session for web, or a token pair for
-        mobile — and all four can be intercepted by a two-factor challenge if the account has
+        All five methods converge on the same result — a session for web, or a token pair for
+        mobile — and all five can be intercepted by a two-factor challenge if the account has
         TOTP enabled.
       </p>
       <InfoTable
@@ -108,6 +108,13 @@ export default function AuthenticationGuidePage() {
             <code key="d">Google ID token from client SDK</code>,
             <Link key="d2" href="/reference/login-google" className="text-primary underline underline-offset-2">
               POST /login/google
+            </Link>,
+          ],
+          [
+            "Apple",
+            <code key="e">Apple identity token from client SDK</code>,
+            <Link key="e2" href="/reference/login-apple" className="text-primary underline underline-offset-2">
+              POST /login/apple
             </Link>,
           ],
         ]}
@@ -266,7 +273,7 @@ export default function AuthenticationGuidePage() {
             </Link>,
           ],
           [
-            <>Set a first password <span className="text-xs">(Google/passkey-only accounts)</span></>,
+            <>Set a first password <span className="text-xs">(Google/Apple/passkey-only accounts)</span></>,
             <Link key="c" href="/reference/password-create" className="text-primary underline underline-offset-2">
               POST /password/create
             </Link>,
@@ -326,7 +333,7 @@ export default function AuthenticationGuidePage() {
           ],
           [
             "Account creation",
-            "create-account, register/google, login/google",
+            "create-account, register/google, login/google, register/apple, login/apple",
             "Tightly limited per IP, and screened for automated traffic before hitting the limiter.",
           ],
           [

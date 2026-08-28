@@ -53,6 +53,13 @@ const env = {
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
   },
 
+  apple: {
+    clientIds: (process.env.APPLE_CLIENT_IDS || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean),
+  },
+
   webauthn: {
     rpId: process.env.WEBAUTHN_RP_ID || "localhost",
     rpName: process.env.WEBAUTHN_RP_NAME || "SwiftGoma",

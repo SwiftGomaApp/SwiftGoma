@@ -254,6 +254,7 @@ model User {
   accountRecoveryCodeExpiresAt DateTime?
 
   googleId String? @unique
+  appleId  String? @unique
 
   emails                  UserEmail[]
   sessions                Session[]

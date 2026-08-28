@@ -22,6 +22,7 @@ export const USER_GROUPS = [
   "Phone Number",
   "Secondary Email",
   "Google Account",
+  "Apple Account",
   "Admin",
 ] as const;
 
@@ -264,6 +265,37 @@ export const userEndpoints: EndpointDoc[] = [
     responseExample: { success: true, data: { linked: false } },
     errorExamples: [
       { status: 409, code: "CONFLICT", message: "Définissez un mot de passe avant de dissocier votre compte Google." },
+    ],
+  },
+  // --- Apple Account ---
+  {
+    slug: "apple-link",
+    method: "POST",
+    path: `${BASE}/apple/link`,
+    title: "Link Apple account",
+    group: "Apple Account",
+    auth: "bearer",
+    rateLimit: "Authenticated action",
+    description: "Links an Apple account to the signed-in user, enabling \"Sign in with Apple\" for this account going forward.",
+    bodyParams: [
+      { name: "idToken", type: "string", required: true, description: "Sign in with Apple identity token from the client SDK." },
+    ],
+    successStatus: 200,
+    responseExample: { success: true, data: { message: "Compte Apple lié avec succès.", appleLinked: true } },
+  },
+  {
+    slug: "apple-unlink",
+    method: "POST",
+    path: `${BASE}/apple/unlink`,
+    title: "Unlink Apple account",
+    group: "Apple Account",
+    auth: "bearer",
+    rateLimit: "Authenticated action",
+    description: "Removes the Apple account link. The account must have a password set, or another verified sign-in method available, before unlinking.",
+    successStatus: 200,
+    responseExample: { success: true, data: { message: "Compte Apple délié avec succès.", appleLinked: false } },
+    errorExamples: [
+      { status: 400, code: "BAD_REQUEST", message: "Ajoutez un mot de passe ou vérifiez votre e-mail avant de délier Apple, pour éviter d'être bloqué hors de votre compte." },
     ],
   },
   // --- Admin ---

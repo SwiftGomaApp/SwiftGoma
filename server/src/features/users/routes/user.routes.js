@@ -99,6 +99,8 @@ UserRouter.post(
   authenticate,
   userController.postUnlinkGoogle,
 );
+UserRouter.post("/apple/link", authenticate, userController.postLinkApple);
+UserRouter.post("/apple/unlink", authenticate, userController.postUnlinkApple);
 
 UserRouter.use(authenticate);
 
