@@ -10,15 +10,23 @@ export function Sidebar({
   sectionRoot,
   groups,
   topLabel = "Overview",
+  variant = "desktop",
 }: {
   sectionRoot: string;
   groups: { group: string; endpoints: EndpointDoc[] }[];
   topLabel?: string;
+  variant?: "desktop" | "mobile";
 }) {
   const pathname = usePathname();
 
   return (
-    <nav className="scrollbar-thin sticky top-[6.5rem] h-[calc(100vh-6.5rem)] w-64 shrink-0 overflow-y-auto border-r border-border px-3 py-6">
+    <nav
+      className={
+        variant === "mobile"
+          ? "px-1"
+          : "scrollbar-thin sticky top-[6.5rem] hidden h-[calc(100vh-6.5rem)] w-64 shrink-0 overflow-y-auto border-r border-border px-3 py-6 lg:block"
+      }
+    >
       <Link
         href={sectionRoot}
         className={cn(
