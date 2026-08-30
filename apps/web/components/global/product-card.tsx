@@ -23,6 +23,8 @@ export interface ProductCardProps {
   onAddToCart?: () => void;
   orientation?: "vertical" | "horizontal";
   className?: string;
+  imageClassName?: string;
+  eagerLoad?: boolean;
 }
 
 export function ProductCard({
@@ -37,6 +39,8 @@ export function ProductCard({
   onAddToCart,
   orientation = "vertical",
   className,
+  imageClassName,
+  eagerLoad = false,
 }: ProductCardProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [internalFavorited, setInternalFavorited] = useState(false);
@@ -178,7 +182,12 @@ export function ProductCard({
         className,
       )}
     >
-      <div className="relative aspect-square w-full overflow-hidden bg-foreground">
+      <div
+        className={cn(
+          "relative w-full overflow-hidden bg-foreground",
+          imageClassName ?? "aspect-square",
+        )}
+      >
         {active && (
           <Image
             src={active.src}
@@ -186,7 +195,7 @@ export function ProductCard({
             fill
             sizes="280px"
             className="object-cover"
-            priority={false}
+            loading={eagerLoad ? "eager" : "lazy"}
           />
         )}
 
@@ -245,7 +254,7 @@ export function ProductCard({
               e.stopPropagation();
               onAddToCart?.();
             }}
-            className="h-11 flex-1 bg-primary text-background hover:bg-primary/85"
+            className="h-11 flex-1 bg-primary text-foreground hover:bg-primary/85"
           >
             Add to Cart
           </Button>

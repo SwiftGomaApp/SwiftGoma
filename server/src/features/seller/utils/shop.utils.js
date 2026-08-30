@@ -4,6 +4,7 @@ const {
   ForbiddenError,
 } = require("../../../common/errors");
 const { SHOP_CONFIG } = require("../config/shop.config");
+const { getExchangeRate } = require("../../product/utils/exchangeRate.utils");
 
 function generateSlug(name) {
   return name
@@ -41,17 +42,24 @@ function isValidDescription(description) {
   );
 }
 
-function isValidDeliveryFee(amount, currency) {
+async function isValidDeliveryFee(amount, currency) {
   if (!SHOP_CONFIG.SUPPORTED_DELIVERY_CURRENCIES.includes(currency))
     return false;
   const num = Number(amount);
   if (!Number.isFinite(num)) return false;
-  const min = SHOP_CONFIG.DELIVERY_FEE_MIN[currency];
-  const max = SHOP_CONFIG.DELIVERY_FEE_MAX[currency];
+
+  // Bounds are defined once, in the base currency, then converted at
+  // validation time using the platform's live admin-configured exchange
+  // rate — so a rate update immediately keeps every currency's limits in
+  // sync, instead of two hardcoded numbers silently drifting apart.
+  const base = SHOP_CONFIG.DELIVERY_FEE_BASE_CURRENCY;
+  const rate = await getExchangeRate(base, currency);
+  const min = SHOP_CONFIG.DELIVERY_FEE_MIN_BASE * rate;
+  const max = SHOP_CONFIG.DELIVERY_FEE_MAX_BASE * rate;
   return num >= min && num <= max;
 }
 
-function assertValidShopInput(input) {
+async function assertValidShopInput(input) {
   const { name, description, deliveryFee, deliveryFeeCurrency } = input;
 
   if (!isValidShopName(name)) {
@@ -64,7 +72,7 @@ function assertValidShopInput(input) {
       `La description doit contenir entre ${SHOP_CONFIG.DESCRIPTION_MIN_LENGTH} et ${SHOP_CONFIG.DESCRIPTION_MAX_LENGTH} caractères.`,
     );
   }
-  if (!isValidDeliveryFee(deliveryFee, deliveryFeeCurrency)) {
+  if (!(await isValidDeliveryFee(deliveryFee, deliveryFeeCurrency))) {
     throw new ValidationError(
       "Frais de livraison invalides pour cette devise.",
     );

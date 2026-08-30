@@ -4,6 +4,9 @@ import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { getServerLocale } from "@/lib/language";
 import { AuthProvider } from "@/lib/auth/auth-context";
+import { LoginRequiredProvider } from "@/lib/auth/login-required-context";
+import { CartProvider } from "@/lib/cart/cart-context";
+import { NotificationsProvider } from "@/lib/notifications/notifications-context";
 import { SessionExpiredModal } from "@/components/global/session-expired";
 import { ServerUnreachableBanner } from "@/lib/auth/server-unreachable-banner";
 import { Toaster } from "@/components/ui/toast";
@@ -118,11 +121,17 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           disableTransitionOnChange
         >
           <AuthProvider>
-            <ServerUnreachableBanner />
-            {children}
-            <Toaster />
-            <SessionExpiredModal />
-            <LegalConsentProvider />
+            <LoginRequiredProvider>
+              <CartProvider>
+                <NotificationsProvider>
+                  <ServerUnreachableBanner />
+                  {children}
+                  <Toaster />
+                  <SessionExpiredModal />
+                  <LegalConsentProvider />
+                </NotificationsProvider>
+              </CartProvider>
+            </LoginRequiredProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

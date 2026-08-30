@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { useAuth } from "@/lib/auth/auth-context";
+import { useLoginRequired } from "@/lib/auth/login-required-context";
 import { isApiError } from "@/lib/api/client";
 import {
   addCartItem,
@@ -27,6 +28,8 @@ const STRINGS = {
   en: {
     signInTitle: "Sign in required",
     signInDescription: "Sign in to add items to your cart.",
+    signInButton: "Sign in",
+    cancelButton: "Cancel",
     addedTitle: "Added to cart",
     addErrorTitle: "Couldn't add item to cart",
     updateErrorTitle: "Couldn't update your cart",
@@ -35,6 +38,8 @@ const STRINGS = {
   fr: {
     signInTitle: "Connexion requise",
     signInDescription: "Connectez-vous pour ajouter des articles à votre panier.",
+    signInButton: "Se connecter",
+    cancelButton: "Annuler",
     addedTitle: "Ajouté au panier",
     addErrorTitle: "Impossible d'ajouter l'article au panier",
     updateErrorTitle: "Impossible de mettre à jour votre panier",
@@ -69,6 +74,7 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
+  const { requireLogin } = useLoginRequired();
   const [carts, setCarts] = useState<ShopCart[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -102,10 +108,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const t = STRINGS[getClientLocale()];
 
       if (!isAuthenticated) {
-        toast.add({
+        requireLogin({
           title: t.signInTitle,
           description: t.signInDescription,
-          type: "info",
+          signInLabel: t.signInButton,
+          cancelLabel: t.cancelButton,
         });
         return false;
       }
@@ -128,7 +135,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return false;
       }
     },
-    [isAuthenticated, refresh],
+    [isAuthenticated, refresh, requireLogin],
   );
 
   const updateQuantity = useCallback(

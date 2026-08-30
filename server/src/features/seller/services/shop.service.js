@@ -95,7 +95,7 @@ async function createShop({
   );
 
   const input = { name, description, deliveryFee, deliveryFeeCurrency };
-  assertValidShopInput(input);
+  await assertValidShopInput(input);
 
   if (!logoBuffer || !bannerBuffer) {
     throw new ConflictError("Le logo et la bannière sont requis.");
@@ -186,42 +186,47 @@ async function updateShop(shopId, sellerProfileId, data) {
     updateData.deliveryFeeCurrency = data.deliveryFeeCurrency;
   }
 
-  let oldLogoPublicId = null;
-  let oldBannerPublicId = null;
+  // Validate before touching Cloudinary — no point uploading a new
+  // logo/banner for a request that was going to be rejected anyway.
+  await assertValidShopInput({ ...shop, ...updateData });
 
-  if (data.logoBuffer) {
-    const logo = await uploadImage(
-      data.logoBuffer,
-      CLOUDINARY_FOLDERS.SHOP_LOGOS,
-    );
-    updateData.logoUrl = logo.url;
-    updateData.logoPublicId = logo.publicId;
-    oldLogoPublicId = shop.logoPublicId;
+  const oldLogoPublicId = shop.logoPublicId;
+  const oldBannerPublicId = shop.bannerPublicId;
+  let newLogo = null;
+  let newBanner = null;
+
+  try {
+    if (data.logoBuffer) {
+      newLogo = await uploadImage(data.logoBuffer, CLOUDINARY_FOLDERS.SHOP_LOGOS);
+      updateData.logoUrl = newLogo.url;
+      updateData.logoPublicId = newLogo.publicId;
+    }
+
+    if (data.bannerBuffer) {
+      newBanner = await uploadImage(
+        data.bannerBuffer,
+        CLOUDINARY_FOLDERS.SHOP_BANNERS,
+      );
+      updateData.bannerUrl = newBanner.url;
+      updateData.bannerPublicId = newBanner.publicId;
+    }
+
+    const updated = await prisma.shop.update({
+      where: { id: shopId },
+      data: updateData,
+    });
+
+    if (newLogo && oldLogoPublicId) await deleteAsset(oldLogoPublicId, "image");
+    if (newBanner && oldBannerPublicId) await deleteAsset(oldBannerPublicId, "image");
+
+    await invalidateShopCache(shop.slug);
+
+    return updated;
+  } catch (err) {
+    if (newLogo) await deleteAsset(newLogo.publicId, "image");
+    if (newBanner) await deleteAsset(newBanner.publicId, "image");
+    throw err;
   }
-
-  if (data.bannerBuffer) {
-    const banner = await uploadImage(
-      data.bannerBuffer,
-      CLOUDINARY_FOLDERS.SHOP_BANNERS,
-    );
-    updateData.bannerUrl = banner.url;
-    updateData.bannerPublicId = banner.publicId;
-    oldBannerPublicId = shop.bannerPublicId;
-  }
-
-  assertValidShopInput({ ...shop, ...updateData });
-
-  const updated = await prisma.shop.update({
-    where: { id: shopId },
-    data: updateData,
-  });
-
-  if (oldLogoPublicId) await deleteAsset(oldLogoPublicId, "image");
-  if (oldBannerPublicId) await deleteAsset(oldBannerPublicId, "image");
-
-  await invalidateShopCache(shop.slug);
-
-  return updated;
 }
 
 async function publishShop(shopId, sellerProfileId) {

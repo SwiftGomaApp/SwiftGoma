@@ -3,6 +3,7 @@ import type {
   PublicProduct,
   PublicProductDetailVariant,
 } from "@/lib/api/routes/products";
+import { ProductSortValue } from "./constants/products";
 
 export function getProductStartingPrice(product: PublicProduct): number {
   const variant = product.variants[0];
@@ -95,3 +96,17 @@ export function formatWeight(grams: number): string {
   }
   return `${grams} g`;
 }
+
+export type ProductListParams = {
+  page?: number;
+  limit?: number;
+  categoryId?: string;
+  subcategoryId?: string;
+  shopId?: string; // ADD THIS LINE
+  currency?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  search?: string;
+  inStockOnly?: boolean;
+  sortBy?: ProductSortValue;
+};

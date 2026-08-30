@@ -1,5 +1,6 @@
 "use client";
 
+import { SecurityDeleteAccount } from "@/components/account/security-delete-account";
 import { SecurityPasskeys } from "@/components/account/security-passkeys";
 import { SecurityPassword } from "@/components/account/security-password";
 import { SecuritySessions } from "@/components/account/security-sessions";
@@ -36,6 +37,8 @@ export function SecurityView({ locale }: { locale: Locale }) {
       <SecurityPasskeys locale={locale} />
       <div className="border-t border-border" />
       <SecuritySessions locale={locale} />
+      <div className="border-t border-border" />
+      <SecurityDeleteAccount locale={locale} />
     </div>
   );
 }

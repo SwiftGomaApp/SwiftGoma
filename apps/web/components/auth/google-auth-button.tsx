@@ -59,7 +59,7 @@ export function GoogleAuthButton({
         toast.add({
           title: "Google Auth Error",
           description: "Impossible de charger la connexion Google.",
-          type: "error",
+          type: "warning",
         });
       });
 

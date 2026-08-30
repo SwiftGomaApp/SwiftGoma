@@ -1,6 +1,6 @@
 # SwiftGoma API Inventory
 
-Generated directly from `SwiftGoma-V1/server` route/controller/service source code. 34 folders, 259 endpoints.
+Generated directly from `SwiftGoma-V1/server` route/controller/service source code. 34 folders, 263 endpoints.
 
 Companion to `SwiftGoma.postman_collection.json` — every row here has a matching Postman request with a full description (purpose, auth, roles, parameters, validation, business rules, response, errors).
 
@@ -12,13 +12,15 @@ Companion to `SwiftGoma.postman_collection.json` — every row here has a matchi
 | POST | `/auth/verify-email` | Authentication | No | — | Confirms an account's primary email using the 6-digit OTP sent by Create Account / Resend Verification. |
 | POST | `/auth/resend-verification` | Authentication | No | — | Issues a new email-verification OTP, replacing any unexpired one. |
 | POST | `/auth/register/google` | Authentication | No | — | Creates a new account from a verified Google ID token (Google Sign-In). Since Google already verifies the email, the account and its session are created in one step — no OTP round-trip. |
+| POST | `/auth/register/apple` | Authentication | No | — | Creates a new account from a verified Apple identity token (Sign in with Apple). Apple provides the user's full name only on the very first authorization — pass it as `name` on that request. |
 | POST | `/auth/login/google` | Authentication | No | — | Logs in an existing account previously linked to this Google identity. |
+| POST | `/auth/login/apple` | Authentication | No | — | Logs in an existing account previously linked to this Apple identity. |
 | POST | `/auth/login/request-otp` | Authentication | No | — | Sends a 6-digit passwordless login code to the given email (email-OTP login flow), independent of any password. |
 | POST | `/auth/passkey/login/options` | Authentication | No | — | Generates a WebAuthn authentication challenge for passkey login. Omit `email` for a usernameless (discoverable-credential) flow; provide it to scope the challenge to that account's registered passkeys. |
 | POST | `/auth/password/forgot` | Authentication | No | — | Sends a password-reset OTP to the given email, if an active account exists. |
 | POST | `/auth/login/verify-otp` | Authentication | No | — | Completes passwordless login by exchanging a valid email-OTP for a session (access + refresh tokens). |
 | POST | `/auth/login/password` | Authentication | No | — | Logs in using email + password. |
-| POST | `/auth/login/totp` | Authentication | No | — | Completes a login that returned `requiresTotp: true` (from password, Google, or passkey login) by verifying a TOTP code or a one-time backup code. |
+| POST | `/auth/login/totp` | Authentication | No | — | Completes a login that returned `requiresTotp: true` (from password, Google, Apple, or passkey login) by verifying a TOTP code or a one-time backup code. |
 | POST | `/auth/passkey/login/verify` | Authentication | No | — | Verifies a signed WebAuthn assertion against the challenge from `POST /auth/passkey/login/options` and logs the user in. |
 | POST | `/auth/password/reset` | Authentication | No | — | Sets a new password using the OTP from `POST /auth/password/forgot`. |
 | POST | `/auth/password/update` | Authentication | Yes | Any authenticated | Changes the current user's password while authenticated. |
@@ -30,7 +32,7 @@ Companion to `SwiftGoma.postman_collection.json` — every row here has a matchi
 | POST | `/auth/logout-all` | Authentication | Yes | Any authenticated | Revokes every active session for the current user (all devices), including the current one, and clears the auth cookies. |
 | GET | `/auth/sessions` | Authentication | Yes | Any authenticated | Lists the current user's active (non-revoked, non-expired) sessions — useful for a "devices" / "active sessions" security page. |
 | DELETE | `/auth/sessions/{{sessionId}}` | Authentication | Yes | Any authenticated | Revokes one specific session by id (e.g. "log out this device"). |
-| POST | `/auth/password/create` | Authentication | Yes | Any authenticated | Sets a password on an account that was created via Google or email-OTP and has none yet, enabling password login going forward. |
+| POST | `/auth/password/create` | Authentication | Yes | Any authenticated | Sets a password on an account that was created via Google, Apple, or email-OTP and has none yet, enabling password login going forward. |
 | POST | `/auth/totp/setup` | Authentication | Yes | Any authenticated | Starts TOTP 2FA setup: generates a new secret, stores it encrypted (AES-256-GCM), and returns a QR code + manual entry key to scan into an authenticator app. Must be finished with `POST /auth/totp/confirm`. |
 | POST | `/auth/totp/regenerate-backup-codes` | Authentication | Yes | Any authenticated | Invalidates all existing 2FA backup codes and issues a fresh set of 10, after re-proving control via a TOTP or backup code. |
 | POST | `/auth/passkey/register/options` | Authentication | Yes | Any authenticated | Generates a WebAuthn registration challenge so the browser can create a new passkey for the current account. |
@@ -50,7 +52,9 @@ Companion to `SwiftGoma.postman_collection.json` — every row here has a matchi
 | POST | `/users/email/secondary/verify` | Users | Yes | Any authenticated | Confirms the OTP and attaches the secondary email to the account. |
 | DELETE | `/users/email/secondary` | Users | Yes | Any authenticated | Removes the current user's secondary (non-primary) email address. |
 | POST | `/users/google/link` | Users | Yes | Any authenticated | Links a Google identity to the current (already logged-in) account, enabling "Login with Google" going forward. |
+| POST | `/users/apple/link` | Users | Yes | Any authenticated | Links an Apple identity to the current (already logged-in) account, enabling "Login with Apple" going forward. |
 | POST | `/users/google/unlink` | Users | Yes | Any authenticated | Removes the Google identity link from the current account. |
+| POST | `/users/apple/unlink` | Users | Yes | Any authenticated | Removes the Apple identity link from the current account. |
 | GET | `/users?page=1&limit=20&search=&role=` | Users | Yes | ADMIN, SUPPORT | Lists/searches all platform users for admin/support tooling. |
 | GET | `/users/{{userId}}` | Users | Yes | ADMIN, SUPPORT | Returns full detail for one user, for admin/support review. |
 | POST | `/users/{{userId}}/block` | Users | Yes | ADMIN, SUPPORT | Blocks a user account, preventing login and access-token use. |

@@ -116,6 +116,7 @@ export type ProductListParams = {
   limit?: number;
   categoryId?: string;
   subcategoryId?: string;
+  shopId?: string;
   currency?: string;
   minPrice?: number;
   maxPrice?: number;
@@ -150,6 +151,7 @@ export async function getPublicProducts(
         limit: params.limit,
         categoryId: params.categoryId,
         subcategoryId: params.subcategoryId,
+        shopId: params.shopId, // ADD THIS LINE
         currency: params.currency,
         minPrice: params.minPrice,
         maxPrice: params.maxPrice,
