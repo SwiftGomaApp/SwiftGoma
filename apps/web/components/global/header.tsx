@@ -10,6 +10,7 @@ import { ProductFilters } from "@/components/products/product-filters";
 import { CartModal } from "@/components/global/cart-modal";
 import { NotificationModal } from "@/components/global/notification-modal";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { cn } from "@/lib/utils";
 import {
   Sheet,
   SheetTrigger,
@@ -21,7 +22,7 @@ import {
 import type { PublicCategory } from "@/lib/api/routes/products";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Button } from "../ui/button";
+import { Button, buttonVariants } from "../ui/button";
 
 const NAV_LINK_IDS = [
   "home",
@@ -146,7 +147,7 @@ const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
             <button
               aria-label={t.search}
               onClick={() => setSearchOpen(true)}
-              className="hidden items-center gap-2 rounded-full border border-border bg-muted/40 py-1.5 pr-2 pl-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:flex"
+              className="hidden h-9 items-center gap-2 rounded-full border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:flex"
             >
               <Search size={16} strokeWidth={1.75} />
               <span>{t.search}</span>
@@ -178,8 +179,11 @@ const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
                   <User size={20} strokeWidth={1.75} />
                 </Link>
               ) : (
-                <Button>
-                  <Link href="/auth/sign-in">{t.login}</Link>
+                <Button
+                  nativeButton={false}
+                  render={<Link href="/auth/sign-in" />}
+                >
+                  {t.login}
                 </Button>
               ))}
 
@@ -275,7 +279,7 @@ const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
                         render={
                           <Link
                             href="/auth/sign-in"
-                            className="flex items-center justify-center rounded-md bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
+                            className={cn(buttonVariants(), "h-11 w-full")}
                           />
                         }
                       >

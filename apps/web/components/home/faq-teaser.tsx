@@ -18,8 +18,8 @@ const FAQS = [
       fr: "Comment passer une commande ?",
     },
     answer: {
-      en: "Add products from a single shop to your cart — items from different shops can't be combined into one order. At checkout, choose delivery or pickup, pick a payment method, and confirm.",
-      fr: "Ajoutez des produits d'une seule boutique à votre panier — les articles de différentes boutiques ne peuvent pas être combinés en une seule commande. Lors de la validation, choisissez la livraison ou le retrait, sélectionnez un mode de paiement, puis confirmez.",
+      en: "Add products from a single shop to your cart  items from different shops can't be combined into one order. At checkout, choose delivery or pickup, pick a payment method, and confirm.",
+      fr: "Ajoutez des produits d'une seule boutique à votre panier les articles de différentes boutiques ne peuvent pas être combinés en une seule commande. Lors de la validation, choisissez la livraison ou le retrait, sélectionnez un mode de paiement, puis confirmez.",
     },
   },
   {
@@ -40,8 +40,8 @@ const FAQS = [
       fr: "À quoi sert le code QR lors de la remise ?",
     },
     answer: {
-      en: "Each order has a QR code shown in your app. The rider or seller scans it at delivery or pickup to confirm you received your order — this also releases the payment to the seller.",
-      fr: "Chaque commande dispose d'un code QR affiché dans votre application. Le livreur ou le vendeur le scanne à la livraison ou au retrait pour confirmer que vous avez reçu votre commande — cela libère aussi le paiement au vendeur.",
+      en: "Each order has a QR code shown in your app. The rider or seller scans it at delivery or pickup to confirm you received your order this also releases the payment to the seller.",
+      fr: "Chaque commande dispose d'un code QR affiché dans votre application. Le livreur ou le vendeur le scanne à la livraison ou au retrait pour confirmer que vous avez reçu votre commande cela libère aussi le paiement au vendeur.",
     },
   },
   {
@@ -51,8 +51,8 @@ const FAQS = [
       fr: "Swiftgoma prélève-t-elle une commission sur mes ventes ?",
     },
     answer: {
-      en: "No. Swiftgoma does not charge commission on the value of orders — you keep 100% of what buyers pay for products. Our revenue comes only from seller subscription plans and wallet payout fees.",
-      fr: "Non. Swiftgoma ne prélève aucune commission sur la valeur des commandes — vous conservez 100 % de ce que les acheteurs paient pour les produits. Nos revenus proviennent uniquement des abonnements vendeur et des frais de retrait du portefeuille.",
+      en: "No. Swiftgoma does not charge commission on the value of orders you keep 100% of what buyers pay for products. Our revenue comes only from seller subscription plans and wallet payout fees.",
+      fr: "Non. Swiftgoma ne prélève aucune commission sur la valeur des commandes vous conservez 100 % de ce que les acheteurs paient pour les produits. Nos revenus proviennent uniquement des abonnements vendeur et des frais de retrait du portefeuille.",
     },
   },
 ] as const;
@@ -84,23 +84,19 @@ export function FaqTeaser({ locale }: { locale: Locale }) {
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             {t.title}
           </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t.description}
-          </p>
+          <p className="mt-2 text-sm text-muted-foreground">{t.description}</p>
         </div>
 
-        <div className="mt-8 rounded-2xl border border-border bg-card px-6">
-          <Accordion>
-            {FAQS.map((faq) => (
-              <AccordionItem key={faq.id} value={faq.id}>
-                <AccordionTrigger>{faq.question[locale]}</AccordionTrigger>
-                <AccordionContent>
-                  <p className="text-muted-foreground">{faq.answer[locale]}</p>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </div>
+        <Accordion className="mt-8">
+          {FAQS.map((faq) => (
+            <AccordionItem key={faq.id} value={faq.id}>
+              <AccordionTrigger>{faq.question[locale]}</AccordionTrigger>
+              <AccordionContent>
+                <p className="text-muted-foreground">{faq.answer[locale]}</p>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
 
         <div className="mt-6 text-center">
           <Button

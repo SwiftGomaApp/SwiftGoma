@@ -28,11 +28,13 @@ import {
 } from "@/lib/api/routes/products";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { getServerLocale } from "@/lib/language";
+import Image from "next/image";
+import { HeroCarouselBackground } from "@/components/home/hero-carousel-background";
 
 export const metadata: Metadata = {
   title: "Swiftgoma | Local shopping in Goma, delivered.",
   description:
-    "Discover shops and products near you in Goma — browse categories, trending products, and local sellers, all in one marketplace.",
+    "Discover shops and products near you in Goma browse categories, trending products, and local sellers, all in one marketplace.",
 };
 
 const STRINGS = {
@@ -40,7 +42,7 @@ const STRINGS = {
     eyebrow: "Swiftgoma Marketplace",
     title: "Local shopping in Goma, delivered.",
     description:
-      "Browse shops and products from sellers across Goma — order online and get it delivered or pick it up yourself.",
+      "Browse shops and products from sellers across Goma  order online and get it delivered or pick it up yourself.",
     searchPlaceholder: "Search for products…",
     searchButton: "Search",
     browseShops: "Browse shops",
@@ -73,14 +75,13 @@ const STRINGS = {
     eyebrow: "Marché Swiftgoma",
     title: "Le shopping local à Goma, livré chez vous.",
     description:
-      "Parcourez les boutiques et produits des vendeurs de Goma — commandez en ligne et faites-vous livrer ou récupérez sur place.",
+      "Parcourez les boutiques et produits des vendeurs de Goma commandez en ligne et faites-vous livrer ou récupérez sur place.",
     searchPlaceholder: "Rechercher des produits…",
     searchButton: "Rechercher",
     browseShops: "Parcourir les boutiques",
     browseProducts: "Parcourir les produits",
     howItWorksTitle: "Comment ça marche",
-    howItWorksDescription:
-      "De la recherche à votre porte, en quatre étapes.",
+    howItWorksDescription: "De la recherche à votre porte, en quatre étapes.",
     step1Title: "Parcourez boutiques & produits",
     step1Description:
       "Explorez les vendeurs locaux de Goma et trouvez ce qu'il vous faut.",
@@ -96,8 +97,7 @@ const STRINGS = {
     categoriesTitle: "Achetez par catégorie",
     categoriesDescription: "Trouvez des produits organisés selon vos besoins.",
     trendingTitle: "Produits tendance",
-    trendingDescription:
-      "Les choix populaires des vendeurs de tout le marché.",
+    trendingDescription: "Les choix populaires des vendeurs de tout le marché.",
     viewAllProductsCta: "Voir tous les produits",
     shopsTitle: "Boutiques en vedette",
     shopsDescription:
@@ -113,9 +113,9 @@ export default async function Home() {
   const t = STRINGS[locale];
 
   const [shopsResult, productsResult, categories] = await Promise.all([
-    getPublicShops({ limit: 6 }).catch(
-      (): { shops: PublicShop[] } => ({ shops: [] }),
-    ),
+    getPublicShops({ limit: 6 }).catch((): { shops: PublicShop[] } => ({
+      shops: [],
+    })),
     getPublicProducts({ limit: 8, sortBy: "popular" }).catch(
       (): { products: PublicProduct[] } => ({ products: [] }),
     ),
@@ -128,29 +128,44 @@ export default async function Home() {
 
   return (
     <main>
-      <section className="relative overflow-hidden border-b bg-muted/20">
-        <div className="mx-auto flex max-w-7xl flex-col items-center px-4 py-20 text-center sm:px-6 sm:py-28 lg:px-8">
+      <section className="relative overflow-hidden border-b">
+        {/* Background */}
+        <HeroCarouselBackground
+          images={[
+            "https://res.cloudinary.com/dx3wclabo/image/upload/v1788092791/107026_pf1xkl.jpg",
+            "https://res.cloudinary.com/dx3wclabo/image/upload/v1788092791/107026_pf1xkl.jpg",
+            "https://res.cloudinary.com/dx3wclabo/image/upload/v1788093341/2149095900_owqdq3.jpg",
+            "https://res.cloudinary.com/dx3wclabo/image/upload/v1788093660/Goma-Town-750x450_bf04no.jpg",
+          ]}
+          intervalMs={3000}
+        />
+        {/* Content */}
+        <div className="relative mx-auto flex max-w-7xl flex-col items-center px-4 py-20 text-center sm:px-6 sm:py-28 lg:px-8">
           <p className="text-sm font-medium text-primary">{t.eyebrow}</p>
-          <h1 className="mt-3 max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
+
+          <h1 className="mt-3 max-w-2xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
             {t.title}
           </h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+
+          <p className="mt-5 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
             {t.description}
           </p>
+
           <HomeHeroSearch
             placeholder={t.searchPlaceholder}
             buttonLabel={t.searchButton}
           />
+
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Button nativeButton={false} render={<Link href="/shops" />}>
-              {t.browseShops}
+            <Button>
+              <Link href="/shops">{t.browseShops}</Link>
             </Button>
+
             <Button
               variant="outline"
-              nativeButton={false}
-              render={<Link href="/products" />}
+              className="border-white/40 bg-white/5 text-white hover:bg-white/15 hover:text-white"
             >
-              {t.browseProducts}
+              <Link href="/products">{t.browseProducts}</Link>
             </Button>
           </div>
         </div>
@@ -167,7 +182,11 @@ export default async function Home() {
         </div>
         <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { icon: Search, title: t.step1Title, description: t.step1Description },
+            {
+              icon: Search,
+              title: t.step1Title,
+              description: t.step1Description,
+            },
             {
               icon: ShoppingCart,
               title: t.step2Title,

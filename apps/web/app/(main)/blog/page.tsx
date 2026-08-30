@@ -35,7 +35,10 @@ const STRINGS = {
   },
 } as const;
 
-function localizedTemplatePost(post: (typeof BLOG_POST_TEMPLATES)[number], locale: "en" | "fr"): PublicBlogPost {
+function localizedTemplatePost(
+  post: (typeof BLOG_POST_TEMPLATES)[number],
+  locale: "en" | "fr",
+): PublicBlogPost {
   return {
     id: post.id,
     title: post.title[locale],
@@ -62,12 +65,16 @@ function BlogHero({
     <section className="border-b bg-muted/20">
       <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-20 lg:px-8">
         <p className="text-xs font-medium text-muted-foreground">{t.eyebrow}</p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">{t.title}</h1>
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
+          {t.title}
+        </h1>
         <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-muted-foreground sm:text-base">
           {t.description}
         </p>
         <p className="mt-5 text-xs text-muted-foreground">
-          {locale === "fr" ? "Guides pratiques pour le commerce local." : "Practical guides for local commerce."}
+          {locale === "fr"
+            ? "Guides pratiques pour le commerce local."
+            : "Practical guides for local commerce."}
         </p>
       </div>
     </section>
@@ -111,13 +118,14 @@ export default async function BlogPage() {
                 ? "Nous préparons des conseils, des actualités et des histoires sur le commerce local à Goma. Revenez bientôt pour découvrir notre premier article."
                 : "We’re preparing useful guides, local updates, and stories from Goma’s commerce community. Check back soon for our first article."}
             </p>
-            <Link
-              href="/products"
-              className="mt-8 inline-flex h-11 items-center justify-center rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+            <Button
+              nativeButton={false}
+              render={<Link href="/products" />}
+              className="mt-8 h-11 px-5"
             >
               {locale === "fr" ? "Découvrir les produits" : "Browse products"}
               <ArrowRight className="ml-2 size-4" aria-hidden="true" />
-            </Link>
+            </Button>
           </div>
         </section>
       </main>
@@ -128,14 +136,38 @@ export default async function BlogPage() {
     <main>
       <BlogHero locale={locale} t={t} />
 
-      <BlogArticleGrid locale={locale} posts={posts} title={t.latest} readArticle={t.readArticle} />
+      <BlogArticleGrid
+        locale={locale}
+        posts={posts}
+        title={t.latest}
+        readArticle={t.readArticle}
+      />
 
       <section className="border-t bg-muted/20">
         <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 lg:px-8">
-          <p className="text-xs font-medium text-primary">Swiftgoma newsletter</p>
-          <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">{locale === "fr" ? "Recevez les actualités locales." : "Get local updates in your inbox."}</h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">{locale === "fr" ? "Des conseils utiles et des nouveautés de la communauté Swiftgoma, sans surcharge." : "Useful guides and news from the Swiftgoma community, without the noise."}</p>
-          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row"><Button> {locale === "fr" ? "S'inscrire" : "Subscribe"}</Button><Button variant="outline" nativeButton={false} render={<Link href="/contact" />}>{locale === "fr" ? "Nous contacter" : "Contact us"}</Button></div>
+          <p className="text-xs font-medium text-primary">
+            Swiftgoma newsletter
+          </p>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
+            {locale === "fr"
+              ? "Recevez les actualités locales."
+              : "Get local updates in your inbox."}
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
+            {locale === "fr"
+              ? "Des conseils utiles et des nouveautés de la communauté Swiftgoma, sans surcharge."
+              : "Useful guides and news from the Swiftgoma community, without the noise."}
+          </p>
+          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+            <Button> {locale === "fr" ? "S'inscrire" : "Subscribe"}</Button>
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href="/contact" />}
+            >
+              {locale === "fr" ? "Nous contacter" : "Contact us"}
+            </Button>
+          </div>
         </div>
       </section>
     </main>

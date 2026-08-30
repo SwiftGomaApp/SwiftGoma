@@ -74,7 +74,7 @@ export function ProductCard({
     <Button
       type="button"
       variant="outline"
-      size="icon-lg"
+      size="icon"
       aria-label={favorited ? "Remove from favorites" : "Add to favorites"}
       aria-pressed={favorited}
       onClick={(e) => {
@@ -139,7 +139,7 @@ export function ProductCard({
                 onAddToCart?.();
               }}
               size="sm"
-              className="h-8 flex-1 bg-primary text-background hover:bg-primary/85"
+              className="flex-1 "
             >
               Add to Cart
             </Button>
@@ -254,7 +254,7 @@ export function ProductCard({
               e.stopPropagation();
               onAddToCart?.();
             }}
-            className="h-11 flex-1 bg-primary text-foreground hover:bg-primary/85"
+            className="flex-1"
           >
             Add to Cart
           </Button>

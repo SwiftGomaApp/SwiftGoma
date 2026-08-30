@@ -16,9 +16,9 @@ const STRINGS = {
       },
       {
         quote:
-          "I set up my shop, added my products, and started getting orders within a week — without giving up a percentage of every sale.",
-        name: "Patrick K.",
-        role: "Shop owner, Goma",
+          "I set up my shop, added my products, and started getting orders within a week without giving up a percentage of every sale.",
+        name: "Rehub FastFood.",
+        role: "Sharon Kabunga, Goma",
       },
       {
         quote:
@@ -42,9 +42,9 @@ const STRINGS = {
       },
       {
         quote:
-          "J'ai créé ma boutique, ajouté mes produits, et j'ai reçu mes premières commandes en une semaine — sans céder un pourcentage sur chaque vente.",
-        name: "Patrick K.",
-        role: "Propriétaire de boutique, Goma",
+          "J'ai créé ma boutique, ajouté mes produits, et j'ai reçu mes premières commandes en une semaine sans céder un pourcentage sur chaque vente.",
+        name: "Rehub FastFood.",
+        role: "Sharon Kabunga, Goma",
       },
       {
         quote:

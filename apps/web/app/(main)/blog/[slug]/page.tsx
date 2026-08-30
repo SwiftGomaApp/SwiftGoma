@@ -8,6 +8,7 @@ import { sanitizeBlogHtml } from "@/lib/blog";
 import { BLOG_POST_TEMPLATES } from "@/lib/constants/blog";
 import { getServerLocale } from "@/lib/language";
 import { notFound } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 type Props = {
   params: Promise<{
@@ -15,7 +16,10 @@ type Props = {
   }>;
 };
 
-function fallbackPost(slug: string, locale: "en" | "fr"): PublicBlogPost | undefined {
+function fallbackPost(
+  slug: string,
+  locale: "en" | "fr",
+): PublicBlogPost | undefined {
   const post = BLOG_POST_TEMPLATES.find((item) => item.slug === slug);
   if (!post) return undefined;
 
@@ -33,7 +37,9 @@ function fallbackPost(slug: string, locale: "en" | "fr"): PublicBlogPost | undef
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
 
-  const post = await getPublicBlogPost(slug).catch(() => fallbackPost(slug, "en"));
+  const post = await getPublicBlogPost(slug).catch(() =>
+    fallbackPost(slug, "en"),
+  );
 
   if (!post) {
     return {
@@ -68,7 +74,9 @@ export default async function BlogPostPage({ params }: Props) {
   const { slug } = await params;
   const locale = await getServerLocale();
 
-  const post = await getPublicBlogPost(slug).catch(() => fallbackPost(slug, locale));
+  const post = await getPublicBlogPost(slug).catch(() =>
+    fallbackPost(slug, locale),
+  );
 
   if (!post) {
     notFound();
@@ -195,19 +203,24 @@ export default async function BlogPostPage({ params }: Props) {
               </p>
 
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-                <Link
-                  href="/shops"
-                  className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                <Button
+                  nativeButton={false}
+                  render={<Link href="/shops" />}
+                  className="h-11 px-5"
                 >
                   {locale === "fr" ? "Explorer les boutiques" : "Explore shops"}
                   <ArrowRight className="ml-2 size-4" aria-hidden="true" />
-                </Link>
-                <Link
-                  href="/blog"
-                  className="inline-flex h-11 items-center justify-center rounded-lg border bg-background px-5 text-sm font-medium transition-colors hover:bg-muted"
+                </Button>
+                <Button
+                  variant="outline"
+                  nativeButton={false}
+                  render={<Link href="/blog" />}
+                  className="h-11 px-5"
                 >
-                  {locale === "fr" ? "Lire plus d'articles" : "Read more articles"}
-                </Link>
+                  {locale === "fr"
+                    ? "Lire plus d'articles"
+                    : "Read more articles"}
+                </Button>
               </div>
             </div>
           </div>

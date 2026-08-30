@@ -11,7 +11,7 @@ const STRINGS = {
     eyebrow: "About Swiftgoma",
     title: "Making everyday commerce easier in Goma.",
     description:
-      "Swiftgoma is a local marketplace and delivery platform built for Goma, DRC. We connect buyers, sellers, and riders in one simple flow — from discovering products to receiving an order.",
+      "Swiftgoma is a local marketplace and delivery platform built for Goma, DRC. We connect buyers, sellers, and riders in one simple flow  from discovering products to receiving an order.",
     learnMore: "Learn more about us",
     roles: [
       {
