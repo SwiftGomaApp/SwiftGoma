@@ -75,7 +75,7 @@ const ABOUT_STRINGS: Record<
     eyebrow: "About Swiftgoma",
     title: "Making everyday commerce easier in Goma.",
     description:
-      "Swiftgoma is a local marketplace and delivery platform built for Goma, DRC. We connect buyers, sellers, and riders in one simple flow — from discovering products to receiving an order.",
+      "Swiftgoma is a local marketplace and delivery platform built for Goma, DRC. We connect buyers, sellers, and riders in one simple flow from discovering products to receiving an order.",
     primaryCta: "Start shopping",
     secondaryCta: "Contact support",
 
@@ -142,7 +142,7 @@ const ABOUT_STRINGS: Record<
     businessTitle:
       "Helping local sellers grow without taking a cut of every order.",
     businessDescription:
-      "Swiftgoma gives sellers the tools to bring their products online, manage orders, coordinate their own delivery network, and receive payments — while keeping order commissions at 0%.",
+      "Swiftgoma gives sellers the tools to bring their products online, manage orders, coordinate their own delivery network, and receive payments while keeping order commissions at 0%.",
 
     businessPoints: [
       {

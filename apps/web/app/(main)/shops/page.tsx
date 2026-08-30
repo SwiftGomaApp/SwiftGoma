@@ -38,7 +38,7 @@ const STRINGS = {
     eyebrow: "Swiftgoma Marketplace",
     title: "Every shop in Goma, in one place.",
     description:
-      "Browse local sellers across Goma — from neighborhood stores to independent shops, all in one marketplace.",
+      "Browse local sellers across Goma, from neighborhood stores to independent shops, all in one marketplace.",
     searchPlaceholder: "Search for shops…",
     searchButton: "Search",
     resultsOne: "shop found",
@@ -56,7 +56,7 @@ const STRINGS = {
     eyebrow: "Marché Swiftgoma",
     title: "Toutes les boutiques de Goma, au même endroit.",
     description:
-      "Parcourez les vendeurs locaux de Goma — des boutiques de quartier aux commerçants indépendants, réunis sur un seul marché.",
+      "Parcourez les vendeurs locaux de Goma, des boutiques de quartier aux commerçants indépendants, réunis sur un seul marché.",
     searchPlaceholder: "Rechercher des boutiques…",
     searchButton: "Rechercher",
     resultsOne: "boutique trouvée",
