@@ -13,6 +13,7 @@ import { Toaster } from "@/components/ui/toast";
 import { LegalConsentProvider } from "@/components/legal/legal-consent-provider";
 import { cn } from "@/lib/utils";
 import { FavoritesProvider } from "@/lib/favorites/favorites-context";
+import { OneSignalProvider } from "@/components/global/onesignal-provider";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -133,6 +134,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 <FavoritesProvider>
                   <NotificationsProvider>
                     <ServerUnreachableBanner />
+                    <OneSignalProvider />
                     {children}
                     <Toaster />
                     <SessionExpiredModal />

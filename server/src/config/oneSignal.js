@@ -20,6 +20,10 @@ async function sendPushNotification({ externalUserIds, title, body, data }) {
       headings: { en: title, fr: title },
       contents: { en: body, fr: body },
       data: data || {},
+      chrome_web_icon:
+        "https://res.cloudinary.com/dx3wclabo/image/upload/v1788178502/safari-icon-256x256_gxyvjj.png",
+      firefox_icon:
+        "https://res.cloudinary.com/dx3wclabo/image/upload/v1788178502/safari-icon-256x256_gxyvjj.png",
     });
     return res.data;
   } catch (err) {

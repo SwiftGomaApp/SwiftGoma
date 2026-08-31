@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Bell, CheckCheck, Loader2, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ import { getNotificationIcon } from "@/lib/notification-icons";
 import { useNotifications } from "@/lib/notifications/notifications-context";
 import { cn } from "@/lib/utils";
 import type { Locale } from "@/lib/language";
+import { getNotificationLink } from "@/lib/notifications/notification-link";
 
 const PAGE_SIZE = 20;
 
@@ -58,6 +60,8 @@ export function NotificationsList({ locale }: { locale: Locale }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
 
+  const router = useRouter();
+
   useEffect(() => {
     listNotifications({ page: 1, limit: PAGE_SIZE })
       .then((result) => {
@@ -84,18 +88,22 @@ export function NotificationsList({ locale }: { locale: Locale }) {
   }
 
   async function handleOpenItem(item: AppNotification) {
-    if (item.isRead) return;
-    setItems(
-      (prev) =>
-        prev?.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)) ??
-        null,
-    );
-    try {
-      await markNotificationRead(item.id);
-      refreshUnreadCount();
-    } catch {
-      // leave optimistic state; next load will resync
+    if (!item.isRead) {
+      setItems(
+        (prev) =>
+          prev?.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)) ??
+          null,
+      );
+      try {
+        await markNotificationRead(item.id);
+        refreshUnreadCount();
+      } catch {
+        // leave optimistic state; next load will resync
+      }
     }
+
+    const link = getNotificationLink(item);
+    if (link) router.push(link);
   }
 
   async function handleDelete(id: string) {
