@@ -12,8 +12,9 @@ import { ServerUnreachableBanner } from "@/lib/auth/server-unreachable-banner";
 import { Toaster } from "@/components/ui/toast";
 import { LegalConsentProvider } from "@/components/legal/legal-consent-provider";
 import { cn } from "@/lib/utils";
+import { FavoritesProvider } from "@/lib/favorites/favorites-context";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -111,7 +112,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang={locale}
       suppressHydrationWarning
-      className={cn("h-full", "antialiased", geistMono.variable, "font-sans", geist.variable)}
+      className={cn(
+        "h-full",
+        "antialiased",
+        geistMono.variable,
+        "font-sans",
+        geist.variable,
+      )}
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider
@@ -123,13 +130,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <AuthProvider>
             <LoginRequiredProvider>
               <CartProvider>
-                <NotificationsProvider>
-                  <ServerUnreachableBanner />
-                  {children}
-                  <Toaster />
-                  <SessionExpiredModal />
-                  <LegalConsentProvider />
-                </NotificationsProvider>
+                <FavoritesProvider>
+                  <NotificationsProvider>
+                    <ServerUnreachableBanner />
+                    {children}
+                    <Toaster />
+                    <SessionExpiredModal />
+                    <LegalConsentProvider />
+                  </NotificationsProvider>
+                </FavoritesProvider>
               </CartProvider>
             </LoginRequiredProvider>
           </AuthProvider>

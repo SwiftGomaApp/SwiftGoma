@@ -11,9 +11,9 @@ export default async function MainLayout({
   const categories = await getPublicCategories().catch(() => []);
 
   return (
-    <main className="flex-1">
+    <main className="flex flex-1 flex-col">
       <Header categories={categories} />
-      {children}
+      <div className="flex-1">{children}</div>
       <Footer />
     </main>
   );

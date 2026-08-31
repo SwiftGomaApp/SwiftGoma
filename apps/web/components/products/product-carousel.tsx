@@ -20,19 +20,11 @@ import {
   getProductImages,
   getProductStartingPrice,
 } from "@/lib/products";
+import { useFavorites } from "@/lib/favorites/favorites-context";
 
-// Fixed pixel widths (not percentages) on purpose: a percentage flex-basis
-// combined with the ProductCard's nested aspect-square image box triggers a
-// Safari flexbox bug where the item collapses toward its content width
-// instead of the intended basis, producing visibly uneven card sizes.
 const ITEM_CLASS =
   "basis-[200px] pl-4 sm:basis-[220px] md:basis-[250px] lg:basis-70";
 
-// Same Safari flex + aspect-ratio bug also breaks the image's aspect-square
-// height inside this carousel (some cards render shorter than others even
-// though their widths now match). Give the image a fixed height per
-// breakpoint, matching ITEM_CLASS's widths, instead of relying on
-// aspect-ratio to derive it.
 const IMAGE_CLASS = "h-[200px] sm:h-[220px] md:h-[250px] lg:h-70";
 
 const FADE_WIDTH = 40;
@@ -104,6 +96,7 @@ export function ProductCarousel({
   ctaLabel: string;
 }) {
   const { addItem } = useCart();
+  const { isFavorited, toggle } = useFavorites();
 
   return (
     <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
@@ -122,6 +115,7 @@ export function ProductCarousel({
         <CarouselContent>
           {products.map((product) => {
             const variant = product.variants[0];
+
             return (
               <CarouselItem key={product.id} className={ITEM_CLASS}>
                 <Link href={`/products/${product.slug}`} className="block">
@@ -137,6 +131,8 @@ export function ProductCarousel({
                       if (!variant) return;
                       addItem(product.shop.id, variant.id, 1, product.name);
                     }}
+                    isFavorited={isFavorited(product.id)}
+                    onFavoriteToggle={() => toggle(product.id, product.name)}
                   />
                 </Link>
               </CarouselItem>

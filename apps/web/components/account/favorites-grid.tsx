@@ -3,6 +3,7 @@
 import Link from "next/link";
 import ProductCard from "@/components/global/product-card";
 import { useCart } from "@/lib/cart/cart-context";
+import { useFavorites } from "@/lib/favorites/favorites-context";
 import type { PublicProduct } from "@/lib/api/routes/products";
 import {
   getCurrencyPrefix,
@@ -10,15 +11,18 @@ import {
   getProductImages,
   getProductStartingPrice,
 } from "@/lib/products";
-import { useFavorites } from "@/lib/favorites/favorites-context";
 
-export function ProductGrid({ products }: { products: PublicProduct[] }) {
+export function FavoritesGrid({ products }: { products: PublicProduct[] }) {
   const { addItem } = useCart();
-  const { isFavorited, toggle } = useFavorites();
+  const { favoritesIds, isLoading, toggle } = useFavorites();
+
+  const visibleProducts = isLoading
+    ? products
+    : products.filter((p) => favoritesIds.has(p.id));
 
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-      {products.map((product) => {
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {visibleProducts.map((product) => {
         const variant = product.variants[0];
         return (
           <Link
@@ -32,8 +36,9 @@ export function ProductGrid({ products }: { products: PublicProduct[] }) {
               name={product.name}
               price={getProductStartingPrice(product)}
               currency={getCurrencyPrefix(product.currency)}
-              className="max-w-none"
-              isFavorited={isFavorited(product.id)}
+              orientation="horizontal"
+              className="max-w-none w-full"
+              isFavorited
               onFavoriteToggle={() => toggle(product.id, product.name)}
               onAddToCart={() => {
                 if (!variant) return;
@@ -46,5 +51,3 @@ export function ProductGrid({ products }: { products: PublicProduct[] }) {
     </div>
   );
 }
-
-export default ProductGrid;
