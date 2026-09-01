@@ -92,7 +92,7 @@ export interface Passkey {
   createdAt: string;
 }
 
-type LoginResult = WebAuthPayload | MobileAuthPayload | TotpRequiredPayload;
+export type LoginResult = WebAuthPayload | MobileAuthPayload | TotpRequiredPayload;
 
 export function createAccount(body: {
   name: string;

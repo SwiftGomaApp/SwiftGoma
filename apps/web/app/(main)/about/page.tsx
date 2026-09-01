@@ -12,12 +12,12 @@ import {
   ShoppingBag,
   Store,
   Wallet,
-  Zap,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { getServerLocale } from "@/lib/language";
 import type { Locale } from "@/lib/language";
+import { AboutStoreButtons } from "@/components/about/about-store-buttons";
 
 const ABOUT_STRINGS: Record<
   Locale,
@@ -25,55 +25,57 @@ const ABOUT_STRINGS: Record<
     eyebrow: string;
     title: string;
     description: string;
-
     primaryCta: string;
     secondaryCta: string;
-
     missionEyebrow: string;
     missionTitle: string;
     missionDescription: string;
-
     problemTitle: string;
     problemDescription: string;
-
     howTitle: string;
     howDescription: string;
-
     roles: {
       title: string;
       description: string;
     }[];
-
     principlesEyebrow: string;
     principlesTitle: string;
     principlesDescription: string;
-
     principles: {
       title: string;
       description: string;
     }[];
-
     businessEyebrow: string;
     businessTitle: string;
     businessDescription: string;
-
     businessPoints: {
       title: string;
       description: string;
     }[];
-
     ctaTitle: string;
     ctaDescription: string;
     ctaButton: string;
-
+    comingSoonTitle: string;
+    comingSoonDescription: string;
+    comingSoonClose: string;
+    waitlistPlaceholder: string;
+    waitlistSubmit: string;
+    waitlistSubmitting: string;
+    waitlistSuccessTitle: string;
+    waitlistSuccessDescription: string;
+    waitlistError: string;
     location: string;
+    appStoreEyebrow: string;
+    appStoreName: string;
+    playStoreEyebrow: string;
+    playStoreName: string;
   }
 > = {
   en: {
     eyebrow: "About Swiftgoma",
     title: "Making everyday commerce easier in Goma.",
     description:
-      "Swiftgoma is a local marketplace and delivery platform built for Goma, DRC. We connect buyers, sellers, and riders in one simple flow — from discovering products to receiving an order.",
+      "Swiftgoma is a local marketplace and delivery platform built for Goma, DRC. We connect buyers, sellers, and riders in one simple flow from discovering products to receiving an order.",
     primaryCta: "Start shopping",
     secondaryCta: "Contact support",
 
@@ -140,7 +142,7 @@ const ABOUT_STRINGS: Record<
     businessTitle:
       "Helping local sellers grow without taking a cut of every order.",
     businessDescription:
-      "Swiftgoma gives sellers the tools to bring their products online, manage orders, coordinate their own delivery network, and receive payments — while keeping order commissions at 0%.",
+      "Swiftgoma gives sellers the tools to bring their products online, manage orders, coordinate their own delivery network, and receive payments while keeping order commissions at 0%.",
 
     businessPoints: [
       {
@@ -166,6 +168,21 @@ const ABOUT_STRINGS: Record<
     ctaButton: "Browse products",
 
     location: "Built for Goma, Democratic Republic of the Congo",
+
+    appStoreEyebrow: "Download on the",
+    appStoreName: "App Store",
+    playStoreEyebrow: "Get it on",
+    playStoreName: "Google Play",
+    comingSoonTitle: "Coming soon",
+    comingSoonDescription:
+      "Our mobile app isn't available yet. We'll let you know as soon as it launches.",
+    comingSoonClose: "Got it",
+    waitlistPlaceholder: "you@example.com",
+    waitlistSubmit: "Notify me",
+    waitlistSubmitting: "Submitting…",
+    waitlistSuccessTitle: "You're on the list!",
+    waitlistSuccessDescription: "We'll email you as soon as the app launches.",
+    waitlistError: "Something went wrong. Please try again.",
   },
 
   fr: {
@@ -265,6 +282,22 @@ const ABOUT_STRINGS: Record<
     ctaButton: "Voir les produits",
 
     location: "Conçu pour Goma, République démocratique du Congo",
+
+    appStoreEyebrow: "Télécharger sur",
+    appStoreName: "App Store",
+    playStoreEyebrow: "Disponible sur",
+    playStoreName: "Google Play",
+    comingSoonTitle: "Bientôt disponible",
+    comingSoonDescription:
+      "Notre application mobile n'est pas encore disponible. Nous vous préviendrons dès son lancement.",
+    comingSoonClose: "Compris",
+    waitlistPlaceholder: "vous@exemple.com",
+    waitlistSubmit: "Me prévenir",
+    waitlistSubmitting: "Envoi…",
+    waitlistSuccessTitle: "Vous êtes sur la liste !",
+    waitlistSuccessDescription:
+      "Nous vous enverrons un e-mail dès le lancement de l'application.",
+    waitlistError: "Une erreur est survenue. Veuillez réessayer.",
   },
 };
 
@@ -273,39 +306,6 @@ const ROLE_ICONS = [ShoppingBag, Store, Bike];
 const PRINCIPLE_ICONS = [CircleDollarSign, QrCode, Handshake, CheckCircle2];
 
 const BUSINESS_ICONS = [Store, Wallet, Bike];
-
-export const AppleIcon = () => (
-  <svg
-    viewBox="0 0 24 24"
-    width="18"
-    height="18"
-    fill="currentColor"
-    aria-hidden="true"
-  >
-    <path d="M16.365 1.43c0 1.14-.415 2.06-1.246 2.76-.859.72-1.879 1.14-2.86 1.06a3.1 3.1 0 0 1-.03-.4c0-1.1.478-2.14 1.28-2.86.83-.76 2.03-1.13 2.83-1.19.02.21.026.42.026.63Zm4.106 15.36c-.53 1.22-.79 1.77-1.47 2.85-.95 1.5-2.29 3.37-3.95 3.39-1.48.02-1.86-.97-3.87-.96-2.01.01-2.43.98-3.9.96-1.66-.02-2.93-1.71-3.88-3.21-2.66-4.2-2.94-9.13-1.3-11.75 1.16-1.86 2.99-2.95 4.71-2.95 1.75 0 2.85 1 4.3 1 1.4 0 2.26-1 4.3-1 1.53 0 3.16.83 4.32 2.27-3.8 2.08-3.18 7.5.72 9.15Z" />
-  </svg>
-);
-
-export const PlayIcon = () => (
-  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-    <path
-      d="M4.4 2.6c-.4.3-.6.8-.6 1.4v16c0 .6.2 1.1.6 1.4l.1.1L13.6 12v-.2L4.5 2.5l-.1.1Z"
-      fill="#00D6FF"
-    />
-    <path
-      d="m16.6 15 -3-3v-.2l3-3 .1.1 3.6 2c1 .6 1 1.5 0 2.1l-3.6 2Z"
-      fill="#FFCF00"
-    />
-    <path
-      d="M16.6 15 13.6 12 4.4 21.4c.35.36.93.4 1.58.05L16.6 15Z"
-      fill="#FF3363"
-    />
-    <path
-      d="M16.6 9 5.98 2.55c-.65-.35-1.23-.3-1.58.05L13.6 12 16.6 9Z"
-      fill="#00F076"
-    />
-  </svg>
-);
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getServerLocale();
@@ -548,30 +548,25 @@ export default async function AboutPage() {
 
               {/* CTA buttons */}
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                {/* App Store */}
-                <Button
-                  variant="outline"
-                  className="h-11 w-full rounded-lg px-5 sm:w-auto"
-                >
-                  <AppleIcon />
-                  <span>App Store</span>
-                </Button>
-
-                {/* Google Play */}
-                <Button
-                  variant="outline"
-                  className="h-11 w-full rounded-lg px-5 sm:w-auto"
-                >
-                  <PlayIcon />
-                  <span>Google Play</span>
-                </Button>
+                <AboutStoreButtons
+                  appStoreEyebrow={t.appStoreEyebrow}
+                  appStoreName={t.appStoreName}
+                  playStoreEyebrow={t.playStoreEyebrow}
+                  playStoreName={t.playStoreName}
+                  comingSoonTitle={t.comingSoonTitle}
+                  comingSoonDescription={t.comingSoonDescription}
+                  comingSoonClose={t.comingSoonClose}
+                  waitlistPlaceholder={t.waitlistPlaceholder}
+                  waitlistSubmit={t.waitlistSubmit}
+                  waitlistSubmitting={t.waitlistSubmitting}
+                  waitlistSuccessTitle={t.waitlistSuccessTitle}
+                  waitlistSuccessDescription={t.waitlistSuccessDescription}
+                  waitlistError={t.waitlistError}
+                />
 
                 {/* Browse products */}
-                <Button
-                  variant="outline"
-                  className="h-11 w-full rounded-lg px-5 sm:w-auto"
-                >
-                  {t.ctaButton}
+                <Button className="h-11 w-full rounded-lg px-5 sm:w-auto">
+                  <Link href="/products">{t.ctaButton}</Link>
                   <ArrowRight className="ml-2 size-4" />
                 </Button>
               </div>

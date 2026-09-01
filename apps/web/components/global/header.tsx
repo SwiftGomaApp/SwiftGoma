@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search, ShoppingCart, X, Menu, User } from "lucide-react";
+import { Bell, Search, ShoppingCart, Menu, User } from "lucide-react";
 import Logo from "./logo";
 import { DEFAULT_LOCALE, getClientLocale, type Locale } from "@/lib/language";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -10,9 +10,19 @@ import { ProductFilters } from "@/components/products/product-filters";
 import { CartModal } from "@/components/global/cart-modal";
 import { NotificationModal } from "@/components/global/notification-modal";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { cn } from "@/lib/utils";
+import {
+  Sheet,
+  SheetTrigger,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetClose,
+} from "@/components/ui/sheet";
 import type { PublicCategory } from "@/lib/api/routes/products";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Button, buttonVariants } from "../ui/button";
 
 const NAV_LINK_IDS = [
   "home",
@@ -119,7 +129,7 @@ const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
           <Logo size={18} />
 
           {/* Center nav — desktop only */}
-          <nav className="hidden items-center gap-8 md:flex">
+          <nav className="hidden items-center gap-8 lg:flex">
             {NAV_LINK_IDS.map((id) => (
               <Link
                 key={id}
@@ -137,7 +147,7 @@ const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
             <button
               aria-label={t.search}
               onClick={() => setSearchOpen(true)}
-              className="hidden items-center gap-2 rounded-full border border-border bg-muted/40 py-1.5 pr-2 pl-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:flex"
+              className="hidden h-9 items-center gap-2 rounded-full border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground sm:flex"
             >
               <Search size={16} strokeWidth={1.75} />
               <span>{t.search}</span>
@@ -169,12 +179,12 @@ const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
                   <User size={20} strokeWidth={1.75} />
                 </Link>
               ) : (
-                <Link
-                  href="/auth/sign-in"
-                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
+                <Button
+                  nativeButton={false}
+                  render={<Link href="/auth/sign-in" />}
                 >
                   {t.login}
-                </Link>
+                </Button>
               ))}
 
             {/* Notifications */}
@@ -208,58 +218,79 @@ const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
               )}
             </button>
 
-            {/* Hamburger — mobile only, toggles nav */}
-            <button
-              aria-label={mobileOpen ? t.closeMenu : t.openMenu}
-              onClick={() => setMobileOpen((v) => !v)}
-              className="text-foreground transition-colors hover:text-primary md:hidden"
-            >
-              {mobileOpen ? (
-                <X size={22} strokeWidth={1.75} />
-              ) : (
+            {/* Hamburger — mobile only, opens the nav drawer */}
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+              <SheetTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label={t.openMenu}
+                    className="text-foreground transition-colors hover:text-primary lg:hidden"
+                  />
+                }
+              >
                 <Menu size={22} strokeWidth={1.75} />
-              )}
-            </button>
+              </SheetTrigger>
+
+              <SheetContent
+                side="left"
+                className="flex w-4/5 max-w-xs flex-col p-0"
+              >
+                <SheetHeader className="border-b border-border">
+                  <SheetTitle className="sr-only">{t.menu}</SheetTitle>
+                  <Logo size={18} />
+                </SheetHeader>
+
+                <nav className="flex flex-col gap-1 overflow-y-auto px-4 py-4">
+                  {NAV_LINK_IDS.map((id) => (
+                    <SheetClose
+                      key={id}
+                      nativeButton={false}
+                      render={
+                        <Link
+                          href={NAV_HREFS[id]}
+                          className="rounded-md px-3 py-3 text-[15px] font-medium text-foreground transition-colors hover:bg-muted"
+                        />
+                      }
+                    >
+                      {t.nav[id]}
+                    </SheetClose>
+                  ))}
+                </nav>
+
+                <div className="mt-auto border-t border-border p-4">
+                  {!isLoading &&
+                    (isAuthenticated ? (
+                      <SheetClose
+                        nativeButton={false}
+                        render={
+                          <Link
+                            href="/account"
+                            className="flex items-center gap-2 rounded-md px-3 py-3 text-[15px] font-medium text-foreground transition-colors hover:bg-muted"
+                          />
+                        }
+                      >
+                        <User size={18} strokeWidth={1.75} />
+                        {t.account}
+                      </SheetClose>
+                    ) : (
+                      <SheetClose
+                        nativeButton={false}
+                        render={
+                          <Link
+                            href="/auth/sign-in"
+                            className={cn(buttonVariants(), "h-11 w-full")}
+                          />
+                        }
+                      >
+                        {t.login}
+                      </SheetClose>
+                    ))}
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
-
-        {/* Mobile nav panel */}
-        {mobileOpen && (
-          <nav className="flex flex-col gap-1 border-t border-border bg-background px-4 py-3 md:hidden">
-            {NAV_LINK_IDS.map((id) => (
-              <Link
-                key={id}
-                href={NAV_HREFS[id]}
-                onClick={() => setMobileOpen(false)}
-                className="rounded-md px-2 py-2.5 text-[15px] font-medium text-foreground transition-colors hover:bg-primary-foreground hover:text-primary"
-              >
-                {t.nav[id]}
-              </Link>
-            ))}
-
-            <div className="mt-2 border-t border-border pt-3">
-              {!isLoading &&
-                (isAuthenticated ? (
-                  <Link
-                    href="/account"
-                    onClick={() => setMobileOpen(false)}
-                    className="flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-primary"
-                  >
-                    <User size={18} strokeWidth={1.75} />
-                    {t.account}
-                  </Link>
-                ) : (
-                  <Link
-                    href="/auth/sign-in"
-                    onClick={() => setMobileOpen(false)}
-                    className="inline-block rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
-                  >
-                    {t.login}
-                  </Link>
-                ))}
-            </div>
-          </nav>
-        )}
       </header>
 
       <ProductFilters

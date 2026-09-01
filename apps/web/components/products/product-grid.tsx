@@ -10,9 +10,11 @@ import {
   getProductImages,
   getProductStartingPrice,
 } from "@/lib/products";
+import { useFavorites } from "@/lib/favorites/favorites-context";
 
 export function ProductGrid({ products }: { products: PublicProduct[] }) {
   const { addItem } = useCart();
+  const { isFavorited, toggle } = useFavorites();
 
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -31,6 +33,8 @@ export function ProductGrid({ products }: { products: PublicProduct[] }) {
               price={getProductStartingPrice(product)}
               currency={getCurrencyPrefix(product.currency)}
               className="max-w-none"
+              isFavorited={isFavorited(product.id)}
+              onFavoriteToggle={() => toggle(product.id, product.name)}
               onAddToCart={() => {
                 if (!variant) return;
                 addItem(product.shop.id, variant.id, 1, product.name);

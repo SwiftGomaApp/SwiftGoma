@@ -6,14 +6,14 @@ const SHOP_CONFIG = {
   DESCRIPTION_MAX_LENGTH: 500,
 
   SUPPORTED_DELIVERY_CURRENCIES: ["USD", "CDF"],
-  DELIVERY_FEE_MIN: {
-    USD: 0.5,
-    CDF: 1500,
-  },
-  DELIVERY_FEE_MAX: {
-    USD: 2,
-    CDF: 3600,
-  },
+  // Bounds are defined once, in the base currency below. Any other
+  // supported currency's limit is derived at validation time from the
+  // live rate in the ExchangeRate table (managed under Admin > Exchange
+  // Rates), so it always matches the same real-world value — no more
+  // hardcoded per-currency numbers that can silently drift apart.
+  DELIVERY_FEE_BASE_CURRENCY: "USD",
+  DELIVERY_FEE_MIN_BASE: 0.5,
+  DELIVERY_FEE_MAX_BASE: 2,
 
   ALLOWED_STATUS_TRANSITIONS: {
     DRAFT: ["PUBLISHED"],

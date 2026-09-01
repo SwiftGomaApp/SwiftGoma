@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/lib/auth/auth-context";
 
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
@@ -83,6 +84,12 @@ export function NotificationsPreferences({ locale }: { locale: Locale }) {
   const t = STRINGS[locale];
   const labels = TYPE_LABELS[locale];
 
+  const { user } = useAuth();
+
+  const visibleTypes = NOTIFICATION_TYPES.filter(
+    (type) => type !== "SELLER_ONBOARDING" || user?.role === "SELLER",
+  );
+
   const [preferences, setPreferences] = useState<Record<
     NotificationType,
     PreferenceRow
@@ -132,9 +139,7 @@ export function NotificationsPreferences({ locale }: { locale: Locale }) {
     try {
       await updateNotificationPreference({ type, [channel]: checked });
     } catch (err) {
-      setPreferences((prev) =>
-        prev ? { ...prev, [type]: previous } : prev,
-      );
+      setPreferences((prev) => (prev ? { ...prev, [type]: previous } : prev));
       toast.add({
         title: t.genericError,
         description: extractMessage(err),
@@ -155,18 +160,18 @@ export function NotificationsPreferences({ locale }: { locale: Locale }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[520px] border-collapse text-sm">
+      <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs text-muted-foreground">
             <th className="py-2 pr-4 font-medium">{t.typeColumn}</th>
-            <th className="px-2 py-2 text-center font-medium">{t.inApp}</th>
-            <th className="px-2 py-2 text-center font-medium">{t.email}</th>
-            <th className="px-2 py-2 text-center font-medium">{t.sms}</th>
-            <th className="px-2 py-2 text-center font-medium">{t.push}</th>
+            <th className="w-20 px-2 py-2 text-center font-medium whitespace-nowrap">{t.inApp}</th>
+            <th className="w-20 px-2 py-2 text-center font-medium whitespace-nowrap">{t.email}</th>
+            <th className="w-20 px-2 py-2 text-center font-medium whitespace-nowrap">{t.sms}</th>
+            <th className="w-20 px-2 py-2 text-center font-medium whitespace-nowrap">{t.push}</th>
           </tr>
         </thead>
         <tbody>
-          {NOTIFICATION_TYPES.map((type) => {
+          {visibleTypes.map((type) => {
             const pref = preferences[type];
             const isForced = FORCED_NOTIFICATION_TYPES.includes(type);
             return (

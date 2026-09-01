@@ -37,6 +37,7 @@ const {
 } = require("../../invoicing/services/invoice.service");
 const { createQueue } = require("../../../config/queue");
 const { QUEUE_NAMES } = require("../../../common/constants/queueNames");
+const { sanitizeUser } = require("../../auth/services/auth.service");
 
 const prisma = getPrismaClient();
 
@@ -1551,7 +1552,25 @@ async function completeOneDeliveredOrder(order, { notifySeller = false } = {}) {
 }
 
 async function getOrderById(orderId, requesterId) {
-  return assertCanViewOrder(orderId, requesterId);
+  const order = await assertCanViewOrder(orderId, requesterId);
+
+  // assertCanViewOrder pulls raw User rows (buyer, seller, rider) for the
+  // ownership check — never return those to the client as-is, they carry
+  // password hashes and OTP codes. Strip them the same way auth responses do.
+  return {
+    ...order,
+    buyer: sanitizeUser(order.buyer),
+    rider: order.rider
+      ? { ...order.rider, user: sanitizeUser(order.rider.user) }
+      : null,
+    shop: {
+      ...order.shop,
+      sellerProfile: {
+        ...order.shop.sellerProfile,
+        user: sanitizeUser(order.shop.sellerProfile.user),
+      },
+    },
+  };
 }
 
 async function listOrdersForBuyer(

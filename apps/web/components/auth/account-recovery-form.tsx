@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -25,8 +26,22 @@ import { Input } from "@/components/ui/input";
 import Logo from "../global/logo";
 import { RotatingCaption } from "@/lib/constants/auth";
 import { DEFAULT_LOCALE, getClientLocale, Locale } from "@/lib/language";
+import { useAuth } from "@/lib/auth/auth-context";
+import { isApiError } from "@/lib/api/client";
+import { loginWithTotp } from "@/lib/api/routes/auth.routes";
+import {
+  requestAccountRecovery,
+  verifyAccountRecovery,
+} from "@/lib/api/routes/users.routes";
 
 type RecoveryStep = "request" | "verify" | "totp" | "success" | "failure";
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (isApiError(error) && error.response?.data?.error?.message) {
+    return error.response.data.error.message;
+  }
+  return fallback;
+}
 
 const ACCOUNT_RECOVERY_STRINGS = {
   en: {
@@ -157,16 +172,20 @@ const ACCOUNT_RECOVERY_STRINGS = {
 
 export function AccountRecoveryForm({
   className,
+  initialEmail,
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<"div"> & { initialEmail?: string }) {
   const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE);
   const [step, setStep] = useState<RecoveryStep>("request");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail ?? "");
   const [code, setCode] = useState("");
   const [totpCode, setTotpCode] = useState("");
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const router = useRouter();
+  const { setUser } = useAuth();
 
   useEffect(() => {
     setLocale(getClientLocale());
@@ -183,15 +202,11 @@ export function AccountRecoveryForm({
     setError(null);
 
     try {
-      console.log("Requesting account recovery:", {
-        email,
-        locale,
-      });
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await requestAccountRecovery({ email, locale });
       setStep("verify");
     } catch (error) {
       console.error(error);
-      setError(t.requestFailed);
+      setError(extractErrorMessage(error, t.requestFailed));
       setStep("failure");
     } finally {
       setLoading(false);
@@ -206,31 +221,20 @@ export function AccountRecoveryForm({
     setError(null);
 
     try {
-      console.log("Verifying account recovery:", {
-        email,
-        code,
-        locale,
-      });
+      const result = await verifyAccountRecovery({ email, code, locale });
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      if (code === "123456") {
-        setStep("success");
-        return;
-      }
-
-      if (code === "222222") {
-        setPendingToken("demo-pending-token");
+      if ("requiresTotp" in result) {
+        setPendingToken(result.pendingToken);
         setStep("totp");
         return;
       }
 
-      setError(t.invalidCode);
-      setStep("failure");
+      setUser(result.user);
+      setStep("success");
     } catch (error) {
       console.error(error);
 
-      setError(t.verificationFailed);
+      setError(extractErrorMessage(error, t.verificationFailed));
       setStep("failure");
     } finally {
       setLoading(false);
@@ -239,29 +243,29 @@ export function AccountRecoveryForm({
 
   const handleVerifyTotp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!totpCode || loading) return;
+    if (!totpCode || loading || !pendingToken) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      console.log("Verifying recovery TOTP:", {
+      const result = await loginWithTotp({
         pendingToken,
         code: totpCode,
       });
-      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      if (totpCode === "654321") {
-        setStep("success");
+      if ("requiresTotp" in result) {
+        setError(t.invalidCode);
+        setStep("failure");
         return;
       }
 
-      setError(t.invalidCode);
-      setStep("failure");
+      setUser(result.user);
+      setStep("success");
     } catch (error) {
       console.error(error);
 
-      setError(t.verificationFailed);
+      setError(extractErrorMessage(error, t.verificationFailed));
       setStep("failure");
     } finally {
       setLoading(false);
@@ -450,9 +454,9 @@ export function AccountRecoveryForm({
                 setLoading(true);
 
                 try {
-                  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-                  console.log("Resending recovery code to:", email);
+                  await requestAccountRecovery({ email, locale });
+                } catch (error) {
+                  console.error(error);
                 } finally {
                   setLoading(false);
                 }
@@ -500,8 +504,12 @@ export function AccountRecoveryForm({
 
         {step === "success" && (
           <Field>
-            <Button className="mt-4 w-full">
-              <Link href="/dashboard">{t.goToAccount}</Link>
+            <Button
+              type="button"
+              className="mt-4 w-full"
+              onClick={() => router.push("/account")}
+            >
+              {t.goToAccount}
             </Button>
           </Field>
         )}

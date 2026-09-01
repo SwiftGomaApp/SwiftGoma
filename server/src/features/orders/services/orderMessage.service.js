@@ -46,9 +46,10 @@ async function assertChatOpen(orderId, userId) {
   const order = await assertCanViewOrder(orderId, userId);
 
   const isBuyer = order.buyerId === userId;
+  const isSeller = order.shop.sellerProfile.userId === userId;
   const isRider = order.rider && order.rider.userId === userId;
 
-  if (!isBuyer && !isRider) {
+  if (!isBuyer && !isSeller && !isRider) {
     throw new ForbiddenError("Vous n'avez pas accès à cette conversation.");
   }
 
@@ -61,11 +62,14 @@ async function assertChatOpen(orderId, userId) {
     );
   }
 
-  return {
-    order,
-    role: isBuyer ? "BUYER" : "RIDER",
-    recipientId: isBuyer ? order.rider.userId : order.buyerId,
-  };
+  const role = isBuyer ? "BUYER" : isSeller ? "SELLER" : "RIDER";
+  const recipientIds = [
+    order.buyerId,
+    order.shop.sellerProfile.userId,
+    order.rider.userId,
+  ].filter((id) => id !== userId);
+
+  return { order, role, recipientIds };
 }
 
 function formatMessage(message) {
@@ -93,7 +97,7 @@ async function sendOrderMessage({ orderId, senderId, body }) {
     );
   }
 
-  const { order, role, recipientId } = await assertChatOpen(orderId, senderId);
+  const { order, role, recipientIds } = await assertChatOpen(orderId, senderId);
 
   await assertNotRateLimited(senderId);
 
@@ -107,23 +111,29 @@ async function sendOrderMessage({ orderId, senderId, body }) {
   });
 
   const senderName =
-    role === "BUYER" ? order.buyer.name : order.rider.user.name;
+    role === "BUYER"
+      ? order.buyer.name
+      : role === "SELLER"
+        ? order.shop.sellerProfile.user.name
+        : order.rider.user.name;
 
   const preview =
     trimmed.length > MESSAGE_PREVIEW_LENGTH
       ? `${trimmed.slice(0, MESSAGE_PREVIEW_LENGTH)}…`
       : trimmed;
 
-  try {
-    await createNotification({
-      userId: recipientId,
-      type: NOTIFICATION_TYPES.ORDER_MESSAGE,
-      title: `Message de ${senderName}`,
-      body: preview,
-      data: { orderId, messageId: message.id },
-    });
-  } catch (err) {
-    console.error("[orderMessage] Failed to notify recipient:", err.message);
+  for (const recipientId of recipientIds) {
+    try {
+      await createNotification({
+        userId: recipientId,
+        type: NOTIFICATION_TYPES.ORDER_MESSAGE,
+        title: `Message de ${senderName}`,
+        body: preview,
+        data: { orderId, messageId: message.id },
+      });
+    } catch (err) {
+      console.error("[orderMessage] Failed to notify recipient:", err.message);
+    }
   }
 
   return formatMessage(message);

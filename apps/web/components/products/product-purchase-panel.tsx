@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { Check, Heart, Loader2, ShoppingCart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
+import { useLoginRequired } from "@/lib/auth/login-required-context";
 import { useCart } from "@/lib/cart/cart-context";
 import { apiGet, apiPost, apiDelete } from "@/lib/api/client";
 import type { Locale } from "@/lib/language";
@@ -31,6 +31,10 @@ const STRINGS = {
     favoriteAdd: "Add to favorites",
     favoriteRemove: "Remove from favorites",
     signInToFavorite: "Sign in to save favorites",
+    signInTitle: "Sign in required",
+    signInDescription: "Sign in to save items to your favorites.",
+    signInButton: "Sign in",
+    cancelButton: "Cancel",
     option: "Option",
   },
   fr: {
@@ -43,6 +47,10 @@ const STRINGS = {
     favoriteAdd: "Ajouter aux favoris",
     favoriteRemove: "Retirer des favoris",
     signInToFavorite: "Connectez-vous pour enregistrer vos favoris",
+    signInTitle: "Connexion requise",
+    signInDescription: "Connectez-vous pour enregistrer des articles dans vos favoris.",
+    signInButton: "Se connecter",
+    cancelButton: "Annuler",
     option: "Option",
   },
 } as const;
@@ -56,6 +64,7 @@ export function ProductPurchasePanel({
 }) {
   const t = STRINGS[locale];
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { requireLogin } = useLoginRequired();
   const { addItem } = useCart();
   const [justAdded, setJustAdded] = useState(false);
 
@@ -105,6 +114,15 @@ export function ProductPurchasePanel({
   }, [isAuthenticated, product.id]);
 
   async function toggleFavorite() {
+    if (!isAuthenticated) {
+      requireLogin({
+        title: t.signInTitle,
+        description: t.signInDescription,
+        signInLabel: t.signInButton,
+        cancelLabel: t.cancelButton,
+      });
+      return;
+    }
     if (favoriteLoading) return;
     setFavoriteLoading(true);
     const next = !isFavorited;
@@ -242,44 +260,37 @@ export function ProductPurchasePanel({
           {inStock ? (justAdded ? t.added : t.addToCart) : t.outOfStock}
         </Button>
 
-        {!authLoading &&
-          (isAuthenticated ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-lg"
-              aria-label={isFavorited ? t.favoriteRemove : t.favoriteAdd}
-              aria-pressed={isFavorited}
-              disabled={favoriteLoading}
-              onClick={toggleFavorite}
-              className="shrink-0 border-border"
-            >
-              {favoriteLoading ? (
-                <Loader2 className="size-5 animate-spin" />
-              ) : (
-                <Heart
-                  className={cn(
-                    "size-5 transition-colors",
-                    isFavorited
-                      ? "fill-primary text-primary"
-                      : "fill-none text-muted-foreground",
-                  )}
-                />
-              )}
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-lg"
-              aria-label={t.signInToFavorite}
-              nativeButton={false}
-              render={<Link href="/auth/sign-in" />}
-              className="shrink-0 border-border"
-            >
-              <Heart className="size-5 text-muted-foreground" />
-            </Button>
-          ))}
+        {!authLoading && (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-lg"
+            aria-label={
+              isAuthenticated
+                ? isFavorited
+                  ? t.favoriteRemove
+                  : t.favoriteAdd
+                : t.signInToFavorite
+            }
+            aria-pressed={isAuthenticated ? isFavorited : undefined}
+            disabled={favoriteLoading}
+            onClick={toggleFavorite}
+            className="shrink-0 border-border"
+          >
+            {favoriteLoading ? (
+              <Loader2 className="size-5 animate-spin" />
+            ) : (
+              <Heart
+                className={cn(
+                  "size-5 transition-colors",
+                  isAuthenticated && isFavorited
+                    ? "fill-primary text-primary"
+                    : "fill-none text-muted-foreground",
+                )}
+              />
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );

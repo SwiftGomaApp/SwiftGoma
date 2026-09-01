@@ -38,6 +38,14 @@ function extractErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function getDeletionPendingEmail(error: unknown): string | null {
+  if (!isApiError(error)) return null;
+  const apiError = error.response?.data?.error;
+  if (apiError?.code !== "ACCOUNT_DELETION_PENDING") return null;
+  const details = apiError.details as { email?: string } | undefined;
+  return details?.email ?? null;
+}
+
 export default function SignInPage() {
   const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE);
   const [useEmailPassword, setUseEmailPassword] = useState(false);
@@ -99,6 +107,13 @@ export default function SignInPage() {
         openOtpDialog("otp-login");
       }
     } catch (error) {
+      const deletionEmail = getDeletionPendingEmail(error);
+      if (deletionEmail) {
+        router.push(
+          `/auth/account-recovery?email=${encodeURIComponent(deletionEmail)}`,
+        );
+        return;
+      }
       toast.add({
         title: "Couldn't sign in",
         description: extractErrorMessage(
@@ -124,6 +139,13 @@ export default function SignInPage() {
         router.push("/account");
       }
     } catch (error) {
+      const deletionEmail = getDeletionPendingEmail(error);
+      if (deletionEmail) {
+        router.push(
+          `/auth/account-recovery?email=${encodeURIComponent(deletionEmail)}`,
+        );
+        return;
+      }
       toast.add({
         title: "Couldn't sign in",
         description: extractErrorMessage(
@@ -165,6 +187,13 @@ export default function SignInPage() {
         router.push("/account");
       }
     } catch (error) {
+      const deletionEmail = getDeletionPendingEmail(error);
+      if (deletionEmail) {
+        router.push(
+          `/auth/account-recovery?email=${encodeURIComponent(deletionEmail)}`,
+        );
+        return;
+      }
       // The user cancelling or dismissing the browser's passkey prompt
       // throws too — don't show a scary error toast for that case.
       const isCancelled =
@@ -201,6 +230,14 @@ export default function SignInPage() {
       }
       setOtpStatus("success");
     } catch (error) {
+      const deletionEmail = getDeletionPendingEmail(error);
+      if (deletionEmail) {
+        setOtpOpen(false);
+        router.push(
+          `/auth/account-recovery?email=${encodeURIComponent(deletionEmail)}`,
+        );
+        return;
+      }
       console.error(error);
       setOtpStatus("error");
     } finally {
@@ -219,6 +256,14 @@ export default function SignInPage() {
       setUser(result.user);
       setOtpStatus("success");
     } catch (error) {
+      const deletionEmail = getDeletionPendingEmail(error);
+      if (deletionEmail) {
+        setOtpOpen(false);
+        router.push(
+          `/auth/account-recovery?email=${encodeURIComponent(deletionEmail)}`,
+        );
+        return;
+      }
       console.error(error);
       setOtpStatus("error");
     } finally {

@@ -4,6 +4,7 @@ import { NotificationsList } from "@/components/account/notifications-list";
 import { NotificationsPreferences } from "@/components/account/notifications-preferences";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Locale } from "@/lib/language";
+import { PushNotificationStatus } from "./push-notification-status";
 
 const STRINGS = {
   en: {
@@ -41,7 +42,10 @@ export function NotificationsAccountView({ locale }: { locale: Locale }) {
           <NotificationsList locale={locale} />
         </TabsContent>
         <TabsContent value="preferences" className="pt-4">
-          <NotificationsPreferences locale={locale} />
+          <div className="flex flex-col gap-4">
+            <PushNotificationStatus  locale={locale} />
+            <NotificationsPreferences locale={locale} />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

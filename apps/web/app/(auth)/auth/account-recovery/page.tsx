@@ -12,11 +12,24 @@ export const metadata: Metadata = {
   },
 };
 
-const AccountRecovery = () => {
+type SearchParams = Record<string, string | string[] | undefined>;
+
+type Props = {
+  searchParams: Promise<SearchParams>;
+};
+
+function firstValue(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
+const AccountRecovery = async ({ searchParams }: Props) => {
+  const sp = await searchParams;
+  const initialEmail = firstValue(sp.email);
+
   return (
     <main className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
       <div className="w-full max-w-sm">
-        <AccountRecoveryForm />
+        <AccountRecoveryForm initialEmail={initialEmail} />
       </div>
     </main>
   );

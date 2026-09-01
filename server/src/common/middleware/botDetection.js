@@ -1,6 +1,9 @@
 const { isbot } = require("isbot");
 
 const { ForbiddenError } = require("../errors");
+const { env } = require("../../config/env");
+
+const isProduction = env.nodeEnv === "production";
 
 const TRUSTED_USER_AGENT_PREFIXES = [
   "SwiftGomaAdmin-Server/",
@@ -29,7 +32,7 @@ function botDetection({ mode = "flag" } = {}) {
           `UA="${req.headers["user-agent"] || ""}" ${req.method} ${req.originalUrl}`,
       );
 
-      if (mode === "block") {
+      if (mode === "block" && isProduction) {
         return next(
           new ForbiddenError(
             "Automated access is not allowed on this endpoint.",
@@ -43,7 +46,7 @@ function botDetection({ mode = "flag" } = {}) {
 }
 
 function blockSuspectedBots(req, res, next) {
-  if (req.isSuspectedBot) {
+  if (req.isSuspectedBot && isProduction) {
     return next(
       new ForbiddenError("Automated access is not allowed on this endpoint."),
     );

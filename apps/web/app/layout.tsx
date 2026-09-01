@@ -4,13 +4,18 @@ import "./globals.css";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { getServerLocale } from "@/lib/language";
 import { AuthProvider } from "@/lib/auth/auth-context";
+import { LoginRequiredProvider } from "@/lib/auth/login-required-context";
+import { CartProvider } from "@/lib/cart/cart-context";
+import { NotificationsProvider } from "@/lib/notifications/notifications-context";
 import { SessionExpiredModal } from "@/components/global/session-expired";
 import { ServerUnreachableBanner } from "@/lib/auth/server-unreachable-banner";
 import { Toaster } from "@/components/ui/toast";
 import { LegalConsentProvider } from "@/components/legal/legal-consent-provider";
 import { cn } from "@/lib/utils";
+import { FavoritesProvider } from "@/lib/favorites/favorites-context";
+import { OneSignalProvider } from "@/components/global/onesignal-provider";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -108,7 +113,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang={locale}
       suppressHydrationWarning
-      className={cn("h-full", "antialiased", geistMono.variable, "font-sans", geist.variable)}
+      className={cn(
+        "h-full",
+        "antialiased",
+        geistMono.variable,
+        "font-sans",
+        geist.variable,
+      )}
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider
@@ -118,11 +129,20 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           disableTransitionOnChange
         >
           <AuthProvider>
-            <ServerUnreachableBanner />
-            {children}
-            <Toaster />
-            <SessionExpiredModal />
-            <LegalConsentProvider />
+            <LoginRequiredProvider>
+              <CartProvider>
+                <FavoritesProvider>
+                  <NotificationsProvider>
+                    <ServerUnreachableBanner />
+                    <OneSignalProvider />
+                    {children}
+                    <Toaster />
+                    <SessionExpiredModal />
+                    <LegalConsentProvider />
+                  </NotificationsProvider>
+                </FavoritesProvider>
+              </CartProvider>
+            </LoginRequiredProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -8,9 +8,7 @@ const {
   getOtpExpiry,
   hashVerificationCode,
 } = require("../../auth/utils/auth");
-const {
-  sendEmailVerificationOtpEmail,
-} = require("../../../common/emails");
+const { sendEmailVerificationOtpEmail } = require("../../../common/emails");
 const {
   createNotification,
 } = require("../../notification/services/notification.service");
@@ -226,7 +224,7 @@ async function reactivateRider(riderId, sellerProfileId) {
   try {
     await createNotification({
       userId: rider.userId,
-      type: NOTIFICATION_TYPES.SELLER_ONBOARDING,
+      type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
       title: "Votre compte livreur a été réactivé",
       body: "Vous pouvez de nouveau accepter des livraisons.",
       data: { action: "riderReactivated" },

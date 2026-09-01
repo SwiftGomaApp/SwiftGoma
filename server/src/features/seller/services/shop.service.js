@@ -15,6 +15,7 @@ const {
 const {
   generateSlug,
   assertValidShopInput,
+  assertValidShopLocation,
   assertValidStatusTransition,
   assertCanPublish,
   assertCanCreateShop,
@@ -73,6 +74,9 @@ async function createShop({
   description,
   deliveryFee,
   deliveryFeeCurrency,
+  address,
+  latitude,
+  longitude,
   logoBuffer,
   bannerBuffer,
 }) {
@@ -95,7 +99,8 @@ async function createShop({
   );
 
   const input = { name, description, deliveryFee, deliveryFeeCurrency };
-  assertValidShopInput(input);
+  await assertValidShopInput(input);
+  assertValidShopLocation({ latitude, longitude });
 
   if (!logoBuffer || !bannerBuffer) {
     throw new ConflictError("Le logo et la bannière sont requis.");
@@ -121,6 +126,9 @@ async function createShop({
         bannerPublicId: banner.publicId,
         deliveryFee,
         deliveryFeeCurrency,
+        address,
+        latitude,
+        longitude,
         status: "DRAFT",
       },
     });
@@ -185,43 +193,55 @@ async function updateShop(shopId, sellerProfileId, data) {
   if (data.deliveryFeeCurrency !== undefined) {
     updateData.deliveryFeeCurrency = data.deliveryFeeCurrency;
   }
+  if (data.address !== undefined) updateData.address = data.address;
+  if (data.latitude !== undefined) updateData.latitude = data.latitude;
+  if (data.longitude !== undefined) updateData.longitude = data.longitude;
 
-  let oldLogoPublicId = null;
-  let oldBannerPublicId = null;
-
-  if (data.logoBuffer) {
-    const logo = await uploadImage(
-      data.logoBuffer,
-      CLOUDINARY_FOLDERS.SHOP_LOGOS,
-    );
-    updateData.logoUrl = logo.url;
-    updateData.logoPublicId = logo.publicId;
-    oldLogoPublicId = shop.logoPublicId;
-  }
-
-  if (data.bannerBuffer) {
-    const banner = await uploadImage(
-      data.bannerBuffer,
-      CLOUDINARY_FOLDERS.SHOP_BANNERS,
-    );
-    updateData.bannerUrl = banner.url;
-    updateData.bannerPublicId = banner.publicId;
-    oldBannerPublicId = shop.bannerPublicId;
-  }
-
-  assertValidShopInput({ ...shop, ...updateData });
-
-  const updated = await prisma.shop.update({
-    where: { id: shopId },
-    data: updateData,
+  // Validate before touching Cloudinary — no point uploading a new
+  // logo/banner for a request that was going to be rejected anyway.
+  await assertValidShopInput({ ...shop, ...updateData });
+  assertValidShopLocation({
+    latitude: updateData.latitude,
+    longitude: updateData.longitude,
   });
 
-  if (oldLogoPublicId) await deleteAsset(oldLogoPublicId, "image");
-  if (oldBannerPublicId) await deleteAsset(oldBannerPublicId, "image");
+  const oldLogoPublicId = shop.logoPublicId;
+  const oldBannerPublicId = shop.bannerPublicId;
+  let newLogo = null;
+  let newBanner = null;
 
-  await invalidateShopCache(shop.slug);
+  try {
+    if (data.logoBuffer) {
+      newLogo = await uploadImage(data.logoBuffer, CLOUDINARY_FOLDERS.SHOP_LOGOS);
+      updateData.logoUrl = newLogo.url;
+      updateData.logoPublicId = newLogo.publicId;
+    }
 
-  return updated;
+    if (data.bannerBuffer) {
+      newBanner = await uploadImage(
+        data.bannerBuffer,
+        CLOUDINARY_FOLDERS.SHOP_BANNERS,
+      );
+      updateData.bannerUrl = newBanner.url;
+      updateData.bannerPublicId = newBanner.publicId;
+    }
+
+    const updated = await prisma.shop.update({
+      where: { id: shopId },
+      data: updateData,
+    });
+
+    if (newLogo && oldLogoPublicId) await deleteAsset(oldLogoPublicId, "image");
+    if (newBanner && oldBannerPublicId) await deleteAsset(oldBannerPublicId, "image");
+
+    await invalidateShopCache(shop.slug);
+
+    return updated;
+  } catch (err) {
+    if (newLogo) await deleteAsset(newLogo.publicId, "image");
+    if (newBanner) await deleteAsset(newBanner.publicId, "image");
+    throw err;
+  }
 }
 
 async function publishShop(shopId, sellerProfileId) {

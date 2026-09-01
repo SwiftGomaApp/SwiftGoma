@@ -609,7 +609,7 @@ async function listAllProducts(params = {}) {
       const products = await prisma.product.findMany({
         where: { id: { in: orderedIds } },
         include: {
-          images: { orderBy: { position: "asc" }, take: 1 },
+          images: { orderBy: { position: "asc" }, take: 4 },
           variants: {
             select: { id: true, price: true, stock: true },
             take: 1,
@@ -656,7 +656,7 @@ async function listAllProducts(params = {}) {
             ? [{ popularityScore: "desc" }, { createdAt: "desc" }]
             : { createdAt: "desc" },
         include: {
-          images: { orderBy: { position: "asc" }, take: 1 },
+          images: { orderBy: { position: "asc" }, take: 4 },
           variants: {
             select: { id: true, price: true, stock: true },
             take: 1,

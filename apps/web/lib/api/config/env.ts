@@ -11,6 +11,10 @@ export const env = {
       "NEXT_PUBLIC_API_BASE_URL",
       process.env.NEXT_PUBLIC_API_BASE_URL,
     ),
+    mapboxToken: required(
+      "NEXT_PUBLIC_MAPBOX_TOKEN",
+      process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
+    ),
   },
   server: {
     apiBaseUrl: required(
