@@ -206,7 +206,7 @@ function OrderConfirmedView({
         ))}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         <ReorderButton order={order} locale={locale} />
         <Button
           type="button"
@@ -240,7 +240,7 @@ function OrderFailedView({
         {order.failureReason || s.noReason}
       </p>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         <ReorderButton order={order} locale={locale} />
         <Button
           type="button"
@@ -394,7 +394,7 @@ export function OrderDetailsModal({
                   <div
                     className={
                       !STOPPED_STATUSES.includes(order.status) && qrCodeDataUrl
-                        ? "grid grid-cols-2 gap-4"
+                        ? "grid grid-cols-1 gap-4 sm:grid-cols-2"
                         : "grid grid-cols-1 gap-4"
                     }
                   >
@@ -402,7 +402,7 @@ export function OrderDetailsModal({
                       <h3 className="text-xs font-medium text-muted-foreground">
                         {t.items}
                       </h3>
-                      <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                         {order.items.map((item) => (
                           <div
                             key={item.id}
@@ -440,6 +440,7 @@ export function OrderDetailsModal({
                             width={300}
                             height={300}
                             unoptimized
+                            className="h-auto w-full max-w-[220px]"
                           />
                           <p className="text-center text-[11px] text-muted-foreground">
                             {t.qrHint}
@@ -473,7 +474,7 @@ export function OrderDetailsModal({
                     </div>
                   </div>
 
-                  <div className="space-y-1 border-t border-border pt-3 text-xs text-muted-foreground flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-3 space-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
                     <div>
                       <p className="flex items-center gap-1.5">
                         <Store className="size-3.5" aria-hidden="true" />
