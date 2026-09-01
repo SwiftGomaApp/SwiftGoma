@@ -5,7 +5,9 @@ const {
   getPublicKeyPem,
   getKeyId,
   getBaseUrl,
+  getActiveEnvironment,
 } = require("../config/pawapay.config");
+const { env } = require("../../../config/env");
 
 function computeContentDigest(bodyString) {
   const hash = crypto.createHash("sha512").update(bodyString).digest("base64");
@@ -102,7 +104,19 @@ async function verifyInboundSignature({ method, url, headers, bodyBuffer }) {
   }
 
   const contentDigestHeader = headers["content-digest"];
-  if (!verifyContentDigest(contentDigestHeader, bodyBuffer || Buffer.alloc(0))) {
+  const digestOk = verifyContentDigest(
+    contentDigestHeader,
+    bodyBuffer || Buffer.alloc(0),
+  );
+  // TEMPORARY diagnostic — remove once the sandbox/production key mismatch
+  // is confirmed and resolved. Isolates whether raw-body capture or key
+  // selection is the cause of callback rejections.
+  console.error(
+    `[pawapay-diag] env=${getActiveEnvironment()} keyId=${configuredKeyId} ` +
+      `digestOk=${digestOk} bodyLen=${(bodyBuffer || Buffer.alloc(0)).length} ` +
+      `contentDigestHeader=${JSON.stringify(contentDigestHeader)}`,
+  );
+  if (!digestOk) {
     return false;
   }
 
@@ -118,6 +132,12 @@ async function verifyInboundSignature({ method, url, headers, bodyBuffer }) {
     const result = await httpbis.verifyMessage(
       {
         keyLookup: async (params) => {
+          // TEMPORARY diagnostic — see note above.
+          console.error(
+            `[pawapay-diag] incoming keyid=${params.keyid} configuredKeyId=${configuredKeyId} ` +
+              `match=${params.keyid === configuredKeyId} sandboxKeyId=${env.pawapay.sandbox.keyId} ` +
+              `productionKeyId=${env.pawapay.production.keyId}`,
+          );
           if (
             configuredKeyId &&
             params.keyid &&
