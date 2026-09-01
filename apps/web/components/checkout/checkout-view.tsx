@@ -505,17 +505,17 @@ export function CheckoutView({
   const total = itemsSubtotal + deliveryFee;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       <Link
         href="/products"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground sm:mb-6"
       >
         <ChevronLeft className="size-4" />
         {t.back}
       </Link>
 
-      <div className="grid gap-10 lg:grid-cols-2">
-        <div className="flex flex-col gap-5 rounded-2xl border border-border p-6">
+      <div className="grid gap-6 lg:grid-cols-2 lg:gap-10">
+        <div className="order-2 flex flex-col gap-5 rounded-2xl border border-border p-4 sm:p-6 lg:order-1">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-foreground">
               {t.orderSummary}
@@ -600,7 +600,7 @@ export function CheckoutView({
           </div>
         </div>
 
-        <div className="flex flex-col gap-6">
+        <div className="order-1 flex flex-col gap-6 lg:order-2">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             {t.checkoutTitle}
           </h1>
@@ -767,7 +767,7 @@ export function CheckoutView({
             size="lg"
             disabled={submitting || paymentTab === "card"}
             onClick={handleSubmit}
-            className="h-12"
+            className="h-12 w-full"
           >
             {submitting ? (
               <>
