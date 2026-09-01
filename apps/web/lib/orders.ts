@@ -53,7 +53,12 @@ export type OrderRider = {
   };
 };
 
-export type OrderDetail = BuyerOrder & {
+export type OrderDetail = Omit<BuyerOrder, "shop"> & {
+  shop: BuyerOrder["shop"] & {
+    address: string | null;
+    latitude: number | null;
+    longitude: number | null;
+  };
   deliveryLatitude: number | null;
   deliveryLongitude: number | null;
   rider: OrderRider | null;

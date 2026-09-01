@@ -682,6 +682,10 @@ model Shop {
   deliveryFee         Decimal @db.Decimal(12, 2)
   deliveryFeeCurrency String
 
+  address   String?
+  latitude  Float?
+  longitude Float?
+
   status      ShopStatus @default(DRAFT)
   publishedAt DateTime?
 

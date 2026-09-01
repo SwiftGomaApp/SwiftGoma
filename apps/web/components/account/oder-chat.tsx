@@ -67,9 +67,12 @@ function getSocketOrigin() {
 }
 
 function formatTime(iso: string, locale: Locale) {
+  // Pinned to Goma's zone (no DST) so SSR and the client always agree —
+  // see components/track/packages-panel.tsx's formatTime for why.
   return new Intl.DateTimeFormat(locale === "fr" ? "fr-FR" : "en-US", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Africa/Lubumbashi",
   }).format(new Date(iso));
 }
 

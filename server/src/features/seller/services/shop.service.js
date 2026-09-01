@@ -15,6 +15,7 @@ const {
 const {
   generateSlug,
   assertValidShopInput,
+  assertValidShopLocation,
   assertValidStatusTransition,
   assertCanPublish,
   assertCanCreateShop,
@@ -73,6 +74,9 @@ async function createShop({
   description,
   deliveryFee,
   deliveryFeeCurrency,
+  address,
+  latitude,
+  longitude,
   logoBuffer,
   bannerBuffer,
 }) {
@@ -96,6 +100,7 @@ async function createShop({
 
   const input = { name, description, deliveryFee, deliveryFeeCurrency };
   await assertValidShopInput(input);
+  assertValidShopLocation({ latitude, longitude });
 
   if (!logoBuffer || !bannerBuffer) {
     throw new ConflictError("Le logo et la bannière sont requis.");
@@ -121,6 +126,9 @@ async function createShop({
         bannerPublicId: banner.publicId,
         deliveryFee,
         deliveryFeeCurrency,
+        address,
+        latitude,
+        longitude,
         status: "DRAFT",
       },
     });
@@ -185,10 +193,17 @@ async function updateShop(shopId, sellerProfileId, data) {
   if (data.deliveryFeeCurrency !== undefined) {
     updateData.deliveryFeeCurrency = data.deliveryFeeCurrency;
   }
+  if (data.address !== undefined) updateData.address = data.address;
+  if (data.latitude !== undefined) updateData.latitude = data.latitude;
+  if (data.longitude !== undefined) updateData.longitude = data.longitude;
 
   // Validate before touching Cloudinary — no point uploading a new
   // logo/banner for a request that was going to be rejected anyway.
   await assertValidShopInput({ ...shop, ...updateData });
+  assertValidShopLocation({
+    latitude: updateData.latitude,
+    longitude: updateData.longitude,
+  });
 
   const oldLogoPublicId = shop.logoPublicId;
   const oldBannerPublicId = shop.bannerPublicId;

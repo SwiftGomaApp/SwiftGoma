@@ -79,6 +79,24 @@ async function assertValidShopInput(input) {
   }
 }
 
+function assertValidShopLocation({ latitude, longitude }) {
+  if (latitude === undefined && longitude === undefined) return;
+
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < -90 ||
+    lat > 90 ||
+    lng < -180 ||
+    lng > 180
+  ) {
+    throw new ValidationError("Coordonnées de la boutique invalides.");
+  }
+}
+
 function assertValidStatusTransition(currentStatus, nextStatus) {
   const allowed = SHOP_CONFIG.ALLOWED_STATUS_TRANSITIONS[currentStatus] || [];
   if (!allowed.includes(nextStatus)) {
@@ -120,6 +138,7 @@ module.exports = {
   isValidDescription,
   isValidDeliveryFee,
   assertValidShopInput,
+  assertValidShopLocation,
   assertValidStatusTransition,
   assertCanPublish,
   assertCanReactivate,
