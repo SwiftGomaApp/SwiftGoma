@@ -101,10 +101,25 @@ const createApp = () => {
   ];
   app.use(
     express.json({
-      type: (req) =>
-        !WEBHOOK_CALLBACK_PATH_PREFIXES.some((prefix) =>
-          req.originalUrl.startsWith(prefix),
-        ),
+      type: (req) => {
+        // Webhook callback paths are handled entirely by rawBodyJson below —
+        // never let this parser touch them, regardless of Content-Type.
+        if (
+          WEBHOOK_CALLBACK_PATH_PREFIXES.some((prefix) =>
+            req.originalUrl.startsWith(prefix),
+          )
+        ) {
+          return false;
+        }
+        // Otherwise behave like express.json()'s own default: only parse
+        // requests actually claiming to be JSON. Returning true for
+        // everything here (as an earlier version of this did) force-feeds
+        // multipart/form-data uploads into this parser's tiny default body
+        // limit before multer ever sees them, breaking every file upload
+        // in the app with a confusing 413.
+        const contentType = req.headers["content-type"] || "";
+        return contentType.indexOf("application/json") !== -1;
+      },
       verify: (req, res, buf) => {
         req.rawBody = buf;
       },
