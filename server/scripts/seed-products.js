@@ -8,7 +8,7 @@ const prisma = getPrismaClient();
 const SHOP_ID =
   process.env.SEED_SHOP_ID ||
   process.argv[2] ||
-  "87a93055-746c-43e7-912a-f7ac4eb9e74c";
+  "dbc1956d-5380-4dd6-841c-aacbf632266b";
 
 const SUBCATEGORIES = [
   { key: "boissons", name: "Boissons", isFood: true },
