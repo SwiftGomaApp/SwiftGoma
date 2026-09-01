@@ -25,6 +25,7 @@ const {
   authLimiter,
 } = require("./common/middleware/rateLimiters");
 const { requestId } = require("./common/middleware/requestId");
+const { rawBodyJson } = require("./common/middleware/rawBodyJson");
 const { locale } = require("./common/middleware/locale");
 const authRoutes = require("./features/auth/routes/auth.routes");
 const UserRouter = require("./features/users/routes/user.routes");
@@ -90,8 +91,20 @@ const createApp = () => {
   );
 
   app.use(compression());
+  // Webhook callbacks verify signatures over the exact raw body — they get
+  // their own unconditional raw-body capture below (rawBodyJson) instead
+  // of this parser, which only captures req.rawBody when Content-Type
+  // matches its expectations. See rawBodyJson.js for why that matters.
+  const WEBHOOK_CALLBACK_PATH_PREFIXES = [
+    "/api/v1/pawapay/callbacks",
+    "/api/v1/mbiyopay/callbacks",
+  ];
   app.use(
     express.json({
+      type: (req) =>
+        !WEBHOOK_CALLBACK_PATH_PREFIXES.some((prefix) =>
+          req.originalUrl.startsWith(prefix),
+        ),
       verify: (req, res, buf) => {
         req.rawBody = buf;
       },
@@ -107,8 +120,8 @@ const createApp = () => {
 
   app.use(globalLimiter);
 
-  app.use("/api/v1/pawapay/callbacks", PawapayCallbackRouter);
-  app.use("/api/v1/mbiyopay/callbacks", MbiyoPayCallbackRouter);
+  app.use("/api/v1/pawapay/callbacks", rawBodyJson(), PawapayCallbackRouter);
+  app.use("/api/v1/mbiyopay/callbacks", rawBodyJson(), MbiyoPayCallbackRouter);
 
   app.get("/api/v1/health", async (req, res) => {
     const db = await checkDatabaseConnection();
