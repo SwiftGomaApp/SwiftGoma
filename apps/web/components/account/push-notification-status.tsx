@@ -116,7 +116,7 @@ export function PushNotificationStatus({ locale }: { locale: Locale }) {
         : BellOff;
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border p-4">
       <div className="flex items-start gap-3">
         <Icon
           className="mt-0.5 size-4 shrink-0 text-muted-foreground"
