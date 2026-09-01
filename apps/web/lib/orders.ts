@@ -16,6 +16,8 @@ export type OrderStatus =
 
 export type BuyerOrderItem = {
   id: string;
+  productId: string;
+  variantId: string;
   productName: string;
   variantName: string | null;
   unitPrice: string;

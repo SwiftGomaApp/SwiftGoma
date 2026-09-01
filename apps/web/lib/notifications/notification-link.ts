@@ -15,7 +15,11 @@ export function getNotificationLink(
   }
 
   if (typeof data.orderId === "string") {
-    return `/account/orders/${data.orderId}`;
+    const base = `/account/orders/${data.orderId}`;
+    if (typeof data.messageId === "string") {
+      return `${base}?messageId=${encodeURIComponent(data.messageId)}`;
+    }
+    return base;
   }
 
   return null;

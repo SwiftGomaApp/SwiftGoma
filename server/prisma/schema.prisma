@@ -213,6 +213,7 @@ enum ExpenseStatus {
 
 enum OrderMessageSenderRole {
   BUYER
+  SELLER
   RIDER
 }
 

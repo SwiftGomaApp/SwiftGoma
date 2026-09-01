@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import axios from "axios";
 import { CalendarDays, MapPin, Package, Store, Truck } from "lucide-react";
+import { OrdersList } from "@/components/account/orders-list";
 
 import {
   Empty,
@@ -51,7 +52,8 @@ const STRINGS = {
   },
   fr: {
     title: "Commandes",
-    description: "Vos commandes passées et en cours, toutes boutiques confondues.",
+    description:
+      "Vos commandes passées et en cours, toutes boutiques confondues.",
     resultsOne: "commande",
     resultsMany: "commandes",
     emptyTitle: "Aucune commande pour le moment",
@@ -146,9 +148,7 @@ function OrderCard({
           {order.deliveryAddress && (
             <span className="hidden items-center gap-1.5 sm:flex">
               <MapPin className="size-3.5" aria-hidden="true" />
-              <span className="max-w-48 truncate">
-                {order.deliveryAddress}
-              </span>
+              <span className="max-w-48 truncate">{order.deliveryAddress}</span>
             </span>
           )}
         </div>
@@ -221,11 +221,7 @@ export default async function AccountOrdersPage({ searchParams }: Props) {
         </div>
       ) : (
         <>
-          <div className="mt-4 space-y-4">
-            {orders.map((order) => (
-              <OrderCard key={order.id} order={order} locale={locale} t={t} />
-            ))}
-          </div>
+          <OrdersList orders={orders} locale={locale} />
           <div className="mt-8">
             <ProductPagination
               pagination={pagination}

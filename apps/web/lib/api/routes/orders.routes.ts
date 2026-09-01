@@ -1,4 +1,5 @@
 import { apiGet, apiPost } from "@/lib/api/client";
+import type { OrderDetail } from "@/lib/orders";
 
 export const MOBILE_MONEY_NETWORKS = [
   "vodacom",
@@ -91,4 +92,35 @@ export function checkout(payload: CheckoutPayload) {
 
 export function getOrder(orderId: string) {
   return apiGet<Order>(`/orders/${orderId}`);
+}
+
+export type OrderMessageSenderRole = "BUYER" | "SELLER" | "RIDER";
+
+export type OrderMessage = {
+  id: string;
+  orderId: string;
+  senderId: string;
+  senderRole: OrderMessageSenderRole;
+  body: string;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export function getOrderMessages(
+  orderId: string,
+  params?: { limit?: number; before?: string },
+) {
+  return apiGet<OrderMessage[]>(`/orders/${orderId}/messages`, { params });
+}
+
+export function getOrderDetail(orderId: string) {
+  return apiGet<OrderDetail>(`/orders/${orderId}`);
+}
+
+export function getOrderQrCode(orderId: string) {
+  return apiGet<{ qrCodeDataUrl: string }>(`/orders/${orderId}/qr-code`);
+}
+
+export function confirmOrderReceipt(orderId: string) {
+  return apiPost<OrderDetail>(`/orders/${orderId}/confirm-receipt`);
 }

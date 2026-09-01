@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import axios from "axios";
 import { CalendarDays, MapPin, Store, Truck } from "lucide-react";
+import { ReorderButton } from "@/components/account/reorder-button";
 
 import {
   Breadcrumb,
@@ -16,6 +17,7 @@ import { OrderTracking } from "@/components/account/order-tracking";
 import { getOrder, type OrderDetail } from "@/lib/api/routes/orders";
 import { formatMoney } from "@/lib/products";
 import { getServerLocale } from "@/lib/language";
+import OrderChat from "@/components/account/oder-chat";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -115,11 +117,12 @@ export default async function OrderDetailPage({ params }: Props) {
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
           <OrderTracking order={order} locale={locale} />
+          <div className="mt-6">
+            <OrderChat order={order} locale={locale} />
+          </div>
 
           <div className="rounded-2xl border border-border bg-card p-5">
-            <h2 className="text-sm font-semibold text-foreground">
-              {t.items}
-            </h2>
+            <h2 className="text-sm font-semibold text-foreground">{t.items}</h2>
             <div className="mt-3 space-y-3">
               {order.items.map((item) => (
                 <div
@@ -183,6 +186,22 @@ export default async function OrderDetailPage({ params }: Props) {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <Link
+            href={`/shops/${order.shop.slug}`}
+            className="text-lg font-semibold text-foreground hover:text-primary"
+          >
+            {order.shop.name}
+          </Link>
+          <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+            <CalendarDays className="size-4" aria-hidden="true" />
+            {t.orderPlaced} · {formatDate(order.createdAt, locale)}
+          </div>
+        </div>
+        <ReorderButton order={order} locale={locale} />
       </div>
     </div>
   );
