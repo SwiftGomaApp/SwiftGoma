@@ -54,6 +54,9 @@ export interface AuthUser {
   isEmailVerified?: boolean;
   emails?: { id: string; email: string; isPrimary: boolean; isVerified: boolean }[];
   passkeys?: Passkey[];
+  phone?: string | null;
+  pendingPhone?: string | null;
+  isPhoneVerified?: boolean;
   [key: string]: unknown;
 }
 

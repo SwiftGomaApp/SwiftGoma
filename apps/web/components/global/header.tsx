@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search, ShoppingCart, Menu, User } from "lucide-react";
+import { Bell, Search, ShoppingCart, Menu, User, LogOut } from "lucide-react";
 import Logo from "./logo";
 import { DEFAULT_LOCALE, getClientLocale, type Locale } from "@/lib/language";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -19,9 +19,18 @@ import {
   SheetTitle,
   SheetClose,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+} from "@/components/ui/dropdown-menu";
 import type { PublicCategory } from "@/lib/api/routes/products";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button, buttonVariants } from "../ui/button";
 
 const NAV_LINK_IDS = [
@@ -53,6 +62,7 @@ const TRANSLATIONS: Record<
     closeMenu: string;
     account: string;
     login: string;
+    logout: string;
   }
 > = {
   en: {
@@ -71,6 +81,7 @@ const TRANSLATIONS: Record<
     closeMenu: "Close menu",
     account: "Account",
     login: "Log in",
+    logout: "Log out",
   },
   fr: {
     nav: {
@@ -88,19 +99,26 @@ const TRANSLATIONS: Record<
     closeMenu: "Fermer le menu",
     account: "Compte",
     login: "Connexion",
+    logout: "Déconnexion",
   },
 };
 
 const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE);
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, logout } = useAuth();
   const { totalCount } = useCart();
   const { unreadCount } = useNotifications();
   const [searchOpen, setSearchOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [isMac, setIsMac] = useState(false);
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/auth/sign-in");
+  };
 
   useEffect(() => {
     setLocale(getClientLocale());
@@ -168,16 +186,54 @@ const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
 
             <span className="hidden h-6 w-px bg-border sm:block" />
 
-            {/* Account (logged in) or Login button (logged out) */}
+            {/* Account dropdown (logged in) or Login button (logged out) */}
             {!isLoading &&
               (isAuthenticated ? (
-                <Link
-                  href="/account"
-                  aria-label={t.account}
-                  className="text-foreground transition-colors hover:text-primary"
-                >
-                  <User size={20} strokeWidth={1.75} />
-                </Link>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    aria-label={t.account}
+                    className="relative text-foreground transition-colors hover:text-primary"
+                  >
+                    <User size={20} strokeWidth={1.75} />
+                    {(totalCount > 0 || unreadCount > 0) && (
+                      <span className="absolute top-0 right-0 size-2 rounded-full bg-primary ring-2 ring-background" />
+                    )}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" sideOffset={12}>
+                    <DropdownMenuItem onClick={() => setCartOpen(true)}>
+                      <ShoppingCart />
+                      {t.cart}
+                      {totalCount > 0 && (
+                        <DropdownMenuShortcut>
+                          {totalCount > 9 ? "9+" : totalCount}
+                        </DropdownMenuShortcut>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setNotificationsOpen(true)}
+                    >
+                      <Bell />
+                      {t.notifications}
+                      {unreadCount > 0 && (
+                        <DropdownMenuShortcut>
+                          {unreadCount > 9 ? "9+" : unreadCount}
+                        </DropdownMenuShortcut>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem render={<Link href="/account" />}>
+                      <User />
+                      {t.account}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onClick={handleLogout}
+                    >
+                      <LogOut />
+                      {t.logout}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : (
                 <Button
                   nativeButton={false}
@@ -186,37 +242,6 @@ const Header = ({ categories = [] }: { categories?: PublicCategory[] }) => {
                   {t.login}
                 </Button>
               ))}
-
-            {/* Notifications */}
-            {isAuthenticated && (
-              <button
-                aria-label={t.notifications}
-                onClick={() => setNotificationsOpen(true)}
-                className="relative text-foreground transition-colors hover:text-primary"
-              >
-                <Bell size={20} strokeWidth={1.75} />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-                    {unreadCount > 9 ? "9+" : unreadCount}
-                  </span>
-                )}
-              </button>
-            )}
-
-            {/* Menu grid — desktop */}
-            {/* Cart */}
-            <button
-              aria-label={t.cart}
-              onClick={() => setCartOpen(true)}
-              className="relative text-foreground transition-colors hover:text-primary"
-            >
-              <ShoppingCart size={20} strokeWidth={1.75} />
-              {totalCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-                  {totalCount > 9 ? "9+" : totalCount}
-                </span>
-              )}
-            </button>
 
             {/* Hamburger — mobile only, opens the nav drawer */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>

@@ -25,6 +25,7 @@ interface AuthContextValue {
   setUser: (user: AuthUser | null) => void;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
+  isLoggingOut: boolean;
   sessionExpired: boolean;
   dismissSessionExpired: () => void;
   serverUnreachable: boolean;
@@ -43,6 +44,7 @@ export function AuthProvider({
   const [isLoading, setIsLoading] = useState(initialUser === null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [serverUnreachable, setServerUnreachable] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -116,20 +118,24 @@ export function AuthProvider({
   }, []);
 
   const logout = useCallback(async () => {
+    setIsLoggingOut(true);
     try {
       await logoutRequest();
     } finally {
       setUser(null);
       setSessionExpired(false);
+      setIsLoggingOut(false);
     }
   }, []);
 
   const logoutAll = useCallback(async () => {
+    setIsLoggingOut(true);
     try {
       await logoutAllRequest();
     } finally {
       setUser(null);
       setSessionExpired(false);
+      setIsLoggingOut(false);
     }
   }, []);
 
@@ -142,6 +148,7 @@ export function AuthProvider({
       setUser,
       logout,
       logoutAll,
+      isLoggingOut,
       sessionExpired,
       dismissSessionExpired,
       serverUnreachable,
@@ -152,6 +159,7 @@ export function AuthProvider({
       refresh,
       logout,
       logoutAll,
+      isLoggingOut,
       sessionExpired,
       dismissSessionExpired,
       serverUnreachable,

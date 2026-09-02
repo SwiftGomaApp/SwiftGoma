@@ -10,6 +10,7 @@ export const STRINGS = {
     signIn: "Sign in",
     continueWith: "Continue with",
     google: "Google",
+    apple: "Apple",
     passkey: "Passkey",
     orContinueWithEmail: "Or continue with email address",
     emailLabel: "Email address",
@@ -29,6 +30,7 @@ export const STRINGS = {
     signIn: "Connexion",
     continueWith: "Continuer avec",
     google: "Google",
+    apple: "Apple",
     passkey: "Clé d'accès",
     orContinueWithEmail: "Ou continuer avec une adresse e-mail",
     emailLabel: "Adresse e-mail",
@@ -62,6 +64,7 @@ export const SIGNUP_STRINGS = {
     or: "Or",
 
     continueWithGoogle: "Continue with Google",
+    continueWithApple: "Continue with Apple",
   },
 
   fr: {
@@ -81,6 +84,7 @@ export const SIGNUP_STRINGS = {
     or: "Ou",
 
     continueWithGoogle: "Continuer avec Google",
+    continueWithApple: "Continuer avec Apple",
   },
 } as const;
 

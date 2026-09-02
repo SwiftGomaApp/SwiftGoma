@@ -25,7 +25,7 @@ export function AccountShell({
   return (
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="grid gap-8 md:grid-cols-[220px_1fr] md:items-start">
-        <div className="md:sticky md:top-24">
+        <div className="min-w-0 md:sticky md:top-24">
           <AccountNav locale={locale} />
         </div>
         <div className="min-w-0">{children}</div>

@@ -8,6 +8,7 @@ import { LoginRequiredProvider } from "@/lib/auth/login-required-context";
 import { CartProvider } from "@/lib/cart/cart-context";
 import { NotificationsProvider } from "@/lib/notifications/notifications-context";
 import { SessionExpiredModal } from "@/components/global/session-expired";
+import { LogoutOverlay } from "@/components/global/logout-overlay";
 import { ServerUnreachableBanner } from "@/lib/auth/server-unreachable-banner";
 import { Toaster } from "@/components/ui/toast";
 import { LegalConsentProvider } from "@/components/legal/legal-consent-provider";
@@ -138,6 +139,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                     {children}
                     <Toaster />
                     <SessionExpiredModal />
+                    <LogoutOverlay />
                     <LegalConsentProvider />
                   </NotificationsProvider>
                 </FavoritesProvider>

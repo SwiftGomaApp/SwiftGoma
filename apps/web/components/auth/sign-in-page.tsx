@@ -29,6 +29,7 @@ import {
   OtpStatus,
 } from "@/components/auth/modals/otp-dialog";
 import { GoogleAuthButton } from "./google-auth-button";
+import { AppleAuthButton } from "./apple-auth-button";
 import { startAuthentication } from "@simplewebauthn/browser";
 
 function extractErrorMessage(error: unknown, fallback: string): string {
@@ -323,6 +324,10 @@ export default function SignInPage() {
                     label={t.google}
                     locale={locale}
                   />
+                </div>
+
+                <div className="flex-1">
+                  <AppleAuthButton label={t.apple} />
                 </div>
 
                 <Button

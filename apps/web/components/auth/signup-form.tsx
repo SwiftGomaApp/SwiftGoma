@@ -27,6 +27,7 @@ import { toast } from "../ui/toast";
 import { registerWithGoogle } from "@/lib/api/routes/auth.routes";
 import { useAuth } from "@/lib/auth/auth-context";
 import { GoogleAuthButton } from "./google-auth-button";
+import { AppleAuthButton } from "./apple-auth-button";
 
 export function SignupForm({
   className,
@@ -231,6 +232,8 @@ export function SignupForm({
             label={isGoogleLoading ? "Creating account…" : t.continueWithGoogle}
             locale={locale}
           />
+
+          <AppleAuthButton label={t.continueWithApple} />
         </FieldGroup>
       </form>
 

@@ -52,6 +52,7 @@ const {
 const CartRouter = require("./features/orders/routes/cart.routes");
 const OrderRouter = require("./features/orders/routes/order.routes");
 const FavoriteRouter = require("./features/favorites/routes/favorite.routes");
+const AddressRouter = require("./features/addresses/routes/address.routes");
 const SupportRouter = require("./features/support/routes/support.routes");
 const IncidentRouter = require("./features/incidents/routes/incident.routes");
 const BlogRouter = require("./features/blog/routes/blog.routes");
@@ -241,6 +242,7 @@ const createApp = () => {
   app.use("/api/v1/mbiyopay", MbiyoPayRouter);
   app.use("/api/v1/cart", CartRouter);
   app.use("/api/v1/favorites", FavoriteRouter);
+  app.use("/api/v1/addresses", AddressRouter);
   app.use("/api/v1/support", SupportRouter);
   app.use("/api/v1/incidents", IncidentRouter);
   app.use("/api/v1/blog", BlogRouter);
