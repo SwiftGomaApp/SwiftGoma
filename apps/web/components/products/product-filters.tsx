@@ -287,7 +287,7 @@ export function ProductFilters({
           <p className="text-sm text-muted-foreground">{t.description}</p>
         </DialogHeader>
 
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div className="flex flex-col gap-6">
             <form
               className="flex flex-col gap-2"

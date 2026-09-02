@@ -95,7 +95,8 @@ const TRANSLATIONS: Record<
   }
 > = {
   en: {
-    tagline: "Local shopping in Goma, delivered.",
+    tagline:
+      "SwiftGoma connects you with trusted local shops across Goma — browse products, order in a few taps, and get everything delivered to your door or ready for pickup.",
     marketplace: {
       title: "Marketplace",
       home: "Home",
@@ -139,7 +140,8 @@ const TRANSLATIONS: Record<
     waitlistError: "Something went wrong. Please try again.",
   },
   fr: {
-    tagline: "Le shopping local à Goma, livré chez vous.",
+    tagline:
+      "SwiftGoma vous connecte aux boutiques locales de confiance à Goma — parcourez les produits, commandez en quelques clics et faites-vous livrer à domicile ou récupérez votre commande en boutique.",
     marketplace: {
       title: "Marché",
       home: "Accueil",
@@ -190,25 +192,25 @@ const TRANSLATIONS: Record<
 const SOCIAL_LINKS = [
   {
     id: "instagram",
-    href: "https://instagram.com/swiftgoma",
+    href: "https://www.instagram.com/swift__goma__/",
     label: "Instagram",
     Icon: InstagramIcon,
   },
   {
     id: "tiktok",
-    href: "https://tiktok.com/@swiftgoma",
+    href: "https://www.tiktok.com/@sweeftgoma5",
     label: "TikTok",
     Icon: TikTokIcon,
   },
   {
     id: "facebook",
-    href: "https://facebook.com/swiftgoma",
+    href: "https://www.facebook.com/people/SwiftGoma/61593895566555/",
     label: "Facebook",
     Icon: FacebookIcon,
   },
   {
     id: "youtube",
-    href: "https://youtube.com/@swiftgoma",
+    href: "https://www.youtube.com/@SwiftGoma",
     label: "YouTube",
     Icon: YoutubeIcon,
   },
@@ -306,60 +308,73 @@ const Footer = () => {
             </ul>
           </nav>
 
-          {/* Get the app + newsletter */}
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">
-              {t.getTheApp}
-            </h3>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setComingSoonOpen(true)}
-                aria-label={`${t.appStoreEyebrow} ${t.appStoreName}`}
-                className="flex items-center gap-2 rounded-lg bg-foreground px-3 py-2 text-background transition-opacity hover:opacity-85"
-              >
-                <AppleIcon />
-                <span className="leading-tight">
-                  <span className="block text-xs font-semibold">
-                    {t.appStoreName}
+          {/* Get the app + newsletter — one grid cell on tablet/desktop so the
+              newsletter flows right under the buttons regardless of how tall
+              the other columns are; split into two grid items on mobile only
+              so the newsletter can take its own full-width row. */}
+          <div className="contents md:block">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">
+                {t.getTheApp}
+              </h3>
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => setComingSoonOpen(true)}
+                  aria-label={`${t.appStoreEyebrow} ${t.appStoreName}`}
+                  className="flex items-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-background transition-opacity hover:opacity-85"
+                >
+                  <AppleIcon />
+                  <span className="leading-tight text-left">
+                    <span className="block text-[10px] text-background/70">
+                      {t.appStoreEyebrow}
+                    </span>
+                    <span className="block text-sm font-semibold">
+                      {t.appStoreName}
+                    </span>
                   </span>
-                </span>
-              </button>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setComingSoonOpen(true)}
-                aria-label={`${t.playStoreEyebrow} ${t.playStoreName}`}
-                className="flex items-center gap-2 rounded-lg bg-foreground px-3 py-2 text-background transition-opacity hover:opacity-85"
-              >
-                <PlayIcon />
-                <span className="leading-tight">
-                  <span className="block text-xs font-semibold">
-                    {t.playStoreName}
+                <button
+                  type="button"
+                  onClick={() => setComingSoonOpen(true)}
+                  aria-label={`${t.playStoreEyebrow} ${t.playStoreName}`}
+                  className="flex items-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-background transition-opacity hover:opacity-85"
+                >
+                  <PlayIcon />
+                  <span className="leading-tight text-left">
+                    <span className="block text-[10px] text-background/70">
+                      {t.playStoreEyebrow}
+                    </span>
+                    <span className="block text-sm font-semibold">
+                      {t.playStoreName}
+                    </span>
                   </span>
-                </span>
-              </button>
+                </button>
+              </div>
             </div>
 
-            <h3 className="mt-6 text-sm font-semibold text-foreground">
-              {t.newsletterTitle}
-            </h3>
-            <form
-              onSubmit={handleSubscribe}
-              className="mt-3 flex flex-col gap-2"
-            >
-              <Input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={t.emailPlaceholder}
-                aria-label={t.emailPlaceholder}
-              />
-              <Button type="submit" className="w-full">
-                {t.subscribe}
-              </Button>
-            </form>
+            <div className="col-span-2 md:mt-6">
+              <h3 className="text-sm font-semibold text-foreground">
+                {t.newsletterTitle}
+              </h3>
+              <form
+                onSubmit={handleSubscribe}
+                className="mt-3 flex flex-col gap-2"
+              >
+                <Input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={t.emailPlaceholder}
+                  aria-label={t.emailPlaceholder}
+                />
+                <Button type="submit" className="w-full">
+                  {t.subscribe}
+                </Button>
+              </form>
+            </div>
           </div>
         </div>
 

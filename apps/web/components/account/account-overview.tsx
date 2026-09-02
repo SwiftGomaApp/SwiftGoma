@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Bell, Heart, Package, Shield } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { ProfileSettings } from "@/components/account/profile-settings";
 import { useAuth } from "@/lib/auth/auth-context";
 import type { Locale } from "@/lib/language";
 
@@ -82,7 +83,7 @@ export function AccountOverview({ locale }: { locale: Locale }) {
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Icon className="size-5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">
                     {label}
                   </p>
@@ -95,6 +96,8 @@ export function AccountOverview({ locale }: { locale: Locale }) {
           </Link>
         ))}
       </div>
+
+      <ProfileSettings locale={locale} />
     </div>
   );
 }

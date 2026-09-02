@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  Banknote,
   CheckCircle2,
   ChevronLeft,
   CreditCard,
@@ -17,6 +18,8 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AfricellLogo } from "@/components/checkout/africell-logo";
 import {
   Field,
   FieldDescription,
@@ -33,9 +36,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { isApiError } from "@/lib/api/client";
 import {
-  getCartForShop,
-  type ShopCart,
-} from "@/lib/api/routes/cart.routes";
+  createAddress,
+  listAddresses,
+  type Address,
+} from "@/lib/api/routes/addresses.routes";
+import { getCartForShop, type ShopCart } from "@/lib/api/routes/cart.routes";
 import {
   MOBILE_MONEY_NETWORKS,
   checkout,
@@ -48,12 +53,21 @@ import { useCart } from "@/lib/cart/cart-context";
 import { PRODUCT_CURRENCIES } from "@/lib/constants/products";
 import type { Locale } from "@/lib/language";
 import { formatMoney } from "@/lib/products";
+import { cn } from "@/lib/utils";
 
 const NETWORK_LABELS: Record<MobileMoneyNetwork, string> = {
-  vodacom: "Vodacom M-Pesa",
+  vodacom: "M-Pesa",
   airtel: "Airtel Money",
   orange: "Orange Money",
-  africell: "Africell Money",
+  africell: "Afril Money",
+};
+
+// Africell doesn't have a hosted logo image — it renders from a local SVG
+// wordmark (AfricellLogo) instead, since pawaPay doesn't host one.
+const NETWORK_LOGOS: Record<Exclude<MobileMoneyNetwork, "africell">, string> = {
+  vodacom: "https://static-content.pawapay.io/provider_logos/vodacom.png",
+  airtel: "https://static-content.pawapay.io/provider_logos/airtel.png",
+  orange: "https://static-content.pawapay.io/provider_logos/orange.png",
 };
 
 const POLL_INTERVAL_MS = 3000;
@@ -72,23 +86,39 @@ const STRINGS = {
     pickup: "Pickup",
     delivery: "Delivery",
     deliveryAddress: "Delivery address",
-    deliveryAddressPlaceholder: "Street, neighborhood, landmark…",
+    addressReference: "Reference",
+    deliveryAddressPlaceholder:
+      "A landmark or place known in the area (market, church, blue gate…)",
+    addressLabel: "Label",
+    addressLabelPlaceholder: "Home, Work…",
+    recipientName: "Recipient name",
+    recipientPhone: "Recipient phone",
+    city: "City / commune",
     locating: "Locating you…",
     locationCaptured: "Location captured",
     locationError:
       "Couldn't get your location. Allow location access and try again.",
     retryLocation: "Retry",
+    defaultBadge: "Default",
+    useSavedAddress: "Use a saved address",
+    addNewAddress: "Add a new address",
+    saveAddressForLater: "Save this address for later",
+    selectAddressError: "Select a delivery address.",
+    loadingAddresses: "Loading your addresses…",
     paymentMethod: "Payment method",
     mobileMoney: "Mobile Money",
+    cashOnDelivery: "Cash on Delivery",
+    codDescription: "Pay in cash when your order arrives.",
     card: "Card",
     comingSoon: "Coming soon",
     network: "Network",
-    selectNetwork: "Select a network",
     phoneNumber: "Phone number",
     pay: "Pay",
     payAmount: (amount: string) => `Pay ${amount}`,
+    placeOrder: "Place order",
     submitting: "Processing…",
     terms: "By continuing, you agree to be charged the total shown above.",
+    codTerms: "You'll pay the total shown above in cash on delivery.",
     emptyTitle: "This cart is empty",
     emptyDescription: "Add something to your cart before checking out.",
     browseProducts: "Browse products",
@@ -112,7 +142,8 @@ const STRINGS = {
     selectNetworkError: "Select a mobile money network.",
     phoneNumberError: "Enter a valid phone number.",
     addressError: "Enter a delivery address.",
-    locationRequiredError: "We need your location for delivery — allow access and retry.",
+    locationRequiredError:
+      "We need your location for delivery — allow access and retry.",
   },
   fr: {
     back: "Retour au panier",
@@ -126,23 +157,41 @@ const STRINGS = {
     pickup: "Retrait",
     delivery: "Livraison",
     deliveryAddress: "Adresse de livraison",
-    deliveryAddressPlaceholder: "Rue, quartier, point de repère…",
+    addressReference: "Reference",
+    deliveryAddressPlaceholder:
+      "Un repère connu dans le quartier (marché, église, portail bleu…)",
+    addressLabel: "Nom",
+    addressLabelPlaceholder: "Domicile, Travail…",
+    recipientName: "Nom du destinataire",
+    recipientPhone: "Téléphone du destinataire",
+    city: "Ville / commune",
     locating: "Localisation en cours…",
     locationCaptured: "Position enregistrée",
     locationError:
       "Impossible d'obtenir votre position. Autorisez la localisation et réessayez.",
     retryLocation: "Réessayer",
+    defaultBadge: "Par défaut",
+    useSavedAddress: "Utiliser une adresse enregistrée",
+    addNewAddress: "Ajouter une nouvelle adresse",
+    saveAddressForLater: "Enregistrer cette adresse pour plus tard",
+    selectAddressError: "Sélectionnez une adresse de livraison.",
+    loadingAddresses: "Chargement de vos adresses…",
     paymentMethod: "Moyen de paiement",
     mobileMoney: "Mobile Money",
+    cashOnDelivery: "Paiement à la livraison",
+    codDescription: "Payez en espèces à la réception de votre commande.",
     card: "Carte",
     comingSoon: "Bientôt disponible",
     network: "Réseau",
-    selectNetwork: "Choisissez un réseau",
     phoneNumber: "Numéro de téléphone",
     pay: "Payer",
     payAmount: (amount: string) => `Payer ${amount}`,
+    placeOrder: "Passer la commande",
     submitting: "Traitement…",
-    terms: "En continuant, vous acceptez d'être facturé du total indiqué ci-dessus.",
+    terms:
+      "En continuant, vous acceptez d'être facturé du total indiqué ci-dessus.",
+    codTerms:
+      "Vous paierez le total indiqué ci-dessus en espèces à la livraison.",
     emptyTitle: "Ce panier est vide",
     emptyDescription: "Ajoutez un article à votre panier avant de payer.",
     browseProducts: "Parcourir les produits",
@@ -200,14 +249,30 @@ export function CheckoutView({
     "PICKUP" | "DELIVERY"
   >("PICKUP");
   const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [newAddressLabel, setNewAddressLabel] = useState("");
+  const [newAddressRecipientName, setNewAddressRecipientName] = useState("");
+  const [newAddressRecipientPhone, setNewAddressRecipientPhone] = useState("");
+  const [newAddressCity, setNewAddressCity] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
     null,
   );
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
-  const [paymentTab, setPaymentTab] = useState<"mobile" | "card">("mobile");
+  const [savedAddresses, setSavedAddresses] = useState<Address[] | null>(null);
+  const [deliveryMode, setDeliveryMode] = useState<"saved" | "new">("new");
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
+    null,
+  );
+  const [saveNewAddress, setSaveNewAddress] = useState(false);
+
+  const [paymentTab, setPaymentTab] = useState<"mobile" | "cod" | "card">(
+    "mobile",
+  );
   const [network, setNetwork] = useState<MobileMoneyNetwork | "">("");
+  const [brokenLogos, setBrokenLogos] = useState<Set<MobileMoneyNetwork>>(
+    new Set(),
+  );
   const [phoneNumber, setPhoneNumber] = useState("");
 
   const [formError, setFormError] = useState<string | null>(null);
@@ -243,11 +308,33 @@ export function CheckoutView({
       return;
     }
     loadCart();
+
+    listAddresses()
+      .then((list) => {
+        setSavedAddresses(list);
+        const preferred = list.find((a) => a.isDefault) ?? list[0] ?? null;
+        if (preferred) setSelectedAddressId(preferred.id);
+        setDeliveryMode(list.length > 0 ? "saved" : "new");
+      })
+      .catch(() => {
+        setSavedAddresses([]);
+        setDeliveryMode("new");
+      });
   }, [authLoading, isAuthenticated, loadCart, router, shopId]);
 
   function handleCurrencyChange(nextCurrency: string) {
     setCurrency(nextCurrency);
     loadCart(nextCurrency);
+  }
+
+  function switchToNewAddress() {
+    setDeliveryMode("new");
+    if (!coords) requestLocation();
+  }
+
+  function switchToSavedAddress() {
+    setDeliveryMode("saved");
+    setLocationError(null);
   }
 
   function requestLocation() {
@@ -275,7 +362,7 @@ export function CheckoutView({
 
   function handleFulfillmentChange(value: "PICKUP" | "DELIVERY") {
     setFulfillmentMethod(value);
-    if (value === "DELIVERY" && !coords) {
+    if (value === "DELIVERY" && deliveryMode === "new" && !coords) {
       requestLocation();
     }
   }
@@ -298,7 +385,10 @@ export function CheckoutView({
           refreshCart();
           return;
         }
-        if (updated.payment?.status === "FAILED" || updated.status === "FAILED") {
+        if (
+          updated.payment?.status === "FAILED" ||
+          updated.status === "FAILED"
+        ) {
           setPhase("error");
           return;
         }
@@ -308,14 +398,20 @@ export function CheckoutView({
           setPollTimedOut(true);
           return;
         }
-        pollTimer.current = setTimeout(() => pollOrder(orderId), POLL_INTERVAL_MS);
+        pollTimer.current = setTimeout(
+          () => pollOrder(orderId),
+          POLL_INTERVAL_MS,
+        );
       } catch {
         pollAttempts.current += 1;
         if (pollAttempts.current >= MAX_POLL_ATTEMPTS) {
           setPollTimedOut(true);
           return;
         }
-        pollTimer.current = setTimeout(() => pollOrder(orderId), POLL_INTERVAL_MS);
+        pollTimer.current = setTimeout(
+          () => pollOrder(orderId),
+          POLL_INTERVAL_MS,
+        );
       }
     },
     [refreshCart],
@@ -330,17 +426,29 @@ export function CheckoutView({
     pollOrder(order.id);
   }
 
+  const selectedSavedAddress =
+    deliveryMode === "saved"
+      ? ((savedAddresses ?? []).find((a) => a.id === selectedAddressId) ?? null)
+      : null;
+
   async function handleSubmit() {
     setFormError(null);
 
     if (fulfillmentMethod === "DELIVERY") {
-      if (deliveryAddress.trim().length < 10) {
-        setFormError(t.addressError);
-        return;
-      }
-      if (!coords) {
-        setFormError(t.locationRequiredError);
-        return;
+      if (deliveryMode === "saved") {
+        if (!selectedSavedAddress) {
+          setFormError(t.selectAddressError);
+          return;
+        }
+      } else {
+        if (deliveryAddress.trim().length < 10) {
+          setFormError(t.addressError);
+          return;
+        }
+        if (!coords) {
+          setFormError(t.locationRequiredError);
+          return;
+        }
       }
     }
 
@@ -353,33 +461,76 @@ export function CheckoutView({
         setFormError(t.phoneNumberError);
         return;
       }
-    } else {
+    } else if (paymentTab === "card") {
       return; // card is disabled/coming soon — nothing to submit
     }
+
+    const effectiveAddress =
+      fulfillmentMethod === "DELIVERY"
+        ? deliveryMode === "saved" && selectedSavedAddress
+          ? selectedSavedAddress.address +
+            (selectedSavedAddress.city ? `, ${selectedSavedAddress.city}` : "")
+          : deliveryAddress.trim() +
+            (newAddressCity.trim() ? `, ${newAddressCity.trim()}` : "")
+        : undefined;
+    const effectiveLat =
+      fulfillmentMethod === "DELIVERY"
+        ? deliveryMode === "saved"
+          ? (selectedSavedAddress?.latitude ?? undefined)
+          : coords?.lat
+        : undefined;
+    const effectiveLng =
+      fulfillmentMethod === "DELIVERY"
+        ? deliveryMode === "saved"
+          ? (selectedSavedAddress?.longitude ?? undefined)
+          : coords?.lng
+        : undefined;
 
     setSubmitting(true);
     try {
       const result = await checkout({
         shopId,
-        paymentMethod: "ONLINE_PAYMENT",
+        paymentMethod:
+          paymentTab === "cod" ? "CASH_ON_DELIVERY" : "ONLINE_PAYMENT",
         fulfillmentMethod,
-        deliveryAddress:
-          fulfillmentMethod === "DELIVERY" ? deliveryAddress.trim() : undefined,
-        deliveryLatitude:
-          fulfillmentMethod === "DELIVERY" ? coords?.lat : undefined,
-        deliveryLongitude:
-          fulfillmentMethod === "DELIVERY" ? coords?.lng : undefined,
-        payerPhoneNumber: phoneNumber,
-        network: network || undefined,
+        deliveryAddress: effectiveAddress,
+        deliveryLatitude: effectiveLat,
+        deliveryLongitude: effectiveLng,
+        payerPhoneNumber: paymentTab === "mobile" ? phoneNumber : undefined,
+        network: paymentTab === "mobile" ? network || undefined : undefined,
         countryCode: "CD",
         currency,
       });
 
+      if (
+        fulfillmentMethod === "DELIVERY" &&
+        deliveryMode === "new" &&
+        saveNewAddress
+      ) {
+        createAddress({
+          label: newAddressLabel.trim() || undefined,
+          recipientName: newAddressRecipientName.trim() || undefined,
+          recipientPhone: newAddressRecipientPhone.trim() || undefined,
+          address: deliveryAddress.trim(),
+          city: newAddressCity.trim() || undefined,
+          latitude: coords?.lat,
+          longitude: coords?.lng,
+        }).catch(() => {
+          // best-effort — don't block the order on this
+        });
+      }
+
       setOrder(result.order);
-      setPhase("polling");
-      pollAttempts.current = 0;
-      setPollTimedOut(false);
-      pollOrder(result.order.id);
+      if (paymentTab === "cod") {
+        // Cash on delivery orders are confirmed immediately — no payment to poll for.
+        setPhase("success");
+        refreshCart();
+      } else {
+        setPhase("polling");
+        pollAttempts.current = 0;
+        setPollTimedOut(false);
+        pollOrder(result.order.id);
+      }
     } catch (err) {
       setFormError(extractMessage(err, t.genericError));
     } finally {
@@ -514,14 +665,14 @@ export function CheckoutView({
         {t.back}
       </Link>
 
-      <div className="grid gap-6 lg:grid-cols-2 lg:gap-10">
-        <div className="order-2 flex flex-col gap-5 rounded-2xl border border-border p-4 sm:p-6 lg:order-1">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 lg:gap-10">
+        <div className="order-2 flex flex-col gap-5 rounded-2xl border border-border p-4 sm:p-6 lg:sticky lg:top-24 lg:order-1">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold text-foreground">
+            <h2 className="shrink-0 text-lg font-semibold text-foreground">
               {t.orderSummary}
             </h2>
             {cart.shop && (
-              <span className="text-sm text-muted-foreground">
+              <span className="min-w-0 truncate text-sm text-muted-foreground">
                 {cart.shop.name}
               </span>
             )}
@@ -567,6 +718,7 @@ export function CheckoutView({
               id="checkout-currency"
               value={currency}
               onChange={(e) => handleCurrencyChange(e.target.value)}
+              className="w-full"
             >
               {PRODUCT_CURRENCIES.map((c) => (
                 <NativeSelectOption key={c} value={c}>
@@ -628,43 +780,170 @@ export function CheckoutView({
 
             {fulfillmentMethod === "DELIVERY" && (
               <>
-                <Field>
-                  <FieldLabel htmlFor="delivery-address">
-                    {t.deliveryAddress}
-                  </FieldLabel>
-                  <Textarea
-                    id="delivery-address"
-                    value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                    placeholder={t.deliveryAddressPlaceholder}
-                    className="min-h-20 resize-y"
-                  />
-                </Field>
+                {savedAddresses === null ? (
+                  <FieldDescription className="flex items-center gap-1.5">
+                    <Spinner className="size-3.5" />
+                    {t.loadingAddresses}
+                  </FieldDescription>
+                ) : deliveryMode === "saved" && savedAddresses.length > 0 ? (
+                  <Field>
+                    <FieldLabel>{t.deliveryAddress}</FieldLabel>
+                    <RadioGroup
+                      value={selectedAddressId ?? ""}
+                      onValueChange={setSelectedAddressId}
+                      className="gap-2"
+                    >
+                      {savedAddresses.map((a) => (
+                        <label
+                          key={a.id}
+                          className={cn(
+                            "flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors",
+                            selectedAddressId === a.id
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/40",
+                          )}
+                        >
+                          <RadioGroupItem value={a.id} className="mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-foreground">
+                                {a.label || t.addressReference}
+                              </span>
+                              {a.isDefault && (
+                                <Badge variant="secondary">
+                                  {t.defaultBadge}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="truncate text-muted-foreground">
+                              {a.address}
+                              {a.city ? `, ${a.city}` : ""}
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                    </RadioGroup>
 
-                <FieldDescription className="-mt-2 flex items-center gap-1.5">
-                  <MapPin className="size-3.5 shrink-0" />
-                  {locating ? (
-                    <span className="flex items-center gap-1.5">
-                      <Spinner className="size-3.5" />
-                      {t.locating}
-                    </span>
-                  ) : coords ? (
-                    <span className="text-emerald-600 dark:text-emerald-400">
-                      {t.locationCaptured}
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      {locationError ?? t.locationError}
+                    <button
+                      type="button"
+                      onClick={switchToNewAddress}
+                      className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      {t.addNewAddress}
+                    </button>
+                  </Field>
+                ) : (
+                  <>
+                    <Field>
+                      <FieldLabel htmlFor="new-address-label">
+                        {t.addressLabel}
+                      </FieldLabel>
+                      <Input
+                        id="new-address-label"
+                        value={newAddressLabel}
+                        onChange={(e) => setNewAddressLabel(e.target.value)}
+                        placeholder={t.addressLabelPlaceholder}
+                      />
+                    </Field>
+
+                    <Field>
+                      <FieldLabel htmlFor="new-address-recipient-name">
+                        {t.recipientName}
+                      </FieldLabel>
+                      <Input
+                        id="new-address-recipient-name"
+                        value={newAddressRecipientName}
+                        onChange={(e) =>
+                          setNewAddressRecipientName(e.target.value)
+                        }
+                      />
+                    </Field>
+
+                    <Field>
+                      <FieldLabel htmlFor="new-address-recipient-phone">
+                        {t.recipientPhone}
+                      </FieldLabel>
+                      <Input
+                        id="new-address-recipient-phone"
+                        type="tel"
+                        placeholder="+243900000000"
+                        value={newAddressRecipientPhone}
+                        onChange={(e) =>
+                          setNewAddressRecipientPhone(e.target.value)
+                        }
+                      />
+                    </Field>
+
+                    <Field>
+                      <FieldLabel htmlFor="delivery-address">
+                        {t.addressReference}
+                      </FieldLabel>
+                      <Textarea
+                        id="delivery-address"
+                        value={deliveryAddress}
+                        onChange={(e) => setDeliveryAddress(e.target.value)}
+                        placeholder={t.deliveryAddressPlaceholder}
+                        className="min-h-20 resize-y"
+                      />
+                    </Field>
+
+                    <Field>
+                      <FieldLabel htmlFor="new-address-city">
+                        {t.city}
+                      </FieldLabel>
+                      <Input
+                        id="new-address-city"
+                        value={newAddressCity}
+                        onChange={(e) => setNewAddressCity(e.target.value)}
+                      />
+                    </Field>
+
+                    <FieldDescription className="-mt-2 flex items-center gap-1.5">
+                      <MapPin className="size-3.5 shrink-0" />
+                      {locating ? (
+                        <span className="flex items-center gap-1.5">
+                          <Spinner className="size-3.5" />
+                          {t.locating}
+                        </span>
+                      ) : coords ? (
+                        <span className="text-emerald-600 dark:text-emerald-400">
+                          {t.locationCaptured}
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          {locationError ?? t.locationError}
+                          <button
+                            type="button"
+                            onClick={requestLocation}
+                            className="font-medium text-primary underline-offset-4 hover:underline"
+                          >
+                            {t.retryLocation}
+                          </button>
+                        </span>
+                      )}
+                    </FieldDescription>
+
+                    <label className="-mt-2 flex items-center gap-2 text-sm text-foreground">
+                      <Checkbox
+                        checked={saveNewAddress}
+                        onCheckedChange={(checked) =>
+                          setSaveNewAddress(checked === true)
+                        }
+                      />
+                      {t.saveAddressForLater}
+                    </label>
+
+                    {savedAddresses.length > 0 && (
                       <button
                         type="button"
-                        onClick={requestLocation}
-                        className="font-medium text-primary underline-offset-4 hover:underline"
+                        onClick={switchToSavedAddress}
+                        className="-mt-2 w-fit text-sm font-medium text-primary underline-offset-4 hover:underline"
                       >
-                        {t.retryLocation}
+                        {t.useSavedAddress}
                       </button>
-                    </span>
-                  )}
-                </FieldDescription>
+                    )}
+                  </>
+                )}
               </>
             )}
           </FieldGroup>
@@ -674,7 +953,7 @@ export function CheckoutView({
               {t.paymentMethod}
             </span>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setPaymentTab("mobile")}
@@ -686,6 +965,18 @@ export function CheckoutView({
               >
                 <Smartphone className="size-5" />
                 {t.mobileMoney}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentTab("cod")}
+                className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-sm transition-colors ${
+                  paymentTab === "cod"
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-border text-muted-foreground hover:border-primary/40"
+                }`}
+              >
+                <Banknote className="size-5" />
+                {t.cashOnDelivery}
               </button>
               <button
                 type="button"
@@ -707,23 +998,44 @@ export function CheckoutView({
             {paymentTab === "mobile" ? (
               <FieldGroup className="gap-4 pt-2">
                 <Field>
-                  <FieldLabel htmlFor="network">{t.network}</FieldLabel>
-                  <NativeSelect
-                    id="network"
-                    value={network}
-                    onChange={(e) =>
-                      setNetwork(e.target.value as MobileMoneyNetwork | "")
-                    }
-                  >
-                    <NativeSelectOption value="">
-                      {t.selectNetwork}
-                    </NativeSelectOption>
+                  <FieldLabel>{t.network}</FieldLabel>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {MOBILE_MONEY_NETWORKS.map((n) => (
-                      <NativeSelectOption key={n} value={n}>
-                        {NETWORK_LABELS[n]}
-                      </NativeSelectOption>
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setNetwork(n)}
+                        className={cn(
+                          "flex flex-col items-center gap-1.5 rounded-lg border p-3 text-xs font-medium transition-colors",
+                          network === n
+                            ? "border-primary bg-primary/5 text-primary"
+                            : "border-border text-muted-foreground hover:border-primary/40",
+                        )}
+                      >
+                        {n === "africell" ? (
+                          <div className="flex h-10 w-full items-center justify-center rounded-sm bg-foreground px-2">
+                            <AfricellLogo className="h-4 w-auto" />
+                          </div>
+                        ) : brokenLogos.has(n) ? (
+                          <Smartphone className="size-6" />
+                        ) : (
+                          <Image
+                            src={NETWORK_LOGOS[n]}
+                            alt=""
+                            width={38}
+                            height={38}
+                            className="size-10 rounded-sm object-contain"
+                            onError={() =>
+                              setBrokenLogos((prev) => new Set(prev).add(n))
+                            }
+                          />
+                        )}
+                        <span className="text-center leading-tight">
+                          {NETWORK_LABELS[n]}
+                        </span>
+                      </button>
                     ))}
-                  </NativeSelect>
+                  </div>
                 </Field>
 
                 <Field>
@@ -738,6 +1050,10 @@ export function CheckoutView({
                   />
                 </Field>
               </FieldGroup>
+            ) : paymentTab === "cod" ? (
+              <p className="pt-2 text-sm text-muted-foreground">
+                {t.codDescription}
+              </p>
             ) : (
               <FieldGroup className="gap-4 pt-2 opacity-50">
                 <Field>
@@ -758,9 +1074,7 @@ export function CheckoutView({
             )}
           </div>
 
-          {formError && (
-            <p className="text-sm text-destructive">{formError}</p>
-          )}
+          {formError && <p className="text-sm text-destructive">{formError}</p>}
 
           <Button
             type="button"
@@ -774,12 +1088,16 @@ export function CheckoutView({
                 <Loader2 className="size-4 animate-spin" />
                 {t.submitting}
               </>
+            ) : paymentTab === "cod" ? (
+              t.placeOrder
             ) : (
               t.payAmount(formatMoney(total, currency))
             )}
           </Button>
 
-          <p className="text-xs text-muted-foreground">{t.terms}</p>
+          <p className="text-xs text-muted-foreground">
+            {paymentTab === "cod" ? t.codTerms : t.terms}
+          </p>
         </div>
       </div>
     </main>
