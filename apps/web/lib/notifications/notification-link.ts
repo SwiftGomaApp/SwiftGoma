@@ -1,5 +1,18 @@
 import type { AppNotification } from "@/lib/api/routes/notifications.routes";
 
+/**
+ * Order notifications should open the order details dialog in place rather
+ * than navigating to the standalone order page — this returns the order id
+ * to open when that applies, or null when the notification links elsewhere.
+ */
+export function getNotificationOrderId(
+  notification: Pick<AppNotification, "data">,
+): string | null {
+  const data = notification.data;
+  if (!data) return null;
+  return typeof data.orderId === "string" ? data.orderId : null;
+}
+
 export function getNotificationLink(
   notification: Pick<AppNotification, "data">,
 ): string | null {

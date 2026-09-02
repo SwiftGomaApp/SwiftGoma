@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Bell, CheckCheck, Loader2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -21,22 +22,26 @@ import {
 } from "@/lib/api/routes/notifications.routes";
 import { getNotificationIcon } from "@/lib/notification-icons";
 import { useNotifications } from "@/lib/notifications/notifications-context";
+import { useOrderDetails } from "@/components/account/order-details-provider";
 import { cn } from "@/lib/utils";
 import type { Locale } from "@/lib/language";
-import { getNotificationLink } from "@/lib/notifications/notification-link";
+import {
+  getNotificationLink,
+  getNotificationOrderId,
+} from "@/lib/notifications/notification-link";
 
-const PAGE_SIZE = 20;
+const PREVIEW_SIZE = 5;
 
 const STRINGS = {
   en: {
     markAllRead: "Mark all read",
-    loadMore: "Load more",
+    viewAll: "View all",
     empty: "No notifications yet",
     emptyDescription: "You'll see order updates and account activity here.",
   },
   fr: {
     markAllRead: "Tout marquer comme lu",
-    loadMore: "Charger plus",
+    viewAll: "Tout voir",
     empty: "Aucune notification pour le moment",
     emptyDescription:
       "Vous verrez ici les mises à jour de commandes et l'activité du compte.",
@@ -55,37 +60,20 @@ export function NotificationsList({ locale }: { locale: Locale }) {
   const { refresh: refreshUnreadCount } = useNotifications();
 
   const [items, setItems] = useState<AppNotification[] | null>(null);
-  const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
 
   const router = useRouter();
+  const { openOrderDetails } = useOrderDetails();
 
   useEffect(() => {
-    listNotifications({ page: 1, limit: PAGE_SIZE })
+    listNotifications({ page: 1, limit: PREVIEW_SIZE })
       .then((result) => {
         setItems(result.notifications);
-        setHasMore(result.pagination.page < result.pagination.totalPages);
+        setHasMore(result.pagination.totalPages > 1);
       })
       .catch(() => setItems([]));
   }, []);
-
-  async function loadMore() {
-    setLoadingMore(true);
-    try {
-      const nextPage = page + 1;
-      const result = await listNotifications({
-        page: nextPage,
-        limit: PAGE_SIZE,
-      });
-      setItems((prev) => [...(prev ?? []), ...result.notifications]);
-      setPage(nextPage);
-      setHasMore(result.pagination.page < result.pagination.totalPages);
-    } finally {
-      setLoadingMore(false);
-    }
-  }
 
   async function handleOpenItem(item: AppNotification) {
     if (!item.isRead) {
@@ -100,6 +88,12 @@ export function NotificationsList({ locale }: { locale: Locale }) {
       } catch {
         // leave optimistic state; next load will resync
       }
+    }
+
+    const orderId = getNotificationOrderId(item);
+    if (orderId) {
+      openOrderDetails(orderId);
+      return;
     }
 
     const link = getNotificationLink(item);
@@ -234,12 +228,11 @@ export function NotificationsList({ locale }: { locale: Locale }) {
         <Button
           type="button"
           variant="outline"
-          onClick={loadMore}
-          disabled={loadingMore}
           className="w-fit self-center"
+          nativeButton={false}
+          render={<Link href="/account/notifications/all" />}
         >
-          {loadingMore && <Loader2 className="size-4 animate-spin" />}
-          {t.loadMore}
+          {t.viewAll}
         </Button>
       )}
     </div>

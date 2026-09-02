@@ -295,7 +295,7 @@ export default function SignInPage() {
           <CardContent className="grid grid-cols-1 gap-0 p-0 md:grid-cols-2">
             <IllustrationPanel locale={locale} />
 
-            <div className="flex flex-col justify-center px-6 py-10 sm:px-12">
+            <div className="@container flex flex-col justify-center px-6 py-10 sm:px-12">
               {/* Sign up */}
               <div className="mb-10 flex items-center justify-end text-sm">
                 <span className="text-muted-foreground">{t.noAccount}</span>
@@ -316,29 +316,50 @@ export default function SignInPage() {
                 {t.continueWith}
               </p>
 
-              <div className="mt-3 flex gap-3">
-                <div className="flex-1">
+              <div className="mt-3 flex flex-col gap-3 @sm:flex-row">
+                <div className="min-w-0 @sm:flex-1">
                   <GoogleAuthButton
                     onCredential={handleGoogleCredential}
                     disabled={isGoogleLoading}
-                    label={t.google}
+                    label={
+                      <>
+                        <span className="@sm:hidden">
+                          {t.continueWithGoogle}
+                        </span>
+                        <span className="hidden @sm:inline">{t.google}</span>
+                      </>
+                    }
                     locale={locale}
                   />
                 </div>
 
-                <div className="flex-1">
-                  <AppleAuthButton label={t.apple} />
+                <div className="min-w-0 @sm:flex-1">
+                  <AppleAuthButton
+                    label={
+                      <>
+                        <span className="@sm:hidden">
+                          {t.continueWithApple}
+                        </span>
+                        <span className="hidden @sm:inline">{t.apple}</span>
+                      </>
+                    }
+                  />
                 </div>
 
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex-1 gap-2 font-medium"
+                  className="min-w-0 gap-2 font-medium @sm:flex-1"
                   onClick={handlePasskeyLogin}
                   disabled={isPasskeyLoading}
                 >
-                  <KeyRound className="h-4 w-4" />
-                  {t.passkey}
+                  <KeyRound className="h-4 w-4 shrink-0" />
+                  <span className="truncate @sm:hidden">
+                    {t.continueWithPasskey}
+                  </span>
+                  <span className="hidden truncate @sm:inline">
+                    {t.passkey}
+                  </span>
                 </Button>
               </div>
 
