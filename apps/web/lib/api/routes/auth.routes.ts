@@ -6,6 +6,21 @@ import type {
   RegistrationResponseJSON,
 } from "@simplewebauthn/browser";
 
+export type AccountActivityAction =
+  | "LOGIN_SUCCESS"
+  | "LOGIN_FAILED"
+  | "PASSWORD_CREATED"
+  | "PASSWORD_CHANGED"
+  | "PASSWORD_RESET"
+  | "TWO_FACTOR_ENABLED"
+  | "TWO_FACTOR_DISABLED"
+  | "BACKUP_CODES_REGENERATED"
+  | "PASSKEY_ADDED"
+  | "PASSKEY_REMOVED"
+  | "SESSION_REVOKED"
+  | "ALL_SESSIONS_REVOKED"
+  | "ACCOUNT_SECURED";
+
 export const AUTH_ROUTES = {
   createAccount: "/auth/create-account",
   verifyEmail: "/auth/verify-email",
@@ -14,10 +29,12 @@ export const AUTH_ROUTES = {
 
   resendVerification: "/auth/resend-verification",
   requestLoginOtp: "/auth/login/request-otp",
+  requestLoginOtpBySms: "/auth/login/request-otp-sms",
   passkeyLoginOptions: "/auth/passkey/login/options",
   forgotPassword: "/auth/password/forgot",
 
   verifyLoginOtp: "/auth/login/verify-otp",
+  verifyLoginOtpBySms: "/auth/login/verify-otp-sms",
   loginWithPassword: "/auth/login/password",
   loginWithTotp: "/auth/login/totp",
   verifyPasskeyLogin: "/auth/passkey/login/verify",
@@ -40,6 +57,14 @@ export const AUTH_ROUTES = {
   passkeyRegisterVerify: "/auth/passkey/register/verify",
   passkeys: "/auth/passkey",
   deletePasskey: (passkeyId: string) => `/auth/passkey/${passkeyId}`,
+
+  activity: "/auth/activity",
+  secureAccountRequestOtp: "/auth/secure-account/request-otp",
+  secureAccountConfirm: "/auth/secure-account/confirm",
+  secureAccountConfirmLink: "/auth/secure-account/confirm-link",
+
+  phoneRecoveryRequest: "/auth/account-recovery/phone/request",
+  phoneRecoveryConfirm: "/auth/account-recovery/phone/confirm",
 } as const;
 
 export interface AuthUser {
@@ -52,7 +77,12 @@ export interface AuthUser {
   hasPassword?: boolean;
   twoFactorEnabled?: boolean;
   isEmailVerified?: boolean;
-  emails?: { id: string; email: string; isPrimary: boolean; isVerified: boolean }[];
+  emails?: {
+    id: string;
+    email: string;
+    isPrimary: boolean;
+    isVerified: boolean;
+  }[];
   passkeys?: Passkey[];
   phone?: string | null;
   pendingPhone?: string | null;
@@ -95,7 +125,10 @@ export interface Passkey {
   createdAt: string;
 }
 
-export type LoginResult = WebAuthPayload | MobileAuthPayload | TotpRequiredPayload;
+export type LoginResult =
+  | WebAuthPayload
+  | MobileAuthPayload
+  | TotpRequiredPayload;
 
 export function createAccount(body: {
   name: string;
@@ -136,6 +169,10 @@ export function requestLoginOtp(body: { email: string; locale?: string }) {
   return apiPost(AUTH_ROUTES.requestLoginOtp, body);
 }
 
+export function requestLoginOtpBySms(phone: string) {
+  return apiPost(AUTH_ROUTES.requestLoginOtpBySms, { phone });
+}
+
 export interface PasskeyLoginOptions extends PublicKeyCredentialRequestOptionsJSON {
   challengeId?: string;
 }
@@ -154,6 +191,14 @@ export function verifyLoginOtp(body: {
   deviceName?: string;
 }) {
   return apiPost<LoginResult>(AUTH_ROUTES.verifyLoginOtp, body);
+}
+
+export function verifyLoginOtpBySms(body: {
+  phone: string;
+  code: string;
+  deviceName?: string;
+}) {
+  return apiPost<LoginResult>(AUTH_ROUTES.verifyLoginOtpBySms, body);
 }
 
 export function loginWithPassword(body: {
@@ -262,4 +307,61 @@ export function listPasskeys() {
 
 export function deletePasskey(passkeyId: string) {
   return apiDelete(AUTH_ROUTES.deletePasskey(passkeyId));
+}
+
+export type AccountActivityEntry = {
+  id: string;
+  action: AccountActivityAction;
+  createdAt: string;
+  metadata: Record<string, unknown> | null;
+  isSelfInitiated: boolean;
+};
+
+export type AccountActivityListResult = {
+  activity: AccountActivityEntry[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+};
+
+export function listAccountActivity(
+  params: { page?: number; limit?: number } = {},
+) {
+  return apiGet<AccountActivityListResult>(AUTH_ROUTES.activity, {
+    params,
+  });
+}
+
+export function requestSecureAccountOtp(body: { locale?: string } = {}) {
+  return apiPost<{ message: string }>(
+    AUTH_ROUTES.secureAccountRequestOtp,
+    body,
+  );
+}
+
+export function confirmSecureAccount(body: { code: string }) {
+  return apiPost<{ message: string }>(AUTH_ROUTES.secureAccountConfirm, body);
+}
+
+export function confirmSecureAccountByLink(body: { token: string }) {
+  return apiPost<{ message: string }>(
+    AUTH_ROUTES.secureAccountConfirmLink,
+    body,
+  );
+}
+
+export function requestPhoneAccountRecovery(phone: string) {
+  return apiPost<{ message: string }>(AUTH_ROUTES.phoneRecoveryRequest, {
+    phone,
+  });
+}
+
+export function confirmPhoneAccountRecovery(body: {
+  phone: string;
+  code: string;
+}) {
+  return apiPost<{ message: string }>(AUTH_ROUTES.phoneRecoveryConfirm, body);
 }

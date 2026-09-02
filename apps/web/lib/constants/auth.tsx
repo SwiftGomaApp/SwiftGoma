@@ -26,6 +26,14 @@ export const STRINGS = {
     continueWithEmail: "Continue with email",
     signInButton: "Sign in",
     forgotPassword: "Forgot Password",
+    phoneLabel: "Phone number",
+    phonePlaceholder: "+243999999999",
+    continueWithPhone: "Continue with phone",
+    usePhoneNumber: "Use phone number instead",
+    useEmailInstead: "Use email instead",
+    orContinueWithPhone: "Or continue with phone number",
+    otpSentToPhone:
+      "We've sent a one-time code to your phone number. Enter it below to continue.",
   },
   fr: {
     noAccount: "Vous n'avez pas de compte ?",
@@ -49,6 +57,14 @@ export const STRINGS = {
     continueWithEmail: "Continuer avec e-mail",
     signInButton: "Se connecter",
     forgotPassword: "Mot de passe oublier",
+    phoneLabel: "Numéro de téléphone",
+    phonePlaceholder: "+243999999999",
+    continueWithPhone: "Continuer avec le téléphone",
+    usePhoneNumber: "Utiliser mon numéro de téléphone",
+    useEmailInstead: "Utiliser l'e-mail à la place",
+    orContinueWithPhone: "Ou continuer avec un numéro de téléphone",
+    otpSentToPhone:
+      "Nous avons envoyé un code à usage unique à votre numéro de téléphone. Entrez-le ci-dessous pour continuer.",
   },
 } as const satisfies Record<Locale, Record<string, string>>;
 

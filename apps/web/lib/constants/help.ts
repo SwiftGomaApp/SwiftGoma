@@ -365,6 +365,17 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         },
       },
       {
+        id: "passkeys",
+        question: {
+          en: "What is a passkey and how do I set one up?",
+          fr: "Qu'est-ce qu'une clé d'accès (passkey) et comment en configurer une ?",
+        },
+        answer: {
+          en: "A passkey lets you sign in with your device's fingerprint, face recognition, or screen lock instead of a password — it's tied to your device and can't be phished or guessed. Add one from your security settings, and manage or remove your passkeys there at any time.",
+          fr: "Une clé d'accès vous permet de vous connecter avec l'empreinte digitale, la reconnaissance faciale ou le verrouillage d'écran de votre appareil, à la place d'un mot de passe — elle est liée à votre appareil et ne peut être ni hameçonnée ni devinée. Ajoutez-en une depuis vos paramètres de sécurité, où vous pouvez aussi gérer ou supprimer vos clés d'accès à tout moment.",
+        },
+      },
+      {
         id: "forgot-password",
         question: {
           en: "I forgot my password or lost access to my account.",
@@ -384,6 +395,39 @@ export const HELP_CATEGORIES: HelpCategory[] = [
         answer: {
           en: "Your account settings list every active session with its device and last-used time. You can revoke a single session or log out of all devices at once if something looks unfamiliar.",
           fr: "Les paramètres de votre compte affichent chaque session active avec son appareil et sa dernière utilisation. Vous pouvez révoquer une session précise ou vous déconnecter de tous les appareils si quelque chose vous semble inhabituel.",
+        },
+      },
+      {
+        id: "new-device-alert",
+        question: {
+          en: "Why did I get an email about a new sign-in?",
+          fr: "Pourquoi ai-je reçu un e-mail à propos d'une nouvelle connexion ?",
+        },
+        answer: {
+          en: "We send that alert only when we detect a sign-in from a device or browser we haven't seen on your account before — not on every login. If it was you, no action is needed. If you don't recognize it, use the \"Secure your account\" link in that email, or in your security settings.",
+          fr: "Nous envoyons cette alerte uniquement lorsque nous détectons une connexion depuis un appareil ou navigateur que nous n'avons encore jamais vu sur votre compte — pas à chaque connexion. Si c'était vous, aucune action n'est nécessaire. Si vous ne reconnaissez pas cette connexion, utilisez le lien « Sécuriser votre compte » dans cet e-mail, ou dans vos paramètres de sécurité.",
+        },
+      },
+      {
+        id: "secure-account",
+        question: {
+          en: "What should I do if I think someone else accessed my account?",
+          fr: "Que faire si je pense qu'une autre personne a accédé à mon compte ?",
+        },
+        answer: {
+          en: 'Use "Secure my account" from your security settings, or the link in any security alert email. This immediately signs you out of every device, removes your password, and removes any two-factor method or passkey on the account — you\'ll set a new password the next time you sign in. It\'s confirmed with a one-time code sent to your email, so only you can trigger it.',
+          fr: "Utilisez « Sécuriser mon compte » depuis vos paramètres de sécurité, ou le lien présent dans tout e-mail d'alerte de sécurité. Cela vous déconnecte immédiatement de tous les appareils, supprime votre mot de passe, et supprime toute méthode à deux facteurs ou clé d'accès sur le compte — vous définirez un nouveau mot de passe lors de votre prochaine connexion. Cette action est confirmée par un code à usage unique envoyé par e-mail, afin que vous seul puissiez la déclencher.",
+        },
+      },
+      {
+        id: "activity-log",
+        question: {
+          en: "Can I see a history of security events on my account?",
+          fr: "Puis-je consulter l'historique des événements de sécurité de mon compte ?",
+        },
+        answer: {
+          en: "Yes. Your security settings include a full activity log — sign-ins, password changes, two-factor changes, and more — each with a timestamp and, where relevant, the device or location involved.",
+          fr: "Oui. Vos paramètres de sécurité incluent un historique complet de l'activité — connexions, changements de mot de passe, modifications de l'authentification à deux facteurs, etc. — chacun avec un horodatage et, le cas échéant, l'appareil ou la localisation concernés.",
         },
       },
       {

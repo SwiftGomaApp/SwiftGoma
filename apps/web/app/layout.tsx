@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { FavoritesProvider } from "@/lib/favorites/favorites-context";
 import { OneSignalProvider } from "@/components/global/onesignal-provider";
 import { OrderDetailsProvider } from "@/components/account/order-details-provider";
+import SecurityChecklistModal from "@/components/account/security-checklist-modal";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -142,6 +143,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                       <Toaster />
                       <SessionExpiredModal />
                       <LogoutOverlay />
+                      <SecurityChecklistModal locale={locale} />
                       <LegalConsentProvider />
                     </OrderDetailsProvider>
                   </NotificationsProvider>

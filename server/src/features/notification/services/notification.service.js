@@ -12,6 +12,7 @@ const {
 } = require("../utils/notificationChannels");
 const { buildNotificationPayload } = require("../utils/notificationPayload");
 const { NOTIFICATION_CONFIG } = require("../config/notification.config");
+const { NOTIFICATION_TYPES } = require("../config/notificationTypes");
 
 const prisma = getPrismaClient();
 
@@ -72,17 +73,24 @@ async function deliverToChannels({
   }
 
   if (channels.email && user.email) {
-    try {
-      const { subject, html } =
-        emailOverride ||
-        buildGenericEmail({
-          title: notification.title,
-          body: notification.body,
-        });
-      const attachments = emailOverride?.attachments;
-      await sendMail({ to: user.email, subject, html, attachments });
-    } catch (err) {
-      console.error("[notification] Failed to send email:", err.message);
+    const { subject, html } =
+      emailOverride ||
+      buildGenericEmail({
+        title: notification.title,
+        body: notification.body,
+      });
+    const attachments = emailOverride?.attachments;
+
+    const recipients = [user.email, ...(user.secondaryEmails || [])];
+    for (const to of recipients) {
+      try {
+        await sendMail({ to, subject, html, attachments });
+      } catch (err) {
+        console.error(
+          `[notification] Failed to send email to ${to}:`,
+          err.message,
+        );
+      }
     }
   }
 
@@ -108,7 +116,7 @@ async function createNotification({
 }) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { emails: { where: { isPrimary: true }, take: 1 } },
+    include: { emails: true },
   });
   if (!user) throw new NotFoundError("Utilisateur introuvable.");
 
@@ -126,9 +134,24 @@ async function createNotification({
     },
   });
 
-  const email = user.emails[0]?.email ?? null;
+  const primaryEmail = user.emails.find((e) => e.isPrimary)?.email ?? null;
+  // Security alerts also go to a verified secondary email — if an attacker's
+  // first move is taking over the primary inbox, this is the one channel
+  // that's still guaranteed to be in the account owner's hands.
+  const secondaryEmails =
+    type === NOTIFICATION_TYPES.ACCOUNT_SECURITY
+      ? user.emails
+          .filter((e) => !e.isPrimary && e.isVerified)
+          .map((e) => e.email)
+      : [];
+
   await deliverToChannels({
-    user: { id: user.id, email, phone: user.phone },
+    user: {
+      id: user.id,
+      email: primaryEmail,
+      secondaryEmails,
+      phone: user.phone,
+    },
     notification,
     channels,
     emailOverride,

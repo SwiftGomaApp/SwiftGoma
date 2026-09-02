@@ -36,7 +36,7 @@ const PRIVACY_CONTENT: Record<Locale, PrivacyContent> = {
         bullets: [
           "Account information: name, phone number, email address(es), password (stored as a salted hash, never in plain text), profile photo, preferred currency, and role (Buyer, Seller, or Rider).",
           "Authentication data: one-time passcodes, password-reset and account-recovery codes, two-factor authentication (TOTP) secrets — encrypted at rest — and backup codes, and passkey public keys and device metadata. If you sign in with Google, we receive your Google account identifier.",
-          "Session and device data: IP address, browser or app user agent, device name, and session timestamps, used to keep your account secure and to show you your active sessions.",
+          "Session and device data: IP address, browser or app user agent, device name, and session timestamps, used to keep your account secure, detect sign-ins from unrecognized devices, and show you your active sessions and a history of account security activity.",
           "Seller verification (KYC) data: a copy of a government-issued ID (national ID, voter's card, or passport), a selfie for identity matching, proof of address, and, where applicable, a business registration number (RCCM) and supporting document.",
           "Rider data: a profile photo and vehicle type, provided by the Rider or the Seller who invited them.",
           "Order and delivery data: items purchased, order value, delivery address, and — where you enable location for delivery — GPS coordinates used to route and confirm a delivery.",
@@ -83,7 +83,7 @@ const PRIVACY_CONTENT: Record<Locale, PrivacyContent> = {
         ],
         bullets: [
           "With other users, to the extent needed to complete a transaction — for example, a Seller sees a Buyer's delivery address for an Order, and a Rider sees the details needed to complete a delivery.",
-          "With service providers who process data on our behalf, including Cloudinary (image and document storage), PawaPay and MbiyoPay (payment processing), Africa's Talking (SMS delivery), Firebase Cloud Messaging and OneSignal (push notifications), our email provider (transactional email), and Sentry (error monitoring).",
+          "With service providers who process data on our behalf, including Cloudinary (image and document storage), PawaPay and MbiyoPay (payment processing), Africa's Talking (SMS delivery), Firebase Cloud Messaging and OneSignal (push notifications), our email provider (transactional email), Sentry (error monitoring), and ipwho.is (approximate location lookup from an IP address, used only to describe the location of a new sign-in in security alert emails).",
           "With our hosting and database providers, who store Platform data on our behalf.",
           "With regulators, tax authorities, or law enforcement where required by applicable law, or to protect the rights, safety, or property of Swiftgoma, our users, or the public.",
           "In connection with a merger, acquisition, or sale of assets, subject to the protections of this policy continuing to apply to your data.",
@@ -100,7 +100,7 @@ const PRIVACY_CONTENT: Record<Locale, PrivacyContent> = {
       {
         heading: "7. Data Security",
         paragraphs: [
-          "We apply technical and organizational measures to protect personal data, including password hashing, encrypted storage of two-factor authentication secrets, support for passkeys and two-factor authentication, session and device visibility so you can review and revoke access, and rate limiting on sensitive endpoints. No system is completely secure, and we encourage you to use a strong, unique password and enable two-factor authentication or a passkey.",
+          "We apply technical and organizational measures to protect personal data, including password hashing, encrypted storage of two-factor authentication secrets, support for passkeys and two-factor authentication, session and device visibility so you can review and revoke access, a full account activity log, alerts when we detect a sign-in from an unrecognized device, a one-click option to immediately secure your account — signing out every device and removing your password, two-factor method, and passkeys — if you suspect unauthorized access, and rate limiting on sensitive endpoints. No system is completely secure, and we encourage you to use a strong, unique password and enable two-factor authentication or a passkey.",
         ],
       },
 
@@ -112,6 +112,8 @@ const PRIVACY_CONTENT: Record<Locale, PrivacyContent> = {
         bullets: [
           "update your name, phone number, email, and profile photo from your account settings;",
           "review and revoke active sessions and passkeys from your security settings;",
+          "review a full history of account security activity — sign-ins, password changes, two-factor changes, and more — from your security settings;",
+          "immediately secure your account — signing out every device and removing your password, two-factor method, and passkeys — if you believe it has been accessed without authorization;",
           "manage which notifications you receive by channel (in-app, email, SMS, push) in your notification preferences;",
           "close your account by contacting Support — see Section 11 of our Terms & Conditions for what closing an account does and does not cancel.",
         ],
@@ -171,7 +173,7 @@ const PRIVACY_CONTENT: Record<Locale, PrivacyContent> = {
         bullets: [
           "Informations de compte : nom, numéro de téléphone, adresse(s) e-mail, mot de passe (stocké sous forme de hachage salé, jamais en clair), photo de profil, devise préférée et rôle (Acheteur, Vendeur ou Livreur).",
           "Données d'authentification : codes à usage unique, codes de réinitialisation de mot de passe et de récupération de compte, secrets d'authentification à deux facteurs (TOTP) — chiffrés au repos — et codes de secours, ainsi que les clés publiques et métadonnées d'appareil des passkeys. Si vous vous connectez avec Google, nous recevons votre identifiant de compte Google.",
-          "Données de session et d'appareil : adresse IP, user agent du navigateur ou de l'application, nom de l'appareil et horodatages de session, utilisés pour sécuriser votre compte et vous permettre de consulter vos sessions actives.",
+          "Données de session et d'appareil : adresse IP, user agent du navigateur ou de l'application, nom de l'appareil et horodatages de session, utilisés pour sécuriser votre compte, détecter les connexions depuis des appareils non reconnus, et vous permettre de consulter vos sessions actives ainsi qu'un historique de l'activité de sécurité du compte.",
           "Données de vérification vendeur (KYC) : une copie d'une pièce d'identité officielle (carte d'identité nationale, carte d'électeur ou passeport), un selfie pour la correspondance d'identité, un justificatif de domicile et, le cas échéant, un numéro d'enregistrement d'entreprise (RCCM) et un document justificatif.",
           "Données livreur : une photo de profil et le type de véhicule, fournis par le Livreur ou le Vendeur qui l'a invité.",
           "Données de commande et de livraison : articles achetés, valeur de la commande, adresse de livraison et, lorsque vous activez la localisation pour la livraison, les coordonnées GPS utilisées pour l'itinéraire et la confirmation de la livraison.",
@@ -218,7 +220,7 @@ const PRIVACY_CONTENT: Record<Locale, PrivacyContent> = {
         ],
         bullets: [
           "Avec d'autres utilisateurs, dans la mesure nécessaire à la réalisation d'une transaction — par exemple, un Vendeur voit l'adresse de livraison d'un Acheteur pour une Commande, et un Livreur voit les informations nécessaires pour effectuer une livraison.",
-          "Avec des prestataires qui traitent des données pour notre compte, notamment Cloudinary (stockage d'images et de documents), PawaPay et MbiyoPay (traitement des paiements), Africa's Talking (envoi de SMS), Firebase Cloud Messaging et OneSignal (notifications push), notre prestataire d'e-mail (e-mails transactionnels) et Sentry (supervision des erreurs).",
+          "Avec des prestataires qui traitent des données pour notre compte, notamment Cloudinary (stockage d'images et de documents), PawaPay et MbiyoPay (traitement des paiements), Africa's Talking (envoi de SMS), Firebase Cloud Messaging et OneSignal (notifications push), notre prestataire d'e-mail (e-mails transactionnels), Sentry (supervision des erreurs), et ipwho.is (localisation approximative à partir d'une adresse IP, utilisée uniquement pour indiquer la localisation d'une nouvelle connexion dans les e-mails d'alerte de sécurité).",
           "Avec nos prestataires d'hébergement et de base de données, qui stockent les données de la Plateforme pour notre compte.",
           "Avec les régulateurs, autorités fiscales ou forces de l'ordre lorsque la loi applicable l'exige, ou pour protéger les droits, la sécurité ou les biens de Swiftgoma, de nos utilisateurs ou du public.",
           "Dans le cadre d'une fusion, acquisition ou cession d'actifs, sous réserve que les protections de cette politique continuent de s'appliquer à vos données.",
@@ -235,7 +237,7 @@ const PRIVACY_CONTENT: Record<Locale, PrivacyContent> = {
       {
         heading: "7. Sécurité des données",
         paragraphs: [
-          "Nous appliquons des mesures techniques et organisationnelles pour protéger les données personnelles, notamment le hachage des mots de passe, le chiffrement au repos des secrets d'authentification à deux facteurs, la prise en charge des passkeys et de l'authentification à deux facteurs, la visibilité sur vos sessions et appareils afin que vous puissiez les consulter et les révoquer, ainsi qu'une limitation du taux de requêtes sur les points d'accès sensibles. Aucun système n'est totalement sécurisé, et nous vous encourageons à utiliser un mot de passe fort et unique et à activer l'authentification à deux facteurs ou une passkey.",
+          "Nous appliquons des mesures techniques et organisationnelles pour protéger les données personnelles, notamment le hachage des mots de passe, le chiffrement au repos des secrets d'authentification à deux facteurs, la prise en charge des passkeys et de l'authentification à deux facteurs, la visibilité sur vos sessions et appareils afin que vous puissiez les consulter et les révoquer, un historique complet de l'activité du compte, des alertes lorsque nous détectons une connexion depuis un appareil non reconnu, une option en un clic pour sécuriser immédiatement votre compte — en vous déconnectant de tous les appareils et en supprimant votre mot de passe, votre méthode à deux facteurs et vos passkeys — en cas de soupçon d'accès non autorisé, ainsi qu'une limitation du taux de requêtes sur les points d'accès sensibles. Aucun système n'est totalement sécurisé, et nous vous encourageons à utiliser un mot de passe fort et unique et à activer l'authentification à deux facteurs ou une passkey.",
         ],
       },
 
@@ -247,6 +249,8 @@ const PRIVACY_CONTENT: Record<Locale, PrivacyContent> = {
         bullets: [
           "mettre à jour votre nom, numéro de téléphone, e-mail et photo de profil depuis les paramètres de votre compte ;",
           "consulter et révoquer vos sessions actives et vos passkeys depuis les paramètres de sécurité ;",
+          "consulter l'historique complet de l'activité de sécurité du compte — connexions, changements de mot de passe, modifications de l'authentification à deux facteurs, etc. — depuis les paramètres de sécurité ;",
+          "sécuriser immédiatement votre compte — en vous déconnectant de tous les appareils et en supprimant votre mot de passe, votre méthode à deux facteurs et vos passkeys — si vous pensez qu'il a été utilisé sans autorisation ;",
           "gérer les notifications que vous recevez par canal (in-app, e-mail, SMS, push) dans vos préférences de notification ;",
           "fermer votre compte en contactant le Support — voir la Section 11 de nos Conditions générales pour savoir ce que la fermeture d'un compte annule ou n'annule pas.",
         ],

@@ -55,6 +55,42 @@ export const apiClient: AxiosInstance = axios.create({
   },
 });
 
+const REFRESH_LOCK_NAME = "swg-admin-token-refresh";
+const REFRESH_DEDUPE_WINDOW_MS = 5000;
+const LAST_REFRESH_STORAGE_KEY = "swg-admin:last-token-refresh-at";
+
+function getLastRefreshAt(): number {
+  try {
+    return Number(window.localStorage.getItem(LAST_REFRESH_STORAGE_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setLastRefreshAt(time: number) {
+  try {
+    window.localStorage.setItem(LAST_REFRESH_STORAGE_KEY, String(time));
+  } catch {
+    // Private browsing / storage disabled — cross-tab dedupe just won't apply.
+  }
+}
+
+async function performRefresh() {
+  // Another tab may have refreshed moments ago — the rotated cookie is
+  // already shared across tabs, so skip the redundant network round trip.
+  if (Date.now() - getLastRefreshAt() < REFRESH_DEDUPE_WINDOW_MS) return;
+  await apiClient.post("/auth/refresh-token");
+  setLastRefreshAt(Date.now());
+}
+
+export async function refreshAuthSession() {
+  if (typeof navigator !== "undefined" && "locks" in navigator) {
+    await navigator.locks.request(REFRESH_LOCK_NAME, () => performRefresh());
+  } else {
+    await performRefresh();
+  }
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiErrorShape>) => {
@@ -75,7 +111,7 @@ apiClient.interceptors.response.use(
 
       isRefreshing = true;
       try {
-        await apiClient.post("/auth/refresh-token");
+        await refreshAuthSession();
         isRefreshing = false;
         flushRefreshWaiters();
         return apiClient(original);

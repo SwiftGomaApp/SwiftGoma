@@ -22,9 +22,15 @@ const { shopStatusEmail } = require("./templates/shopStatus");
 const { orderStatusEmail } = require("./templates/orderStatus");
 const { contactSupportEmail } = require("./templates/contactSupport");
 const { adminPayoutOtpEmail } = require("./templates/adminPayoutOtp");
-const { adminPayoutInitiatedEmail } = require("./templates/adminPayoutInitiated");
-const { adminAccountantReportEmail } = require("./templates/adminAccountantReport");
+const {
+  adminPayoutInitiatedEmail,
+} = require("./templates/adminPayoutInitiated");
+const {
+  adminAccountantReportEmail,
+} = require("./templates/adminAccountantReport");
 const { adminExpenseOtpEmail } = require("./templates/adminExpenseOtp");
+const { secureAccountOtpEmail } = require("./templates/secureAccountOtp");
+const { accountSecuredEmail } = require("./templates/accountSecured");
 
 async function sendLoginDetectedEmail(to, data) {
   const { subject, html } = loginDetectedEmail(data);
@@ -133,6 +139,11 @@ async function sendAdminExpenseOtpEmail(to, data) {
   return sendMail({ to, subject, html });
 }
 
+async function sendSecureAccountOtpEmail(to, data) {
+  const { subject, html } = secureAccountOtpEmail(data);
+  return sendMail({ to, subject, html });
+}
+
 module.exports = {
   sendLoginDetectedEmail,
   sendOtpLoginEmail,
@@ -169,4 +180,7 @@ module.exports = {
   subscriptionStatusEmail,
   shopStatusEmail,
   orderStatusEmail,
+  sendSecureAccountOtpEmail,
+  secureAccountOtpEmail,
+  accountSecuredEmail,
 };

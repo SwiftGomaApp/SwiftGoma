@@ -7,6 +7,9 @@ const mock = new MockAdapter(apiClient);
 describe("apiClient response interceptor", () => {
   beforeEach(() => {
     mock.reset();
+    // refreshAuthSession dedupes real refresh calls within a short window via
+    // localStorage — clear it so one test's refresh doesn't suppress the next.
+    window.localStorage.clear();
   });
 
   it("passes successful responses through unchanged", async () => {

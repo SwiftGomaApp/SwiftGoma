@@ -28,7 +28,6 @@ import {
 } from "@/lib/api/routes/products";
 import { getCategoryIcon } from "@/lib/category-icons";
 import { getServerLocale } from "@/lib/language";
-import Image from "next/image";
 import { HeroCarouselBackground } from "@/components/home/hero-carousel-background";
 
 export const metadata: Metadata = {
@@ -39,7 +38,7 @@ export const metadata: Metadata = {
 
 const STRINGS = {
   en: {
-    eyebrow: "Swiftgoma Marketplace",
+    eyebrow: "SwiftGoma Marketplace",
     title: "Local shopping in Goma, delivered.",
     description:
       "Browse shops and products from sellers across Goma  order online and get it delivered or pick it up yourself.",
@@ -72,7 +71,7 @@ const STRINGS = {
     deliveryLabel: "Delivery",
   },
   fr: {
-    eyebrow: "Marché Swiftgoma",
+    eyebrow: "Marché SwiftGoma",
     title: "Le shopping local à Goma, livré chez vous.",
     description:
       "Parcourez les boutiques et produits des vendeurs de Goma commandez en ligne et faites-vous livrer ou récupérez sur place.",

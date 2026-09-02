@@ -57,6 +57,21 @@ AuthRouter.post(
   authController.loginWithApple,
 );
 
+AuthRouter.post(
+  "/account-recovery/phone/request",
+  blockSuspectedBots,
+  otpRequestLimiter,
+  otpRequestAccountLimiter,
+  authController.requestPhoneAccountRecovery,
+);
+AuthRouter.post(
+  "/account-recovery/phone/confirm",
+  blockSuspectedBots,
+  credentialGuessLimiter,
+  credentialGuessAccountLimiter,
+  authController.confirmPhoneAccountRecovery,
+);
+
 // --- Tier B: request/initiation (spam & enumeration risk) ---
 AuthRouter.post(
   "/resend-verification",
@@ -71,6 +86,13 @@ AuthRouter.post(
   otpRequestLimiter,
   otpRequestAccountLimiter,
   authController.requestLoginOtp,
+);
+AuthRouter.post(
+  "/login/request-otp-sms",
+  blockSuspectedBots,
+  otpRequestLimiter,
+  otpRequestAccountLimiter,
+  authController.requestLoginOtpBySms,
 );
 AuthRouter.post(
   "/passkey/login/options",
@@ -94,6 +116,13 @@ AuthRouter.post(
   credentialGuessLimiter,
   credentialGuessAccountLimiter,
   authController.verifyLoginOtp,
+);
+AuthRouter.post(
+  "/login/verify-otp-sms",
+  blockSuspectedBots,
+  credentialGuessLimiter,
+  credentialGuessAccountLimiter,
+  authController.verifyLoginOtpBySms,
 );
 AuthRouter.post(
   "/login/password",
@@ -166,6 +195,32 @@ AuthRouter.delete(
   authenticate,
   sessionLimiter,
   authController.revokeSession,
+);
+
+AuthRouter.get(
+  "/activity",
+  authenticate,
+  sessionLimiter,
+  authController.listAccountActivity,
+);
+
+AuthRouter.post(
+  "/secure-account/request-otp",
+  authenticate,
+  authenticatedActionLimiter,
+  authController.requestSecureAccountOtp,
+);
+AuthRouter.post(
+  "/secure-account/confirm",
+  authenticate,
+  authenticatedActionLimiter,
+  authController.confirmSecureAccount,
+);
+AuthRouter.post(
+  "/secure-account/confirm-link",
+  blockSuspectedBots,
+  credentialGuessLimiter,
+  authController.confirmSecureAccountLink,
 );
 
 // --- Tier D: authenticated, non-guessable setup actions ---

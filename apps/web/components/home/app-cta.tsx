@@ -5,7 +5,7 @@ import type { Locale } from "@/lib/language";
 const STRINGS = {
   en: {
     eyebrow: "Coming soon",
-    title: "Take Swiftgoma with you.",
+    title: "Take SwiftGoma with you.",
     description:
       "Our mobile app is on its way order from local shops, track deliveries, and manage your account on the go.",
     appStoreEyebrow: "Download on the",
@@ -25,7 +25,7 @@ const STRINGS = {
   },
   fr: {
     eyebrow: "Bientôt disponible",
-    title: "Emportez Swiftgoma partout avec vous.",
+    title: "Emportez SwiftGoma partout avec vous.",
     description:
       "Notre application mobile arrive bientôt commandez auprès des boutiques locales, suivez vos livraisons et gérez votre compte où que vous soyez.",
     appStoreEyebrow: "Télécharger sur",
