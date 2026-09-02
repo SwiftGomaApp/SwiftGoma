@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { loadGoogleIdentity } from "@/lib/auth/google-identity";
 import { toast } from "../ui/toast";
@@ -15,7 +15,7 @@ export function GoogleAuthButton({
 }: {
   onCredential: (idToken: string) => void | Promise<void>;
   disabled?: boolean;
-  label?: string;
+  label?: ReactNode;
   locale?: Locale;
 }) {
   const hiddenButtonRef = useRef<HTMLDivElement>(null);

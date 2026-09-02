@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { CalendarDays, MapPin, Package, Store, Truck } from "lucide-react";
 
 import { OrderStatusBadge } from "@/components/account/order-status-badge";
-import { OrderDetailsModal } from "@/components/account/order-details-modal";
+import { useOrderDetails } from "@/components/account/order-details-provider";
 import { formatMoney } from "@/lib/products";
 import type { BuyerOrder } from "@/lib/api/routes/orders";
 
@@ -52,11 +51,10 @@ export function OrdersList({
   locale: Locale;
 }) {
   const t = CARD_STRINGS[locale];
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const { openOrderDetails } = useOrderDetails();
 
   return (
-    <>
-      <div className="mt-4 space-y-4">
+    <div className="mt-4 space-y-4">
         {orders.map((order) => {
           const itemCount = order.items.reduce(
             (sum, item) => sum + item.quantity,
@@ -66,7 +64,7 @@ export function OrdersList({
             <button
               key={order.id}
               type="button"
-              onClick={() => setSelectedOrderId(order.id)}
+              onClick={() => openOrderDetails(order.id)}
               className="block w-full rounded-2xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/40"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -136,14 +134,7 @@ export function OrdersList({
             </button>
           );
         })}
-      </div>
-
-      <OrderDetailsModal
-        orderId={selectedOrderId}
-        onOpenChange={(open) => !open && setSelectedOrderId(null)}
-        locale={locale}
-      />
-    </>
+    </div>
   );
 }
 

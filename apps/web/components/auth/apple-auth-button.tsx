@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { AppleIcon } from "@/components/global/icons";
 import { cn } from "@/lib/utils";
@@ -9,7 +10,7 @@ export function AppleAuthButton({
   disabled,
   className,
 }: {
-  label?: string;
+  label?: ReactNode;
   disabled?: boolean;
   className?: string;
 }) {

@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bell, CheckCheck, Loader2, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Empty,
   EmptyDescription,
@@ -28,8 +29,13 @@ import {
 } from "@/lib/api/routes/notifications.routes";
 import { getNotificationIcon } from "@/lib/notification-icons";
 import { useNotifications } from "@/lib/notifications/notifications-context";
+import { useOrderDetails } from "@/components/account/order-details-provider";
 import { cn } from "@/lib/utils";
 import type { Locale } from "@/lib/language";
+import {
+  getNotificationLink,
+  getNotificationOrderId,
+} from "@/lib/notifications/notification-link";
 
 const STRINGS = {
   en: {
@@ -80,29 +86,45 @@ export function NotificationModal({
 }) {
   const t = STRINGS[locale];
   const { refresh: refreshUnreadCount } = useNotifications();
+  const { openOrderDetails } = useOrderDetails();
+  const router = useRouter();
 
   const [items, setItems] = useState<AppNotification[] | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    listNotifications({ limit: 10 })
+    listNotifications({ limit: 5 })
       .then((result) => setItems(result.notifications))
       .catch(() => setItems([]));
   }, [open]);
 
   async function handleOpenItem(item: AppNotification) {
-    if (item.isRead) return;
-    setItems(
-      (prev) =>
-        prev?.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)) ??
-        null,
-    );
-    try {
-      await markNotificationRead(item.id);
-      refreshUnreadCount();
-    } catch {
-      // leave optimistic state; next open will resync
+    if (!item.isRead) {
+      setItems(
+        (prev) =>
+          prev?.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)) ??
+          null,
+      );
+      try {
+        await markNotificationRead(item.id);
+        refreshUnreadCount();
+      } catch {
+        // leave optimistic state; next open will resync
+      }
+    }
+
+    const orderId = getNotificationOrderId(item);
+    if (orderId) {
+      onOpenChange(false);
+      openOrderDetails(orderId);
+      return;
+    }
+
+    const link = getNotificationLink(item);
+    if (link) {
+      onOpenChange(false);
+      router.push(link);
     }
   }
 
@@ -130,47 +152,48 @@ export function NotificationModal({
   const hasUnread = items?.some((n) => !n.isRead) ?? false;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] min-w-0 overflow-y-auto sm:max-w-md">
-        <DialogHeader className="min-w-0 pr-8">
-          <DialogTitle>{t.title}</DialogTitle>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="flex w-full flex-col p-0">
+        <SheetHeader className="min-w-0 border-b border-border pr-10">
+          <SheetTitle className="text-base">{t.title}</SheetTitle>
+        </SheetHeader>
 
-        {items === null ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : items.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Bell />
-              </EmptyMedia>
-              <EmptyTitle>{t.empty}</EmptyTitle>
-              <EmptyDescription>{t.emptyDescription}</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <div className="flex min-w-0 flex-col gap-3">
-            {hasUnread && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleMarkAllRead}
-                disabled={markingAll}
-                className="self-end"
-              >
-                {markingAll ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <CheckCheck className="size-3.5" />
-                )}
-                {t.markAllRead}
-              </Button>
-            )}
-            <ul className="flex min-w-0 flex-col gap-1">
-            {items.map((item) => {
+        <div className="min-w-0 flex-1 overflow-y-auto p-6">
+          {items === null ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : items.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Bell />
+                </EmptyMedia>
+                <EmptyTitle>{t.empty}</EmptyTitle>
+                <EmptyDescription>{t.emptyDescription}</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <div className="flex min-w-0 flex-col gap-3">
+              {hasUnread && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleMarkAllRead}
+                  disabled={markingAll}
+                  className="self-end"
+                >
+                  {markingAll ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <CheckCheck className="size-3.5" />
+                  )}
+                  {t.markAllRead}
+                </Button>
+              )}
+              <ul className="flex min-w-0 flex-col gap-1">
+              {items.map((item) => {
               const Icon = getNotificationIcon(item.type);
               return (
                 <li key={item.id} className="min-w-0">
@@ -228,24 +251,25 @@ export function NotificationModal({
               );
             })}
             </ul>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
 
         {items !== null && items.length > 0 && (
-          <DialogFooter>
+          <SheetFooter className="border-t border-border">
             <Button
               variant="ghost"
               className="w-full"
               nativeButton={false}
-              render={<Link href="/account/notifications" />}
+              render={<Link href="/account/notifications/all" />}
               onClick={() => onOpenChange(false)}
             >
               {t.viewAll}
             </Button>
-          </DialogFooter>
+          </SheetFooter>
         )}
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
 

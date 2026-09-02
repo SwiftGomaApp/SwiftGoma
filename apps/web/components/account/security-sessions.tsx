@@ -95,6 +95,8 @@ function extractMessage(err: unknown): string | undefined {
   return undefined;
 }
 
+const MAX_VISIBLE_SESSIONS = 5;
+
 export function SecuritySessions({ locale }: { locale: Locale }) {
   const t = STRINGS[locale];
   const { logoutAll } = useAuth();
@@ -187,7 +189,12 @@ export function SecuritySessions({ locale }: { locale: Locale }) {
         <p className="text-sm text-muted-foreground">{t.empty}</p>
       ) : (
         <ItemGroup>
-          {sessions.map((session) => {
+          {[...sessions]
+            // Always keep the current device visible even if the API
+            // doesn't return it first.
+            .sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent))
+            .slice(0, MAX_VISIBLE_SESSIONS)
+            .map((session) => {
             const Icon = isMobileUserAgent(session.userAgent)
               ? Smartphone
               : Laptop;
