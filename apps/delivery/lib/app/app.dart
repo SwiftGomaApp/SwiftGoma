@@ -1,5 +1,5 @@
+import 'package:delivery/app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
-
 import '../core/config/env.dart';
 
 class App extends StatelessWidget {
@@ -9,9 +9,10 @@ class App extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: Env.appName,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
+      debugShowCheckedModeBanner: false,
       home: const HomeScreen(),
     );
   }
