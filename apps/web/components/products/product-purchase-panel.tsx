@@ -5,6 +5,7 @@ import { Check, Heart, Loader2, ShoppingCart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ProductShareButton } from "@/components/products/product-share-button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useLoginRequired } from "@/lib/auth/login-required-context";
@@ -291,6 +292,8 @@ export function ProductPurchasePanel({
             )}
           </Button>
         )}
+
+        <ProductShareButton productName={product.name} locale={locale} />
       </div>
     </div>
   );
