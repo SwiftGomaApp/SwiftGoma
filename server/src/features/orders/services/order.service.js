@@ -9,6 +9,7 @@ const {
   assertCancellable,
   calculateOrderTotals,
   assertValidCheckoutCurrency,
+  calculateDeliveryFee,
 } = require("../utils/order.utils");
 const { ORDER_CONFIG } = require("../config/order.config");
 const { getCart, clearCart } = require("./cart.service");
@@ -38,6 +39,7 @@ const {
 const { createQueue } = require("../../../config/queue");
 const { QUEUE_NAMES } = require("../../../common/constants/queueNames");
 const { sanitizeUser } = require("../../auth/services/auth.service");
+const { getDeliveryPerKmRate } = require("../utils/deliveryRate.utils");
 
 const prisma = getPrismaClient();
 
@@ -423,8 +425,17 @@ async function checkout({
     }),
   );
 
+  const perKmRate =
+    fulfillmentMethod === "DELIVERY" ? await getDeliveryPerKmRate() : null;
   const rawDeliveryFee =
-    fulfillmentMethod === "DELIVERY" ? Number(shop.deliveryFee) : 0;
+    fulfillmentMethod === "DELIVERY"
+      ? calculateDeliveryFee(
+          shop,
+          deliveryLatitude,
+          deliveryLongitude,
+          perKmRate,
+        )
+      : 0;
   const deliveryFee =
     fulfillmentMethod === "DELIVERY" && shop.deliveryFeeCurrency !== currency
       ? await convertAmount(rawDeliveryFee, shop.deliveryFeeCurrency, currency)
@@ -1327,7 +1338,7 @@ async function getOrderQrCode(orderId, requesterId) {
   }
 
   const qrCodeDataUrl = await QRCode.toDataURL(order.qrToken);
-  return { qrCodeDataUrl };
+  return { qrCodeDataUrl, qrToken: order.qrToken };
 }
 
 async function creditSellerWallet(tx, order) {

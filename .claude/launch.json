@@ -12,6 +12,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "apps/docs", "--", "-p", "3002"],
       "port": 3002
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "apps/admin", "--", "-p", "3003"],
+      "port": 3003
+    },
+    {
+      "name": "rider-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "apps/rider-web", "--", "-p", "3004"],
+      "port": 3004
     }
   ]
 }

@@ -23,6 +23,7 @@ import {
   ShoppingBag,
   Boxes,
   FileText,
+  Truck,
 } from "lucide-react";
 
 export type AdminRole = "ADMIN" | "SUPPORT" | "ACCOUNTANT";
@@ -141,6 +142,12 @@ export const NAV_GROUPS: NavGroup[] = [
         title: "Taux de change",
         href: "/exchange-rates",
         icon: ArrowLeftRight,
+        roles: ["ADMIN", "SUPPORT"],
+      },
+      {
+        title: "Frais de livraison",
+        href: "/delivery-rate",
+        icon: Truck,
         roles: ["ADMIN", "SUPPORT"],
       },
       {

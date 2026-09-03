@@ -6,6 +6,8 @@ const {
 } = require("../utils/cart.utils");
 const { convertAmount } = require("../../product/utils/exchangeRate.utils");
 const { PRODUCT_CONFIG } = require("../../product/config/product.config");
+const { calculateDeliveryFee } = require("../utils/order.utils");
+const { getDeliveryPerKmRate } = require("../utils/deliveryRate.utils");
 
 const prisma = getPrismaClient();
 
@@ -165,7 +167,12 @@ function resolveDisplayCurrency(
   return fallbackCurrency;
 }
 
-async function attachDisplayPrices(cart, displayCurrency) {
+async function attachDisplayPrices(
+  cart,
+  displayCurrency,
+  deliveryLatitude = null,
+  deliveryLongitude = null,
+) {
   if (!cart || cart.items.length === 0) {
     return { ...cart, cartCurrency: null, displayDeliveryFee: null, items: [] };
   }
@@ -216,7 +223,13 @@ async function attachDisplayPrices(cart, displayCurrency) {
 
   let displayDeliveryFee = null;
   if (cart.shop?.deliveryFee != null) {
-    const rawFee = Number(cart.shop.deliveryFee);
+    const perKmRate = await getDeliveryPerKmRate();
+    const rawFee = calculateDeliveryFee(
+      cart.shop,
+      deliveryLatitude,
+      deliveryLongitude,
+      perKmRate,
+    );
     if (cart.shop.deliveryFeeCurrency === cartCurrency) {
       displayDeliveryFee = rawFee;
     } else {
@@ -243,7 +256,13 @@ async function attachDisplayPrices(cart, displayCurrency) {
   };
 }
 
-async function getCart(buyerId, shopId, requestedCurrency = null) {
+async function getCart(
+  buyerId,
+  shopId,
+  requestedCurrency = null,
+  deliveryLatitude = null,
+  deliveryLongitude = null,
+) {
   const cart = await prisma.cart.findUnique({
     where: { buyerId_shopId: { buyerId, shopId } },
     include: {
@@ -273,6 +292,9 @@ async function getCart(buyerId, shopId, requestedCurrency = null) {
           slug: true,
           deliveryFee: true,
           deliveryFeeCurrency: true,
+          deliveryFreeKm: true,
+          latitude: true,
+          longitude: true,
         },
       },
     },
@@ -296,7 +318,12 @@ async function getCart(buyerId, shopId, requestedCurrency = null) {
     preferredCurrency,
     firstItemCurrency,
   );
-  return attachDisplayPrices(cart, displayCurrency);
+  return attachDisplayPrices(
+    cart,
+    displayCurrency,
+    deliveryLatitude,
+    deliveryLongitude,
+  );
 }
 
 async function listMyCarts(buyerId) {

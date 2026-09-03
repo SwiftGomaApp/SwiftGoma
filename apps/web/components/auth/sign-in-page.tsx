@@ -237,12 +237,16 @@ export default function SignInPage() {
         const result = await loginWithTotp({ pendingToken, code });
         if (!("user" in result)) throw new Error("Unexpected TOTP response.");
         setUser(result.user);
-      } else if (usePhone) {
-        const result = await verifyLoginOtpBySms({ phone, code });
-        if (!("user" in result)) throw new Error("Unexpected OTP response.");
-        setUser(result.user);
       } else {
-        const result = await verifyLoginOtp({ email, code });
+        const result = usePhone
+          ? await verifyLoginOtpBySms({ phone, code })
+          : await verifyLoginOtp({ email, code });
+
+        if ("requiresTotp" in result) {
+          setPendingToken(result.pendingToken);
+          openOtpDialog("2fa");
+          return;
+        }
         if (!("user" in result)) throw new Error("Unexpected OTP response.");
         setUser(result.user);
       }

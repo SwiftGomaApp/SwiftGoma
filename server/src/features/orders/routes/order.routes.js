@@ -30,6 +30,11 @@ const {
 } = require("../../../common/middleware/rateLimiters");
 const { idempotencyGuard } = require("../../../common/middleware/idempotency");
 
+const {
+  getDeliveryRate,
+  putDeliveryRate,
+} = require("../controllers/deliveryRate.controller");
+
 const OrderRouter = express.Router();
 
 OrderRouter.use(authenticate);
@@ -75,6 +80,17 @@ OrderRouter.post(
   postMarkFailedDelivery,
 );
 OrderRouter.get("/rider/me", authorize("RIDER"), getMyDeliveries);
+
+OrderRouter.get(
+  "/delivery-rate",
+  authorize("ADMIN", "SUPPORT"),
+  getDeliveryRate,
+);
+OrderRouter.put(
+  "/delivery-rate",
+  authorize("ADMIN", "SUPPORT"),
+  putDeliveryRate,
+);
 
 OrderRouter.get("/:id", getOrder);
 

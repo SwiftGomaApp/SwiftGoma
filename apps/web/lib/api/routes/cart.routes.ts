@@ -50,9 +50,18 @@ export function getMyCarts() {
   return apiGet<ShopCart[]>("/cart");
 }
 
-export function getCartForShop(shopId: string, currency?: string) {
+export function getCartForShop(
+  shopId: string,
+  currency?: string,
+  deliveryLatitude?: number,
+  deliveryLongitude?: number,
+) {
   return apiGet<ShopCart>(`/cart/shop/${shopId}`, {
-    params: currency ? { currency } : undefined,
+    params: {
+      ...(currency ? { currency } : undefined),
+      ...(deliveryLatitude != null ? { deliveryLatitude } : undefined),
+      ...(deliveryLongitude != null ? { deliveryLongitude } : undefined),
+    },
   });
 }
 

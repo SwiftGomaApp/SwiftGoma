@@ -1,13 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, MessageCircle, Phone } from "lucide-react";
+import Image from "next/image";
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  Loader2,
+  MessageCircle,
+  Phone,
+  QrCode,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { toast } from "@/components/ui/toast";
 import { OrderStatusBadge } from "@/components/account/order-status-badge";
 import { formatMoney } from "@/lib/products";
 import { distanceKm } from "@/lib/geo";
 import { cn } from "@/lib/utils";
+import { getOrderQrCode } from "@/lib/api/routes/orders.routes";
 import type { OrderDetail, OrderStatus } from "@/lib/orders";
 
 type Locale = "en" | "fr";
@@ -23,6 +40,17 @@ const DELIVERY_STEPS: OrderStatus[] = [
   "COMPLETED",
 ];
 
+// The QR token is only valid before handoff — hide the button once it can
+// no longer be used (already delivered, or the order never will be).
+const QR_HIDDEN_STATUSES: OrderStatus[] = [
+  "REJECTED",
+  "CANCELLED",
+  "EXPIRED",
+  "FAILED",
+  "DELIVERED",
+  "COMPLETED",
+];
+
 const STRINGS = {
   en: {
     packages: "Packages",
@@ -34,6 +62,13 @@ const STRINGS = {
     courier: "Courier",
     details: "Delivery history and details",
     noRider: "Waiting for a rider to be assigned…",
+    showQr: "Show handoff QR code",
+    handoffQr: "Handoff QR code",
+    qrHint: "Show this to the rider to confirm handoff.",
+    tokenLabel: "Or share this code manually",
+    copy: "Copy",
+    copied: "Copied",
+    qrError: "Couldn't load the QR code.",
   },
   fr: {
     packages: "Colis",
@@ -45,6 +80,13 @@ const STRINGS = {
     courier: "Livreur",
     details: "Historique et détails de la livraison",
     noRider: "En attente de l'assignation d'un livreur…",
+    showQr: "Afficher le QR code de remise",
+    handoffQr: "QR code de remise",
+    qrHint: "Montrez ceci au livreur pour confirmer la remise.",
+    tokenLabel: "Ou partagez ce code manuellement",
+    copy: "Copier",
+    copied: "Copié",
+    qrError: "Impossible de charger le QR code.",
   },
 } as const;
 
@@ -71,6 +113,12 @@ export function PackagesPanel({
 }) {
   const t = STRINGS[locale];
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const [qrToken, setQrToken] = useState<string | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrError, setQrError] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const currentIndex = DELIVERY_STEPS.indexOf(order.status);
   const progress = Math.max(
@@ -88,6 +136,31 @@ export function PackagesPanel({
           { lat: order.deliveryLatitude, lng: order.deliveryLongitude },
         )
       : null;
+
+  function handleOpenQr() {
+    setQrOpen(true);
+    setQrError(false);
+    setQrLoading(true);
+    getOrderQrCode(order.id)
+      .then((res) => {
+        setQrCodeDataUrl(res.qrCodeDataUrl);
+        setQrToken(res.qrToken);
+      })
+      .catch(() => setQrError(true))
+      .finally(() => setQrLoading(false));
+  }
+
+  async function handleCopyToken() {
+    if (!qrToken) return;
+    try {
+      await navigator.clipboard.writeText(qrToken);
+      setCopied(true);
+      toast.add({ title: t.copied, type: "success" });
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.add({ title: t.qrError, type: "error" });
+    }
+  }
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
@@ -176,6 +249,17 @@ export function PackagesPanel({
           </p>
         )}
 
+        {!QR_HIDDEN_STATUSES.includes(order.status) && (
+          <button
+            type="button"
+            onClick={handleOpenQr}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-border py-2 text-xs font-medium text-foreground hover:bg-muted"
+          >
+            <QrCode className="size-3.5" />
+            {t.showQr}
+          </button>
+        )}
+
         <button
           type="button"
           onClick={() => setDetailsOpen((v) => !v)}
@@ -209,6 +293,65 @@ export function PackagesPanel({
           </div>
         )}
       </div>
+
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t.handoffQr}</DialogTitle>
+          </DialogHeader>
+
+          {qrLoading && (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {!qrLoading && qrError && (
+            <p className="py-6 text-center text-sm text-destructive">
+              {t.qrError}
+            </p>
+          )}
+
+          {!qrLoading && !qrError && qrCodeDataUrl && (
+            <div className="flex flex-col items-center gap-3">
+              <Image
+                src={qrCodeDataUrl}
+                alt=""
+                width={260}
+                height={260}
+                unoptimized
+                className="h-auto w-full max-w-[220px]"
+              />
+              <p className="text-center text-xs text-muted-foreground">
+                {t.qrHint}
+              </p>
+
+              {qrToken && (
+                <div className="flex w-full flex-col gap-1.5">
+                  <p className="text-xs text-muted-foreground">
+                    {t.tokenLabel}
+                  </p>
+                  <div className="flex items-center gap-2 rounded-lg border border-border p-2">
+                    <code className="flex-1 truncate text-xs">{qrToken}</code>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      onClick={handleCopyToken}
+                    >
+                      {copied ? (
+                        <Check className="size-3.5" />
+                      ) : (
+                        <Copy className="size-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -70,6 +70,29 @@ const NETWORK_LOGOS: Record<Exclude<MobileMoneyNetwork, "africell">, string> = {
   orange: "https://static-content.pawapay.io/provider_logos/orange.png",
 };
 
+const NETWORK_PREFIXES: Record<MobileMoneyNetwork, string[]> = {
+  vodacom: ["081", "082", "083"],
+  airtel: ["097", "098", "099"],
+  orange: ["080", "084", "085", "089"],
+  africell: ["090", "091"],
+};
+
+function detectNetwork(phone: string): MobileMoneyNetwork | null {
+  const digits = phone.replace(/\D/g, "");
+  // accepts +243XXXXXXXXX, 243XXXXXXXXX, or 0XXXXXXXXX
+  const local = digits.startsWith("243")
+    ? "0" + digits.slice(3)
+    : digits.startsWith("0")
+      ? digits
+      : "0" + digits;
+  const prefix = local.slice(0, 3);
+
+  for (const [net, prefixes] of Object.entries(NETWORK_PREFIXES)) {
+    if (prefixes.includes(prefix)) return net as MobileMoneyNetwork;
+  }
+  return null;
+}
+
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLL_ATTEMPTS = 40; // ~2 minutes
 
@@ -284,9 +307,18 @@ export function CheckoutView({
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadCart = useCallback(
-    async (requestedCurrency?: string) => {
+    async (
+      requestedCurrency?: string,
+      deliveryLatitude?: number,
+      deliveryLongitude?: number,
+    ) => {
       try {
-        const result = await getCartForShop(shopId, requestedCurrency);
+        const result = await getCartForShop(
+          shopId,
+          requestedCurrency,
+          deliveryLatitude,
+          deliveryLongitude,
+        );
         setCart(result);
         setCurrency(result.cartCurrency ?? requestedCurrency ?? "");
         setPhase(result.items.length === 0 ? "empty" : "form");
@@ -324,7 +356,7 @@ export function CheckoutView({
 
   function handleCurrencyChange(nextCurrency: string) {
     setCurrency(nextCurrency);
-    loadCart(nextCurrency);
+    loadCart(nextCurrency, effectiveDeliveryLat, effectiveDeliveryLng);
   }
 
   function switchToNewAddress() {
@@ -362,7 +394,7 @@ export function CheckoutView({
 
   function handleFulfillmentChange(value: "PICKUP" | "DELIVERY") {
     setFulfillmentMethod(value);
-    if (value === "DELIVERY" && deliveryMode === "new" && !coords) {
+    if (value === "DELIVERY" && !coords) {
       requestLocation();
     }
   }
@@ -431,6 +463,39 @@ export function CheckoutView({
       ? ((savedAddresses ?? []).find((a) => a.id === selectedAddressId) ?? null)
       : null;
 
+  const effectiveDeliveryLat =
+    fulfillmentMethod === "DELIVERY"
+      ? deliveryMode === "saved"
+        ? (selectedSavedAddress?.latitude ?? undefined)
+        : coords?.lat
+      : undefined;
+  const effectiveDeliveryLng =
+    fulfillmentMethod === "DELIVERY"
+      ? deliveryMode === "saved"
+        ? (selectedSavedAddress?.longitude ?? undefined)
+        : coords?.lng
+      : undefined;
+
+  useEffect(() => {
+    if (fulfillmentMethod !== "DELIVERY") return;
+    loadCart(currency || undefined, effectiveDeliveryLat, effectiveDeliveryLng);
+  }, [fulfillmentMethod, effectiveDeliveryLat, effectiveDeliveryLng, loadCart, currency]);
+
+  useEffect(() => {
+    if (phoneNumber) return;
+    const candidate =
+      deliveryMode === "saved"
+        ? selectedSavedAddress?.recipientPhone
+        : newAddressRecipientPhone;
+    if (candidate) setPhoneNumber(candidate);
+  }, [deliveryMode, selectedSavedAddress, newAddressRecipientPhone, phoneNumber]);
+
+  useEffect(() => {
+    if (!phoneNumber || network) return;
+    const detected = detectNetwork(phoneNumber);
+    if (detected) setNetwork(detected);
+  }, [phoneNumber, network]);
+
   async function handleSubmit() {
     setFormError(null);
 
@@ -473,18 +538,6 @@ export function CheckoutView({
           : deliveryAddress.trim() +
             (newAddressCity.trim() ? `, ${newAddressCity.trim()}` : "")
         : undefined;
-    const effectiveLat =
-      fulfillmentMethod === "DELIVERY"
-        ? deliveryMode === "saved"
-          ? (selectedSavedAddress?.latitude ?? undefined)
-          : coords?.lat
-        : undefined;
-    const effectiveLng =
-      fulfillmentMethod === "DELIVERY"
-        ? deliveryMode === "saved"
-          ? (selectedSavedAddress?.longitude ?? undefined)
-          : coords?.lng
-        : undefined;
 
     setSubmitting(true);
     try {
@@ -494,8 +547,8 @@ export function CheckoutView({
           paymentTab === "cod" ? "CASH_ON_DELIVERY" : "ONLINE_PAYMENT",
         fulfillmentMethod,
         deliveryAddress: effectiveAddress,
-        deliveryLatitude: effectiveLat,
-        deliveryLongitude: effectiveLng,
+        deliveryLatitude: effectiveDeliveryLat,
+        deliveryLongitude: effectiveDeliveryLng,
         payerPhoneNumber: paymentTab === "mobile" ? phoneNumber : undefined,
         network: paymentTab === "mobile" ? network || undefined : undefined,
         countryCode: "CD",

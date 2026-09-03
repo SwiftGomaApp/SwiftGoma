@@ -38,6 +38,10 @@ async function postCreateShop(req, res, next) {
       description: req.body.description,
       deliveryFee: req.body.deliveryFee,
       deliveryFeeCurrency: req.body.deliveryFeeCurrency,
+      deliveryFreeKm:
+        req.body.deliveryFreeKm !== undefined
+          ? Number(req.body.deliveryFreeKm)
+          : undefined,
       address: req.body.address,
       latitude:
         req.body.latitude !== undefined ? Number(req.body.latitude) : undefined,
@@ -72,6 +76,10 @@ async function putUpdateShop(req, res, next) {
       description: req.body.description,
       deliveryFee: req.body.deliveryFee,
       deliveryFeeCurrency: req.body.deliveryFeeCurrency,
+      deliveryFreeKm:
+        req.body.deliveryFreeKm !== undefined
+          ? Number(req.body.deliveryFreeKm)
+          : undefined,
       address: req.body.address,
       latitude:
         req.body.latitude !== undefined ? Number(req.body.latitude) : undefined,

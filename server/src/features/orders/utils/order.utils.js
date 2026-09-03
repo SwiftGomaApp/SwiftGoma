@@ -132,6 +132,52 @@ function assertValidCheckoutCurrency(currency) {
   }
 }
 
+function haversineDistanceKm(lat1, lng1, lat2, lng2) {
+  const R = 6371.0088;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function calculateDeliveryFee(
+  shop,
+  deliveryLatitude,
+  deliveryLongitude,
+  perKmRate,
+) {
+  const flatFee = Number(shop.deliveryFee);
+
+  const hasShopCoords =
+    shop.latitude != null &&
+    shop.longitude != null &&
+    isValidCoordinates(shop.latitude, shop.longitude);
+  const hasDeliveryCoords =
+    deliveryLatitude != null &&
+    deliveryLongitude != null &&
+    isValidCoordinates(deliveryLatitude, deliveryLongitude);
+
+  if (perKmRate == null || !hasShopCoords || !hasDeliveryCoords) {
+    return flatFee;
+  }
+
+  const distanceKm = haversineDistanceKm(
+    shop.latitude,
+    shop.longitude,
+    deliveryLatitude,
+    deliveryLongitude,
+  );
+  const adjustedDistanceKm =
+    distanceKm * ORDER_CONFIG.DELIVERY_DISTANCE_ROAD_FACTOR;
+  const freeKm = shop.deliveryFreeKm != null ? Number(shop.deliveryFreeKm) : 0;
+  const billableKm = Math.max(0, adjustedDistanceKm - freeKm);
+
+  return flatFee + billableKm * perKmRate;
+}
+
 module.exports = {
   generateQrToken,
   isValidDeliveryAddress,
@@ -141,4 +187,6 @@ module.exports = {
   assertCancellable,
   calculateOrderTotals,
   assertValidCheckoutCurrency,
+  haversineDistanceKm,
+  calculateDeliveryFee,
 };
