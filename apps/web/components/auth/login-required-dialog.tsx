@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { buildSignInHref } from "@/lib/auth/sign-in-redirect";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +30,8 @@ export function LoginRequiredDialog({
   onOpenChange: (open: boolean) => void;
   content: LoginRequiredContent | null;
 }) {
+  const pathname = usePathname();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -45,7 +49,7 @@ export function LoginRequiredDialog({
                 nativeButton={false}
                 render={
                   <Link
-                    href="/auth/sign-in"
+                    href={buildSignInHref(pathname)}
                     onClick={() => onOpenChange(false)}
                   />
                 }

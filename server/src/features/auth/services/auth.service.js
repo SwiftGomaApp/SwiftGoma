@@ -504,6 +504,9 @@ async function requestLoginOtpBySms({ phone }) {
     const requestedAt = new Date(
       user.phoneLoginOtpExpiresAt.getTime() - LOGIN_OTP_TTL_MINUTES * 60 * 1000,
     );
+    const cooldownEndsAt = new Date(
+      requestedAt.getTime() + LOGIN_OTP_RESEND_COOLDOWN_SECONDS * 1000,
+    );
     const now = new Date();
     if (cooldownEndsAt > now) {
       const secondsLeft = Math.ceil((cooldownEndsAt - now) / 1000);

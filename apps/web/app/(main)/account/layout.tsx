@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { AccountShell } from "@/components/account/account-shell";
 import { getServerUser } from "@/lib/api/routes/auth.server";
 import { getServerLocale } from "@/lib/language";
+import { getRequestPathname } from "@/lib/auth/request-pathname.server";
+import { buildSignInHref } from "@/lib/auth/sign-in-redirect";
 
 export default async function AccountLayout({
   children,
@@ -11,7 +13,7 @@ export default async function AccountLayout({
 }) {
   const user = await getServerUser();
   if (!user) {
-    redirect("/auth/sign-in");
+    redirect(buildSignInHref(await getRequestPathname()));
   }
 
   const locale = await getServerLocale();

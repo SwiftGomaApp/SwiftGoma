@@ -21,6 +21,8 @@ import {
 import type { PublicProduct } from "@/lib/api/routes/products";
 import { getServerLocale } from "@/lib/language";
 import { FavoritesGrid } from "@/components/account/favorites-grid";
+import { getRequestPathname } from "@/lib/auth/request-pathname.server";
+import { buildSignInHref } from "@/lib/auth/sign-in-redirect";
 
 export const metadata: Metadata = {
   title: "Favorites | Swiftgoma",
@@ -80,7 +82,7 @@ export default async function AccountFavoritesPage({ searchParams }: Props) {
     pagination = result.pagination;
   } catch (err) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
-      redirect("/auth/sign-in");
+      redirect(buildSignInHref(await getRequestPathname()));
     }
     throw err;
   }

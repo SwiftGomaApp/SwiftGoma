@@ -23,6 +23,8 @@ import {
 } from "@/lib/api/routes/orders";
 import { formatMoney } from "@/lib/products";
 import { getServerLocale } from "@/lib/language";
+import { getRequestPathname } from "@/lib/auth/request-pathname.server";
+import { buildSignInHref } from "@/lib/auth/sign-in-redirect";
 
 export const metadata: Metadata = {
   title: "Orders | Swiftgoma",
@@ -183,7 +185,7 @@ export default async function AccountOrdersPage({ searchParams }: Props) {
     pagination = result.pagination;
   } catch (err) {
     if (axios.isAxiosError(err) && err.response?.status === 401) {
-      redirect("/auth/sign-in");
+      redirect(buildSignInHref(await getRequestPathname()));
     }
     throw err;
   }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import SignInPage from "@/components/auth/sign-in-page";
 
@@ -13,5 +14,9 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <SignInPage />;
+  return (
+    <Suspense>
+      <SignInPage />
+    </Suspense>
+  );
 }

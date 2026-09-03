@@ -41,18 +41,32 @@ export default function NotificationsGuidePage() {
         all as read, or delete one.
       </p>
 
-      <h2 className="mb-3 text-xl font-semibold tracking-tight">Preferences</h2>
+      <h2 className="mb-3 text-xl font-semibold tracking-tight">Delivery channels</h2>
       <p className="mb-6 text-[15px] leading-relaxed text-muted-foreground">
-        A user can turn off delivery for any type they don&apos;t want to see, via{" "}
-        <code className="rounded bg-muted px-1 py-0.5 font-mono text-[13px]">
-          PATCH /preferences/:type
-        </code>
-        .
+        Every notification can go out over up to four channels — in-app, email, SMS, and push —
+        independently controlled per notification type. A user reads their current settings with{" "}
+        <Link href="/reference/get-notification-preferences" className="text-primary underline underline-offset-2">
+          GET /preferences
+        </Link>{" "}
+        and changes one type&apos;s channels with{" "}
+        <Link href="/reference/update-notification-preference" className="text-primary underline underline-offset-2">
+          PUT /preferences
+        </Link>{" "}
+        (body: <code>{`{ type, inApp?, email?, sms?, push? }`}</code>). SMS defaults to off for
+        every type; the others default to on.
       </p>
 
       <Callout variant="warning" title="ACCOUNT_SECURITY can't be muted">
-        Security-relevant notifications are forced regardless of preference — a user can&apos;t
-        opt out of being told about a password change or new sign-in on their own account.
+        Security-relevant notifications force <strong className="font-medium text-foreground">all four channels</strong> on,
+        regardless of saved preference — a user can&apos;t opt out of being told about a
+        password change or new sign-in on their own account, and can&apos;t silence the SMS
+        specifically while keeping email on.
+      </Callout>
+      <Callout variant="note" title="Security alerts also reach a secondary email">
+        For <code>ACCOUNT_SECURITY</code> notifications specifically, delivery isn&apos;t limited
+        to the primary address — a verified secondary email on the account receives the same
+        email too. This is deliberate: if an attacker&apos;s first move is taking over the
+        primary inbox, the account owner still sees the alert somewhere they control.
       </Callout>
 
       <h2 className="mb-3 text-xl font-semibold tracking-tight">Staff-created notifications</h2>

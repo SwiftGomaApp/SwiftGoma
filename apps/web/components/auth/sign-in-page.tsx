@@ -10,8 +10,9 @@ import { Separator } from "@/components/ui/separator";
 import { DEFAULT_LOCALE, getClientLocale, Locale } from "@/lib/language";
 import { IllustrationPanel, STRINGS } from "@/lib/constants/auth";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
+import { getNextParam } from "@/lib/auth/sign-in-redirect";
 import {
   requestLoginOtp,
   verifyLoginOtp,
@@ -65,9 +66,12 @@ export default function SignInPage() {
   const [phone, setPhone] = useState("");
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = getNextParam(searchParams);
   const { setUser } = useAuth();
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [otpErrorMessage, setOtpErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setLocale(getClientLocale());
@@ -78,6 +82,7 @@ export default function SignInPage() {
   const openOtpDialog = (mode: OtpMode) => {
     setOtpMode(mode);
     setOtpStatus("idle");
+    setOtpErrorMessage(null);
     setOtpLoading(false);
     setOtpOpen(true);
   };
@@ -87,6 +92,7 @@ export default function SignInPage() {
 
     if (!open) {
       setOtpStatus("idle");
+      setOtpErrorMessage(null);
       setOtpLoading(false);
     }
   };
@@ -108,7 +114,7 @@ export default function SignInPage() {
           openOtpDialog("totp");
         } else {
           setUser(result.user);
-          router.push("/account");
+          router.push(nextPath);
         }
       } else {
         await requestLoginOtp({ email, locale });
@@ -144,7 +150,7 @@ export default function SignInPage() {
         openOtpDialog("2fa");
       } else {
         setUser(result.user);
-        router.push("/account");
+        router.push(nextPath);
       }
     } catch (error) {
       const deletionEmail = getDeletionPendingEmail(error);
@@ -192,7 +198,7 @@ export default function SignInPage() {
         openOtpDialog("2fa");
       } else {
         setUser(result.user);
-        router.push("/account");
+        router.push(nextPath);
       }
     } catch (error) {
       const deletionEmail = getDeletionPendingEmail(error);
@@ -251,6 +257,9 @@ export default function SignInPage() {
         return;
       }
       console.error(error);
+      setOtpErrorMessage(
+        extractErrorMessage(error, "Wrong code. Please try again."),
+      );
       setOtpStatus("error");
     } finally {
       setOtpLoading(false);
@@ -277,6 +286,9 @@ export default function SignInPage() {
         return;
       }
       console.error(error);
+      setOtpErrorMessage(
+        extractErrorMessage(error, "Wrong code. Please try again."),
+      );
       setOtpStatus("error");
     } finally {
       setOtpLoading(false);
@@ -294,13 +306,21 @@ export default function SignInPage() {
       }
     } catch (error) {
       console.error("Failed to resend login code", error);
+      toast.add({
+        title: "Couldn't resend code",
+        description: extractErrorMessage(
+          error,
+          "Something went wrong. Please try again.",
+        ),
+        type: "error",
+      });
     }
   };
 
   const handleOtpSuccess = () => {
     setOtpOpen(false);
     setOtpStatus("idle");
-    router.push("/account");
+    router.push(nextPath);
   };
 
   return (
@@ -538,7 +558,7 @@ export default function SignInPage() {
         loading={otpLoading}
         status={otpStatus}
         onStatusChange={setOtpStatus}
-        errorMessage="Wrong code. Please try again."
+        errorMessage={otpErrorMessage ?? undefined}
         onSubmit={handleOtpSubmit}
         onUseBackupCode={handleBackupCode}
         onResend={handleResend}
