@@ -118,7 +118,9 @@ export function getOrderDetail(orderId: string) {
 }
 
 export function getOrderQrCode(orderId: string) {
-  return apiGet<{ qrCodeDataUrl: string }>(`/orders/${orderId}/qr-code`);
+  return apiGet<{ qrCodeDataUrl: string; qrToken: string }>(
+    `/orders/${orderId}/qr-code`,
+  );
 }
 
 export function confirmOrderReceipt(orderId: string) {

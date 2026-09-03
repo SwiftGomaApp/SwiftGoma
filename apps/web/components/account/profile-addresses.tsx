@@ -23,6 +23,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Item,
@@ -69,6 +70,13 @@ const STRINGS = {
     confirmDelete: "Delete",
     addressRequired: "Please enter an address.",
     genericError: "Something went wrong. Please try again.",
+    locating: "Locating you…",
+    locationCaptured: "Location captured",
+    locationError:
+      "Couldn't get your location. Allow location access and try again.",
+    retryLocation: "Retry",
+    locationRequiredError:
+      "We need your location to save this address for delivery — allow access and retry.",
   },
   fr: {
     title: "Adresses",
@@ -95,6 +103,13 @@ const STRINGS = {
     confirmDelete: "Supprimer",
     addressRequired: "Veuillez entrer une adresse.",
     genericError: "Une erreur est survenue. Veuillez réessayer.",
+    locating: "Localisation en cours…",
+    locationCaptured: "Position enregistrée",
+    locationError:
+      "Impossible d'obtenir votre position. Autorisez la localisation et réessayez.",
+    retryLocation: "Réessayer",
+    locationRequiredError:
+      "Nous avons besoin de votre position pour enregistrer cette adresse pour la livraison — autorisez l'accès et réessayez.",
   },
 } as const;
 
@@ -134,6 +149,11 @@ export function ProfileAddresses({ locale }: { locale: Locale }) {
   const [error, setError] = useState<string | null>(null);
   const [settingDefaultId, setSettingDefaultId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
     listAddresses()
@@ -141,11 +161,37 @@ export function ProfileAddresses({ locale }: { locale: Locale }) {
       .catch(() => setAddresses([]));
   }, []);
 
+  function requestLocation() {
+    setLocationError(null);
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationError(t.locationError);
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCoords({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+        setLocating(false);
+      },
+      () => {
+        setLocationError(t.locationError);
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }
+
   function startCreate() {
     setForm(EMPTY_FORM);
     setError(null);
     setEditingId(null);
     setCreating(true);
+    setCoords(null);
+    setLocationError(null);
+    requestLocation();
   }
 
   function startEdit(address: Address) {
@@ -160,18 +206,32 @@ export function ProfileAddresses({ locale }: { locale: Locale }) {
     setError(null);
     setCreating(false);
     setEditingId(address.id);
+    setLocationError(null);
+    if (address.latitude != null && address.longitude != null) {
+      setCoords({ lat: address.latitude, lng: address.longitude });
+    } else {
+      setCoords(null);
+      requestLocation();
+    }
   }
 
   function closeForm() {
     setCreating(false);
     setEditingId(null);
     setError(null);
+    setCoords(null);
+    setLocationError(null);
+    setLocating(false);
   }
 
   async function handleSubmit() {
     setError(null);
     if (!form.address.trim()) {
       setError(t.addressRequired);
+      return;
+    }
+    if (!coords) {
+      setError(t.locationRequiredError);
       return;
     }
 
@@ -182,6 +242,8 @@ export function ProfileAddresses({ locale }: { locale: Locale }) {
       address: form.address.trim(),
       city: form.city.trim() || undefined,
       isDefault: form.isDefault,
+      latitude: coords.lat,
+      longitude: coords.lng,
     };
 
     setSubmitting(true);
@@ -413,6 +475,31 @@ export function ProfileAddresses({ locale }: { locale: Locale }) {
               />
             </Field>
 
+            <FieldDescription className="flex items-center gap-1.5">
+              <MapPin className="size-3.5 shrink-0" />
+              {locating ? (
+                <span className="flex items-center gap-1.5">
+                  <Spinner className="size-3.5" />
+                  {t.locating}
+                </span>
+              ) : coords ? (
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  {t.locationCaptured}
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  {locationError ?? t.locationError}
+                  <button
+                    type="button"
+                    onClick={requestLocation}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    {t.retryLocation}
+                  </button>
+                </span>
+              )}
+            </FieldDescription>
+
             <label className="flex items-center gap-2 text-sm text-foreground">
               <Checkbox
                 checked={form.isDefault}
@@ -433,7 +520,7 @@ export function ProfileAddresses({ locale }: { locale: Locale }) {
               <Button
                 type="button"
                 onClick={handleSubmit}
-                disabled={submitting || !form.address.trim()}
+                disabled={submitting || !form.address.trim() || locating}
               >
                 {submitting && <Loader2 className="size-4 animate-spin" />}
                 {t.save}

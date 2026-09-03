@@ -45,7 +45,21 @@ async function deleteItem(req, res, next) {
 async function getCartForShop(req, res, next) {
   try {
     const currency = req.query.currency ? String(req.query.currency).toUpperCase() : null;
-    const cart = await getCart(req.user.id, req.params.shopId, currency);
+    const deliveryLatitude =
+      req.query.deliveryLatitude !== undefined
+        ? Number(req.query.deliveryLatitude)
+        : null;
+    const deliveryLongitude =
+      req.query.deliveryLongitude !== undefined
+        ? Number(req.query.deliveryLongitude)
+        : null;
+    const cart = await getCart(
+      req.user.id,
+      req.params.shopId,
+      currency,
+      deliveryLatitude,
+      deliveryLongitude,
+    );
     res.status(200).json({ success: true, data: cart });
   } catch (err) {
     next(err);

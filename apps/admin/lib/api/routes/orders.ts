@@ -116,3 +116,22 @@ export async function refundAdminOrder(id: string): Promise<AdminOrderDetail> {
   const res = await apiClient.post(`/orders/admin/${id}/refund`);
   return unwrap(res);
 }
+
+export interface DeliveryRateConfig {
+  id: string;
+  perKmRate: string;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+export async function getDeliveryRateConfig(): Promise<DeliveryRateConfig | null> {
+  const res = await apiClient.get("/orders/delivery-rate");
+  return unwrap(res);
+}
+
+export async function upsertDeliveryRateConfig(
+  perKmRate: number,
+): Promise<DeliveryRateConfig> {
+  const res = await apiClient.put("/orders/delivery-rate", { perKmRate });
+  return unwrap(res);
+}

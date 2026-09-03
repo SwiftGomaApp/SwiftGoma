@@ -9,15 +9,22 @@ import type { Locale } from "@/lib/language";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import SecureAccountAction from "./secure-account-action";
+import SecurityConnectedAccounts from "./security-connected-accounts";
 
 const STRINGS = {
   en: {
     title: "Security",
     subtitle: "Manage how you sign in and keep your account safe.",
+    secureAccountTitle: "Secure my account",
+    secureAccountDescription:
+      "Think your account was compromised? Lock it down immediately.",
   },
   fr: {
     title: "Sécurité",
     subtitle: "Gérez vos connexions et la sécurité de votre compte.",
+    secureAccountTitle: "Sécuriser mon compte",
+    secureAccountDescription:
+      "Vous pensez que votre compte a été compromis ? Verrouillez-le immédiatement.",
   },
 } as const;
 
@@ -39,9 +46,24 @@ export function SecurityView({ locale }: { locale: Locale }) {
       <div className="border-t border-border" />
       <SecurityPasskeys locale={locale} />
       <div className="border-t border-border" />
-      <SecuritySessions locale={locale} />
-      <SecureAccountAction locale={locale} />
+      <SecurityConnectedAccounts locale={locale} />
       <div className="border-t border-border" />
+      <SecuritySessions locale={locale} />
+      <div className="border-t border-border" />
+
+      <section className="flex flex-wrap items-center justify-between gap-6">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">
+            {t.secureAccountTitle}
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            {t.secureAccountDescription}
+          </p>
+          <SecureAccountAction locale={locale} />
+        </div>
+
+        <SecurityDeleteAccount locale={locale} />
+      </section>
 
       <Link
         href="/account/activity"
@@ -52,8 +74,6 @@ export function SecurityView({ locale }: { locale: Locale }) {
       </Link>
 
       <div className="border-t border-border" />
-
-      <SecurityDeleteAccount locale={locale} />
     </div>
   );
 }

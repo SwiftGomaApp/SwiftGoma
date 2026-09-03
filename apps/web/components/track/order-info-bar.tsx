@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Phone } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { OrderStatusBadge } from "@/components/account/order-status-badge";
 import { distanceKm } from "@/lib/geo";
 import type { OrderDetail } from "@/lib/orders";
@@ -15,7 +13,6 @@ const AVERAGE_SPEED_KMH = 25;
 const STRINGS = {
   en: {
     orderId: "Order ID",
-    contactCourier: "Contact courier",
     from: "From",
     to: "To",
     distance: "Distance",
@@ -24,7 +21,6 @@ const STRINGS = {
   },
   fr: {
     orderId: "N° de commande",
-    contactCourier: "Contacter le livreur",
     from: "De",
     to: "À",
     distance: "Distance",
@@ -47,12 +43,10 @@ export function OrderInfoBar({
   order,
   locale,
   riderLocation,
-  onContactCourier,
 }: {
   order: OrderDetail;
   locale: Locale;
   riderLocation: RiderLocation | null;
-  onContactCourier: () => void;
 }) {
   const t = STRINGS[locale];
 
@@ -82,7 +76,7 @@ export function OrderInfoBar({
       : null;
 
   return (
-    <div className="flex flex-col gap-4 border-t border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col items-center gap-3 p-3">
       <div className="flex items-center gap-3">
         <p className="text-sm font-semibold text-foreground">
           {t.orderId} #{order.id.slice(0, 8)}
@@ -90,12 +84,7 @@ export function OrderInfoBar({
         <OrderStatusBadge status={order.status} locale={locale} />
       </div>
 
-      <Button type="button" variant="outline" onClick={onContactCourier}>
-        <Phone className="size-4" />
-        {t.contactCourier}
-      </Button>
-
-      <div className="grid grid-cols-2 gap-4 text-xs sm:grid-cols-4 sm:gap-8">
+      <div className="grid grid-cols-4 gap-4 text-xs">
         <div>
           <p className="text-muted-foreground">{t.from}</p>
           <p className="mt-0.5 truncate font-medium text-foreground">

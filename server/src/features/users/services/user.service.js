@@ -37,6 +37,8 @@ const {
 const {
   issueSessionAndNotify,
   sanitizeUser,
+  recordAccountAction,
+  logoutAll,
 } = require("../../auth/services/auth.service");
 const { ACCOUNT_DELETION_CONFIG } = require("../config/accountDeletion.config");
 const { signMfaPendingToken } = require("../../../config/jwt");
@@ -56,6 +58,7 @@ const {
 const {
   NOTIFICATION_TYPES,
 } = require("../../notification/config/notificationTypes");
+const { connectedAccountChangedEmail } = require("../../../common/emails");
 
 const PHONE_OTP_TTL_MINUTES = 10;
 const PHONE_OTP_RESEND_COOLDOWN_SECONDS = 30;
@@ -849,9 +852,12 @@ async function verifySecondaryEmail({ userId, code, locale = "en" }) {
   return sanitizeUser(updated);
 }
 
-async function linkGoogleAccount(userId, idToken) {
+async function linkGoogleAccount(userId, idToken, locale = "en") {
   const prisma = getPrismaClient();
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { emails: { where: { isPrimary: true }, take: 1 } },
+  });
 
   if (!user) throw new NotFoundError("Compte introuvable.");
   if (user.deletedAt) throw new BadRequestError("Ce compte est supprimé.");
@@ -874,10 +880,41 @@ async function linkGoogleAccount(userId, idToken) {
     data: { googleId: payload.googleId },
   });
 
+  const primaryEmail = user.emails[0];
+  try {
+    if (primaryEmail) {
+      const emailContent = connectedAccountChangedEmail({
+        name: user.name,
+        action: "google_linked",
+        reviewActivityUrl: `${env.appUrl}/account/activity`,
+        locale,
+      });
+
+      await createNotification({
+        userId,
+        type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+        title: emailContent.subject,
+        body: "Un compte Google a été lié à votre compte.",
+        data: { action: "googleLinked" },
+        emailOverride: emailContent,
+      });
+    }
+  } catch (err) {
+    console.error("[users] Failed to notify google-linked:", err.message);
+  }
+
+  await recordAccountAction({
+    actorId: userId,
+    actorRole: user.role,
+    targetUserId: userId,
+    targetUserEmail: primaryEmail?.email || "",
+    action: "GOOGLE_LINKED",
+  });
+
   return { message: "Compte Google lié avec succès.", googleLinked: true };
 }
 
-async function unlinkGoogleAccount(userId) {
+async function unlinkGoogleAccount(userId, currentSessionId, locale = "en") {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -902,12 +939,51 @@ async function unlinkGoogleAccount(userId) {
     data: { googleId: null },
   });
 
+  const primaryEmail = user.emails[0];
+  try {
+    if (primaryEmail) {
+      const emailContent = connectedAccountChangedEmail({
+        name: user.name,
+        action: "google_unlinked",
+        reviewActivityUrl: `${env.appUrl}/account/activity`,
+        locale,
+      });
+
+      await createNotification({
+        userId,
+        type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+        title: emailContent.subject,
+        body: "Un compte Google a été délié de votre compte.",
+        data: { action: "googleUnlinked" },
+        emailOverride: emailContent,
+      });
+    }
+  } catch (err) {
+    console.error("[users] Failed to notify google-unlinked:", err.message);
+  }
+
+  await recordAccountAction({
+    actorId: userId,
+    actorRole: user.role,
+    targetUserId: userId,
+    targetUserEmail: primaryEmail?.email || "",
+    action: "GOOGLE_UNLINKED",
+  });
+
+  await logoutAll(userId, {
+    exceptSessionId: currentSessionId,
+    targetUserEmail: primaryEmail?.email || "",
+  });
+
   return { message: "Compte Google délié avec succès.", googleLinked: false };
 }
 
-async function linkAppleAccount(userId, idToken) {
+async function linkAppleAccount(userId, idToken, locale = "en") {
   const prisma = getPrismaClient();
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { emails: { where: { isPrimary: true }, take: 1 } },
+  });
 
   if (!user) throw new NotFoundError("Compte introuvable.");
   if (user.deletedAt) throw new BadRequestError("Ce compte est supprimé.");
@@ -929,10 +1005,41 @@ async function linkAppleAccount(userId, idToken) {
     data: { appleId: payload.appleId },
   });
 
+  const primaryEmail = user.emails[0];
+  try {
+    if (primaryEmail) {
+      const emailContent = connectedAccountChangedEmail({
+        name: user.name,
+        action: "apple_linked",
+        reviewActivityUrl: `${env.appUrl}/account/activity`,
+        locale,
+      });
+
+      await createNotification({
+        userId,
+        type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+        title: emailContent.subject,
+        body: "Un compte Apple a été lié à votre compte.",
+        data: { action: "appleLinked" },
+        emailOverride: emailContent,
+      });
+    }
+  } catch (err) {
+    console.error("[users] Failed to notify apple-linked:", err.message);
+  }
+
+  await recordAccountAction({
+    actorId: userId,
+    actorRole: user.role,
+    targetUserId: userId,
+    targetUserEmail: primaryEmail?.email || "",
+    action: "APPLE_LINKED",
+  });
+
   return { message: "Compte Apple lié avec succès.", appleLinked: true };
 }
 
-async function unlinkAppleAccount(userId) {
+async function unlinkAppleAccount(userId, currentSessionId, locale = "en") {
   const prisma = getPrismaClient();
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -954,6 +1061,42 @@ async function unlinkAppleAccount(userId) {
   await prisma.user.update({
     where: { id: userId },
     data: { appleId: null },
+  });
+
+  const primaryEmail = user.emails[0];
+  try {
+    if (primaryEmail) {
+      const emailContent = connectedAccountChangedEmail({
+        name: user.name,
+        action: "apple_unlinked",
+        reviewActivityUrl: `${env.appUrl}/account/activity`,
+        locale,
+      });
+
+      await createNotification({
+        userId,
+        type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+        title: emailContent.subject,
+        body: "Un compte Apple a été délié de votre compte.",
+        data: { action: "appleUnlinked" },
+        emailOverride: emailContent,
+      });
+    }
+  } catch (err) {
+    console.error("[users] Failed to notify apple-unlinked:", err.message);
+  }
+
+  await recordAccountAction({
+    actorId: userId,
+    actorRole: user.role,
+    targetUserId: userId,
+    targetUserEmail: primaryEmail?.email || "",
+    action: "APPLE_UNLINKED",
+  });
+
+  await logoutAll(userId, {
+    exceptSessionId: currentSessionId,
+    targetUserEmail: primaryEmail?.email || "",
   });
 
   return { message: "Compte Apple délié avec succès.", appleLinked: false };

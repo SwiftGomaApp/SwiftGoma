@@ -695,6 +695,15 @@ model Shop {
   deliveryFee         Decimal @db.Decimal(12, 2)
   deliveryFeeCurrency String
 
+  // Optional per-shop distance-based pricing extras. The per-km rate itself
+  // is a global, admin-managed setting (see DeliveryRateConfig) — a shop
+  // only controls how many km are included free before that rate applies.
+  deliveryFreeKm Float?
+
+  // Reserved for a future seller-subsidized delivery discount — not yet
+  // wired into any pricing logic.
+  sellerDeliverySubsidyPercent Float?
+
   address   String?
   latitude  Float?
   longitude Float?
@@ -716,6 +725,18 @@ model Shop {
   @@index([sellerProfileId])
   @@index([status])
   @@map("shops")
+}
+
+model DeliveryRateConfig {
+  id String @id @default("global")
+
+  perKmRate Decimal @db.Decimal(12, 2)
+
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("delivery_rate_config")
 }
 
 model Category {

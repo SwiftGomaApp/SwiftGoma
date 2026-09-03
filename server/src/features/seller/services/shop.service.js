@@ -74,6 +74,7 @@ async function createShop({
   description,
   deliveryFee,
   deliveryFeeCurrency,
+  deliveryFreeKm,
   address,
   latitude,
   longitude,
@@ -126,6 +127,7 @@ async function createShop({
         bannerPublicId: banner.publicId,
         deliveryFee,
         deliveryFeeCurrency,
+        deliveryFreeKm,
         address,
         latitude,
         longitude,
@@ -192,6 +194,9 @@ async function updateShop(shopId, sellerProfileId, data) {
   if (data.deliveryFee !== undefined) updateData.deliveryFee = data.deliveryFee;
   if (data.deliveryFeeCurrency !== undefined) {
     updateData.deliveryFeeCurrency = data.deliveryFeeCurrency;
+  }
+  if (data.deliveryFreeKm !== undefined) {
+    updateData.deliveryFreeKm = data.deliveryFreeKm;
   }
   if (data.address !== undefined) updateData.address = data.address;
   if (data.latitude !== undefined) updateData.latitude = data.latitude;

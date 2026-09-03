@@ -143,9 +143,11 @@ async function verifySecondaryEmail(req, res) {
 
 async function postLinkGoogle(req, res, next) {
   try {
+    const { idToken, locale } = req.body;
     const result = await userService.linkGoogleAccount(
       req.user.id,
-      req.body.idToken,
+      idToken,
+      locale,
     );
     res.status(200).json({ success: true, data: result });
   } catch (err) {
@@ -155,7 +157,12 @@ async function postLinkGoogle(req, res, next) {
 
 async function postUnlinkGoogle(req, res, next) {
   try {
-    const result = await userService.unlinkGoogleAccount(req.user.id);
+    const { locale } = req.body;
+    const result = await userService.unlinkGoogleAccount(
+      req.user.id,
+      req.user.sessionId,
+      locale,
+    );
     res.status(200).json({ success: true, data: result });
   } catch (err) {
     next(err);
@@ -164,9 +171,11 @@ async function postUnlinkGoogle(req, res, next) {
 
 async function postLinkApple(req, res, next) {
   try {
+    const { idToken, locale } = req.body;
     const result = await userService.linkAppleAccount(
       req.user.id,
-      req.body.idToken,
+      idToken,
+      locale,
     );
     res.status(200).json({ success: true, data: result });
   } catch (err) {
@@ -176,7 +185,12 @@ async function postLinkApple(req, res, next) {
 
 async function postUnlinkApple(req, res, next) {
   try {
-    const result = await userService.unlinkAppleAccount(req.user.id);
+    const { locale } = req.body;
+    const result = await userService.unlinkAppleAccount(
+      req.user.id,
+      req.user.sessionId,
+      locale,
+    );
     res.status(200).json({ success: true, data: result });
   } catch (err) {
     next(err);

@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
-import { Check, MapPin, Navigation, Phone } from "lucide-react";
+import { Check, Navigation, Phone } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { OrderStatusBadge } from "@/components/account/order-status-badge";
+import { TrackMap, type MapPoint } from "@/components/track/track-map";
 import {
   RIDER_HOLDING_STATUSES,
   type OrderDetail,
@@ -212,6 +213,18 @@ export function OrderTracking({
     order.fulfillmentMethod === "DELIVERY" &&
     RIDER_HOLDING_STATUSES.includes(status);
 
+  const shopPoint: MapPoint | null =
+    order.shop.latitude != null && order.shop.longitude != null
+      ? { lat: order.shop.latitude, lng: order.shop.longitude }
+      : null;
+  const deliveryPoint: MapPoint | null =
+    order.deliveryLatitude != null && order.deliveryLongitude != null
+      ? { lat: order.deliveryLatitude, lng: order.deliveryLongitude }
+      : null;
+  const riderPoint: MapPoint | null = riderLocation
+    ? { lat: riderLocation.latitude, lng: riderLocation.longitude }
+    : null;
+
   // Re-render every 15s so "updated Ns ago" stays fresh without a full refetch.
   useEffect(() => {
     const id = setInterval(() => forceTick((n) => n + 1), 15000);
@@ -342,19 +355,20 @@ export function OrderTracking({
                 </div>
               )}
 
+              <div className="overflow-hidden rounded-lg border border-border">
+                <TrackMap
+                  from={shopPoint}
+                  to={deliveryPoint}
+                  rider={riderPoint}
+                  locale={locale}
+                  className="h-56 w-full"
+                />
+              </div>
+
               {riderLocation ? (
-                <div className="flex items-start gap-2 text-sm">
-                  <MapPin className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
-                  <div>
-                    <p className="text-foreground">{t.coordinates}</p>
-                    <p className="font-mono text-xs text-muted-foreground">
-                      {riderLocation.latitude.toFixed(5)}, {riderLocation.longitude.toFixed(5)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {t.updated} {timeAgo(riderLocation.timestamp, t)}
-                    </p>
-                  </div>
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t.updated} {timeAgo(riderLocation.timestamp, t)}
+                </p>
               ) : (
                 <p className="text-sm text-muted-foreground">{t.noLocationYet}</p>
               )}
