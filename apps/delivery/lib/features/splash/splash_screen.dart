@@ -1,3 +1,4 @@
+import 'package:delivery/core/services/onboarding_prefs.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -66,11 +67,14 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward();
   }
 
-  void _onAnimationStatus(AnimationStatus status) {
+  void _onAnimationStatus(AnimationStatus status) async {
     if (status != AnimationStatus.completed) return;
-    Future.delayed(_holdAfterAnimation, () {
-      if (mounted) context.go('/login');
-    });
+    await Future.delayed(_holdAfterAnimation);
+    if (!mounted) return;
+
+    final hasSeenOnboarding = await OnboardingPrefs.hasSeenOnboarding();
+    if (!mounted) return;
+    context.go(hasSeenOnboarding ? '/login' : '/onboarding');
   }
 
   @override
@@ -140,27 +144,25 @@ class _SplashScreenState extends State<SplashScreen>
           opacity: _textReveal.value,
           child: Padding(
             padding: const EdgeInsets.only(left: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('SwiftGoma', style: style),
-                const SizedBox(width: 3),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 7),
-                  child: Transform.scale(
-                    scale: _dotScale.value.clamp(0.0, 1.2),
-                    child: Container(
-                      width: 9,
-                      height: 9,
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary,
-                        borderRadius: BorderRadius.circular(2.5),
+            child: Text.rich(
+              TextSpan(
+                text: 'SwiftGoma',
+                style: style,
+                children: [
+                  const WidgetSpan(child: SizedBox(width: 3)),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: Transform.scale(
+                      scale: _dotScale.value.clamp(0.0, 1.2),
+                      child: Text(
+                        '.',
+                        style: style.copyWith(color: colorScheme.primary),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
