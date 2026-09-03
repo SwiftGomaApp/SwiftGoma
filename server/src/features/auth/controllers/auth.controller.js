@@ -66,6 +66,46 @@ async function verifyLoginOtp(req, res) {
   res.status(200).json({ success: true, data: { user } });
 }
 
+async function requestLoginOtpBySms(req, res) {
+  const { phone } = req.body;
+  const result = await authService.requestLoginOtpBySms({ phone });
+  res.status(200).json({ success: true, data: result });
+}
+
+async function verifyLoginOtpBySms(req, res) {
+  const { phone, code, deviceName } = req.body;
+  const userAgent = req.headers["user-agent"] || null;
+  const ipAddress = getClientIp(req);
+  const isMobile = req.headers["x-client-type"] === "mobile";
+
+  const result = await authService.verifyLoginOtpBySms({
+    phone,
+    code,
+    userAgent,
+    ipAddress,
+    deviceName,
+  });
+
+  if (result.requiresTotp) {
+    return res.status(200).json({
+      success: true,
+      data: { requiresTotp: true, pendingToken: result.pendingToken },
+    });
+  }
+
+  const { user, accessToken, refreshToken } = result;
+
+  if (isMobile) {
+    return res
+      .status(200)
+      .json({ success: true, data: { user, accessToken, refreshToken } });
+  }
+
+  setAccessTokenCookie(res, accessToken, req);
+  setRefreshTokenCookie(res, refreshToken, req);
+  res.status(200).json({ success: true, data: { user } });
+}
+
 async function loginWithPassword(req, res) {
   const { email, password, deviceName, locale } = req.body;
   const userAgent = req.headers["user-agent"] || null;
@@ -454,6 +494,59 @@ async function deletePasskey(req, res) {
   res.status(200).json({ success: true, data: result });
 }
 
+async function listAccountActivity(req, res) {
+  const { page, limit } = req.query;
+  const result = await authService.listAccountActivity({
+    userId: req.user.id,
+    page,
+    limit,
+  });
+  res.status(200).json({ success: true, data: result });
+}
+
+async function requestSecureAccountOtp(req, res) {
+  const { locale } = req.body;
+  const result = await authService.requestSecureAccountOtp({
+    userId: req.user.id,
+    locale,
+  });
+  res.status(200).json({ success: true, data: result });
+}
+
+async function confirmSecureAccount(req, res) {
+  const { code } = req.body;
+  const result = await authService.confirmSecureAccountOtp({
+    userId: req.user.id,
+    code,
+  });
+  clearAccessTokenCookie(res, req);
+  clearRefreshTokenCookie(res, req);
+  res.status(200).json({ success: true, data: result });
+}
+
+async function confirmSecureAccountLink(req, res) {
+  const { token } = req.body;
+  const result = await authService.confirmSecureAccountByToken({ token });
+  clearAccessTokenCookie(res, req);
+  clearRefreshTokenCookie(res, req);
+  res.status(200).json({ success: true, data: result });
+}
+
+async function requestPhoneAccountRecovery(req, res) {
+  const { phone } = req.body;
+  const result = await authService.requestPhoneAccountRecovery({ phone });
+  res.status(200).json({ success: true, data: result });
+}
+
+async function confirmPhoneAccountRecovery(req, res) {
+  const { phone, code } = req.body;
+  const result = await authService.confirmPhoneAccountRecovery({
+    phone,
+    code,
+  });
+  res.status(200).json({ success: true, data: result });
+}
+
 module.exports = {
   createAccount,
   verifyEmail,
@@ -486,4 +579,12 @@ module.exports = {
   verifyPasskeyLogin,
   listPasskeys,
   deletePasskey,
+  listAccountActivity,
+  requestSecureAccountOtp,
+  confirmSecureAccount,
+  confirmSecureAccountLink,
+  requestLoginOtpBySms,
+  verifyLoginOtpBySms,
+  requestPhoneAccountRecovery,
+  confirmPhoneAccountRecovery,
 };

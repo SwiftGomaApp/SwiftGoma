@@ -104,4 +104,21 @@ function formatLoginTime(locale = "en") {
   });
 }
 
-module.exports = { parseUserAgent, getLocationLabel, formatLoginTime };
+function getDeviceFingerprint(userAgent) {
+  if (!userAgent) return null;
+  const { browser, os, device } = new UAParser(userAgent).getResult();
+  return [
+    browser.name || "unknown",
+    os.name || "unknown",
+    device.type || "desktop",
+  ]
+    .join("|")
+    .toLowerCase();
+}
+
+module.exports = {
+  parseUserAgent,
+  getLocationLabel,
+  formatLoginTime,
+  getDeviceFingerprint,
+};

@@ -15,7 +15,11 @@ import {
   logoutAll as logoutAllRequest,
   type AuthUser,
 } from "@/lib/api/routes/auth.routes";
-import { isApiError, isNetworkError } from "@/lib/api/client";
+import {
+  isApiError,
+  isNetworkError,
+  refreshAuthSession,
+} from "@/lib/api/client";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -30,6 +34,14 @@ interface AuthContextValue {
   dismissSessionExpired: () => void;
   serverUnreachable: boolean;
 }
+
+const ACCESS_TOKEN_TTL_MINUTES =
+  Number(process.env.NEXT_PUBLIC_ACCESS_TOKEN_TTL_MINUTES) || 15;
+const PROACTIVE_REFRESH_MARGIN_MINUTES = 3;
+const PROACTIVE_REFRESH_DELAY_MS =
+  Math.max(ACCESS_TOKEN_TTL_MINUTES - PROACTIVE_REFRESH_MARGIN_MINUTES, 1) *
+  60 *
+  1000;
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
@@ -86,6 +98,33 @@ export function AuthProvider({
     return () =>
       window.removeEventListener("swg:session-expired", handleSessionExpired);
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    function scheduleNext() {
+      timeoutId = setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          await refreshAuthSession();
+        } catch {
+          // A genuine failure still surfaces via the next request's reactive
+          // 401 handling — nothing extra to do here.
+        }
+        if (!cancelled) scheduleNext();
+      }, PROACTIVE_REFRESH_DELAY_MS);
+    }
+
+    scheduleNext();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!serverUnreachable) return;

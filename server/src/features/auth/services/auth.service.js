@@ -20,6 +20,8 @@ const {
   verifyRefreshToken,
   signMfaPendingToken,
   verifyMfaPendingToken,
+  signAccountSecurityToken,
+  verifyAccountSecurityToken,
 } = require("../../../config/jwt");
 const {
   sendOtpLoginEmail,
@@ -28,11 +30,14 @@ const {
   loginDetectedEmail,
   passwordChangedEmail,
   twoFactorChangedEmail,
+  sendSecureAccountOtpEmail,
+  accountSecuredEmail,
 } = require("../../../common/emails");
 const {
   parseUserAgent,
   getLocationLabel,
   formatLoginTime,
+  getDeviceFingerprint,
 } = require("../utils/deviceInfo");
 const { encryptSecret, decryptSecret } = require("../utils/totpEncryption");
 const { claimTotpStep } = require("../utils/totpReplayGuard");
@@ -44,6 +49,7 @@ const cache = require("../../../common/services/cache");
 const {
   assertAccountNotDeleted,
 } = require("../../users/utils/accountDeletion");
+const { sendSms } = require("../../../config/sms");
 
 const {
   AppError,
@@ -66,6 +72,7 @@ const {
   comparePassword,
   hashVerificationCode,
   verifyHashedCode,
+  isValidPhone,
 } = require("../utils/auth");
 const {
   createNotification,
@@ -117,12 +124,42 @@ const SENSITIVE_FIELDS = [
   "passwordResetCodeExpiresAt",
   "accountRecoveryCode",
   "accountRecoveryCodeExpiresAt",
+  "securityConfirmationCode",
+  "securityConfirmationCodeExpiresAt",
+  "phoneRecoveryCode",
+  "phoneRecoveryCodeExpiresAt",
+];
+
+const SECURE_ACCOUNT_OTP_TTL_MINUTES = 10;
+const SECURE_ACCOUNT_TOKEN_TTL_MINUTES = 30;
+const PHONE_RECOVERY_OTP_TTL_MINUTES = 10;
+const PHONE_RECOVERY_RESEND_COOLDOWN_SECONDS = 30;
+
+const ACCOUNT_ACTIVITY_ACTIONS = [
+  "LOGIN_SUCCESS",
+  "LOGIN_FAILED",
+  "PASSWORD_CREATED",
+  "PASSWORD_CHANGED",
+  "PASSWORD_RESET",
+  "TWO_FACTOR_ENABLED",
+  "TWO_FACTOR_DISABLED",
+  "BACKUP_CODES_REGENERATED",
+  "PASSKEY_ADDED",
+  "PASSKEY_REMOVED",
+  "SESSION_REVOKED",
+  "ALL_SESSIONS_REVOKED",
+  "ACCOUNT_SECURED",
 ];
 
 const EMAIL_SENSITIVE_FIELDS = [
   "verificationCode",
   "verificationCodeExpiresAt",
+  "securityConfirmationCode",
 ];
+
+const WEBAUTHN_CHALLENGE_TTL_SECONDS = Math.floor(
+  WEBAUTHN_CONFIG.timeoutMs / 1000,
+);
 
 const PASSKEY_SENSITIVE_FIELDS = ["publicKey", "credentialId", "counter"];
 
@@ -184,6 +221,30 @@ function sanitizeUser(user) {
 
   return clean;
 }
+
+async function isNewDevice({ userId, userAgent }) {
+  const prisma = getPrismaClient();
+  const priorSessions = await prisma.session.findMany({
+    where: { userId },
+    select: { userAgent: true },
+  });
+
+  if (priorSessions.length === 0) {
+    return false;
+  }
+
+  const fingerprint = getDeviceFingerprint(userAgent);
+  if (!fingerprint) {
+    return true;
+  }
+
+  return !priorSessions.some(
+    (s) => getDeviceFingerprint(s.userAgent) === fingerprint,
+  );
+}
+
+const REFRESH_TOKEN_GRACE_PERIOD_MS = 30 * 1000;
+const REFRESH_ROTATION_MAX_ATTEMPTS = 3;
 
 async function createAccount({ name, email, locale = "en", role }) {
   if (!isValidName(name)) {
@@ -418,11 +479,160 @@ async function requestLoginOtp({ email, locale = "en" }) {
   return GENERIC_RESPONSE;
 }
 
+async function requestLoginOtpBySms({ phone }) {
+  if (!isValidPhone(phone)) {
+    throw new ValidationError("Veuillez entrer un numéro de téléphone valide.");
+  }
+
+  const GENERIC_RESPONSE = {
+    message:
+      "Si un compte existe avec ce numéro, un code de connexion a été envoyé.",
+  };
+
+  const normalizedPhone = phone.trim();
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({
+    where: { phone: normalizedPhone },
+  });
+
+  if (!user) return GENERIC_RESPONSE;
+  if (user.isBlocked) return GENERIC_RESPONSE;
+  if (user.deletedAt) return GENERIC_RESPONSE;
+  if (!user.isPhoneVerified) return GENERIC_RESPONSE;
+
+  if (user.phoneLoginOtp && user.phoneLoginOtpExpiresAt) {
+    const requestedAt = new Date(
+      user.phoneLoginOtpExpiresAt.getTime() - LOGIN_OTP_TTL_MINUTES * 60 * 1000,
+    );
+    const cooldownEndsAt = new Date(
+      requestedAt.getTime() + LOGIN_OTP_RESEND_COOLDOWN_SECONDS * 1000,
+    );
+    const now = new Date();
+    if (cooldownEndsAt > now) {
+      const secondsLeft = Math.ceil((cooldownEndsAt - now) / 1000);
+      throw new TooManyRequestsError(
+        `Veuillez patienter ${secondsLeft} secondes avant de demander un nouveau code.`,
+      );
+    }
+  }
+
+  const code = generateAuthOtp();
+  const codeHash = hashVerificationCode(code);
+  const expiresAt = getOtpExpiry(LOGIN_OTP_TTL_MINUTES);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      phoneLoginOtp: codeHash,
+      phoneLoginOtpExpiresAt: expiresAt,
+    },
+  });
+
+  await sendSms({
+    to: normalizedPhone,
+    message: `${code} est votre code de connexion Swiftgoma. Il expire dans ${LOGIN_OTP_TTL_MINUTES} minutes.`,
+  });
+
+  return GENERIC_RESPONSE;
+}
+
+async function verifyLoginOtpBySms({
+  phone,
+  code,
+  userAgent,
+  ipAddress,
+  deviceName,
+}) {
+  if (!isValidPhone(phone)) {
+    throw new ValidationError("Veuillez entrer un numéro de téléphone valide.");
+  }
+  if (!code || typeof code !== "string" || !code.trim()) {
+    throw new ValidationError("Veuillez entrer le code de connexion.");
+  }
+
+  const normalizedPhone = phone.trim();
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({
+    where: { phone: normalizedPhone },
+    include: { emails: true, twoFactorAuth: true },
+  });
+
+  if (!user) {
+    await recordAccountAction({
+      targetUserEmail: "",
+      action: "LOGIN_FAILED",
+      metadata: {
+        method: "sms_otp",
+        reason: "unknown_phone",
+        phone: normalizedPhone,
+        ip: ipAddress,
+        userAgent,
+      },
+    });
+    throw new NotFoundError("Aucun compte trouvé avec ce numéro.");
+  }
+  if (user.isBlocked) {
+    throw new ForbiddenError("Ce compte a été bloqué. Contactez le support.");
+  }
+
+  if (isOtpExpired(user.phoneLoginOtpExpiresAt)) {
+    throw new AppError(
+      "Votre code de connexion a expiré. Demandez-en un nouveau.",
+      422,
+      "OTP_EXPIRED",
+    );
+  }
+
+  if (!verifyHashedCode(user.phoneLoginOtp, code)) {
+    await recordAccountAction({
+      actorId: user.id,
+      actorRole: user.role,
+      targetUserId: user.id,
+      targetUserEmail: getPrimaryEmail(user)?.email || "",
+      action: "LOGIN_FAILED",
+      metadata: {
+        method: "sms_otp",
+        reason: "wrong_code",
+        ip: ipAddress,
+        userAgent,
+      },
+    });
+    throw new AppError(
+      "Le code de connexion est incorrect.",
+      422,
+      "OTP_INVALID",
+    );
+  }
+
+  assertAccountNotDeleted(user);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { phoneLoginOtp: null, phoneLoginOtpExpiresAt: null },
+  });
+
+  if (user.twoFactorAuth && user.twoFactorAuth.isEnabled) {
+    return {
+      requiresTotp: true,
+      pendingToken: signMfaPendingToken({ userId: user.id }),
+    };
+  }
+
+  const { accessToken, refreshToken, sessionId } = await issueSessionAndNotify(
+    user,
+    { userAgent, ipAddress, deviceName },
+  );
+
+  return { user: sanitizeUser(user), accessToken, refreshToken, sessionId };
+}
+
 async function issueSessionAndNotify(
   user,
   { userAgent, ipAddress, deviceName, locale = "en" } = {},
 ) {
   const prisma = getPrismaClient();
+  const isNew = await isNewDevice({ userId: user.id, userAgent });
+  const { browser, device } = parseUserAgent(userAgent);
   const sessionExpiresAt = new Date(
     Date.now() + env.jwt.refreshExpiresInDays * 24 * 60 * 60 * 1000,
   );
@@ -433,7 +643,7 @@ async function issueSessionAndNotify(
       refreshTokenHash: crypto.randomUUID(),
       userAgent: userAgent || null,
       ipAddress: ipAddress || null,
-      deviceName: deviceName || null,
+      deviceName: deviceName || browser || null,
       expiresAt: sessionExpiresAt,
     },
   });
@@ -455,9 +665,12 @@ async function issueSessionAndNotify(
 
   const primaryEmail = getPrimaryEmail(user);
 
-  if (primaryEmail) {
+  if (!primaryEmail) {
+    console.error(
+      `[auth] issueSessionAndNotify: no primary email found for user ${user.id} — was "emails" included in the query?`,
+    );
+  } else if (isNew) {
     try {
-      const { browser, device } = parseUserAgent(userAgent);
       const emailContent = loginDetectedEmail({
         name: user.name,
         email: primaryEmail.email,
@@ -467,6 +680,7 @@ async function issueSessionAndNotify(
         device,
         ip: ipAddress || "Unknown",
         reviewActivityUrl: `${env.appUrl}/account/activity`,
+        secureAccountUrl: await buildSecureAccountLink(user.id),
         locale,
       });
 
@@ -481,11 +695,22 @@ async function issueSessionAndNotify(
     } catch (err) {
       console.error("[auth] Failed to notify login-detected:", err.message);
     }
-  } else {
-    console.error(
-      `[auth] issueSessionAndNotify: no primary email found for user ${user.id} — was "emails" included in the query?`,
-    );
   }
+
+  await recordAccountAction({
+    actorId: user.id,
+    actorRole: user.role,
+    targetUserId: user.id,
+    targetUserEmail: primaryEmail?.email || "",
+    action: "LOGIN_SUCCESS",
+    metadata: {
+      sessionId: session.id,
+      ip: ipAddress || null,
+      userAgent: userAgent || null,
+      deviceName: deviceName || null,
+      isNewDevice: isNew,
+    },
+  });
 
   return { accessToken, refreshToken, sessionId: session.id };
 }
@@ -688,9 +913,10 @@ async function refreshAccessToken({ refreshToken }) {
   }
 
   const claims = verifyRefreshToken(refreshToken);
-
+  const providedHash = hashToken(refreshToken);
   const prisma = getPrismaClient();
-  const session = await prisma.session.findUnique({
+
+  let session = await prisma.session.findUnique({
     where: { id: claims.sessionId },
   });
 
@@ -700,58 +926,79 @@ async function refreshAccessToken({ refreshToken }) {
     );
   }
 
-  if (hashToken(refreshToken) !== session.refreshTokenHash) {
-    await prisma.session.update({
-      where: { id: session.id },
-      data: { isRevoked: true },
+  for (let attempt = 0; attempt < REFRESH_ROTATION_MAX_ATTEMPTS; attempt++) {
+    const now = new Date();
+    const isCurrent = providedHash === session.refreshTokenHash;
+    const isWithinGrace =
+      !isCurrent &&
+      session.previousRefreshTokenHash === providedHash &&
+      session.previousRefreshTokenExpiresAt &&
+      session.previousRefreshTokenExpiresAt > now;
+
+    if (!isCurrent && !isWithinGrace) {
+      await prisma.session.update({
+        where: { id: session.id },
+        data: { isRevoked: true },
+      });
+      throw new UnauthorizedError(
+        "Session invalide ou expirée. Veuillez vous reconnecter.",
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      include: { emails: true, twoFactorAuth: true },
     });
-    throw new UnauthorizedError(
-      "Session invalide ou expirée. Veuillez vous reconnecter.",
-    );
+    if (!user) {
+      throw new UnauthorizedError(
+        "Session invalide ou expirée. Veuillez vous reconnecter.",
+      );
+    }
+    if (user.isBlocked) {
+      throw new ForbiddenError("Ce compte a été bloqué. Contactez le support.");
+    }
+
+    const newAccessToken = signAccessToken({
+      userId: user.id,
+      role: user.role,
+      sessionId: session.id,
+    });
+    const newRefreshToken = signRefreshToken({
+      userId: user.id,
+      sessionId: session.id,
+    });
+
+    const rotation = await prisma.session.updateMany({
+      where: { id: session.id, refreshTokenHash: session.refreshTokenHash },
+      data: {
+        previousRefreshTokenHash: session.refreshTokenHash,
+        previousRefreshTokenExpiresAt: new Date(
+          now.getTime() + REFRESH_TOKEN_GRACE_PERIOD_MS,
+        ),
+        refreshTokenHash: hashToken(newRefreshToken),
+        lastUsedAt: now,
+      },
+    });
+
+    if (rotation.count > 0) {
+      return {
+        user: sanitizeUser(user),
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      };
+    }
+
+    session = await prisma.session.findUnique({ where: { id: session.id } });
+    if (!session || session.isRevoked || session.expiresAt < new Date()) {
+      throw new UnauthorizedError(
+        "Session invalide ou expirée. Veuillez vous reconnecter.",
+      );
+    }
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    include: { emails: true, twoFactorAuth: true },
-  });
-  if (!user) {
-    throw new UnauthorizedError(
-      "Session invalide ou expirée. Veuillez vous reconnecter.",
-    );
-  }
-  if (user.isBlocked) {
-    throw new ForbiddenError("Ce compte a été bloqué. Contactez le support.");
-  }
-
-  const newAccessToken = signAccessToken({
-    userId: user.id,
-    role: user.role,
-    sessionId: session.id,
-  });
-  const newRefreshToken = signRefreshToken({
-    userId: user.id,
-    sessionId: session.id,
-  });
-
-  const rotation = await prisma.session.updateMany({
-    where: { id: session.id, refreshTokenHash: hashToken(refreshToken) },
-    data: {
-      refreshTokenHash: hashToken(newRefreshToken),
-      lastUsedAt: new Date(),
-    },
-  });
-
-  if (rotation.count === 0) {
-    throw new UnauthorizedError(
-      "Ce jeton vient d'être utilisé par une autre requête. Veuillez réessayer.",
-    );
-  }
-
-  return {
-    user: sanitizeUser(user),
-    accessToken: newAccessToken,
-    refreshToken: newRefreshToken,
-  };
+  throw new UnauthorizedError(
+    "Ce jeton vient d'être utilisé par une autre requête. Veuillez réessayer.",
+  );
 }
 
 async function getCurrentUser(userId) {
@@ -1782,10 +2029,6 @@ async function loginWithAppleId({
   return { user: sanitizeUser(user), accessToken, refreshToken, sessionId };
 }
 
-const WEBAUTHN_CHALLENGE_TTL_SECONDS = Math.floor(
-  WEBAUTHN_CONFIG.timeoutMs / 1000,
-);
-
 function passkeyRegChallengeKey(userId) {
   return `webauthn:reg:${userId}`;
 }
@@ -1902,6 +2145,18 @@ async function verifyPasskeyRegistration({ userId, response, deviceName }) {
   }
 
   await cache.del(passkeyRegChallengeKey(userId));
+
+  const primaryEmail = await prisma.userEmail.findFirst({
+    where: { userId, isPrimary: true },
+  });
+
+  await recordAccountAction({
+    actorId: userId,
+    targetUserId: userId,
+    targetUserEmail: primaryEmail?.email || "",
+    action: "PASSKEY_ADDED",
+    metadata: { passkeyId: passkey.id, deviceName: passkey.deviceName || null },
+  });
 
   return {
     id: passkey.id,
@@ -2125,7 +2380,330 @@ async function deletePasskey({ userId, passkeyId }) {
 
   await prisma.passkey.delete({ where: { id: passkeyId } });
 
+  const primaryEmail = await prisma.userEmail.findFirst({
+    where: { userId, isPrimary: true },
+  });
+
+  await recordAccountAction({
+    actorId: userId,
+    targetUserId: userId,
+    targetUserEmail: primaryEmail?.email || "",
+    action: "PASSKEY_REMOVED",
+    metadata: { passkeyId, deviceName: passkey.deviceName || null },
+  });
+
   return { message: "Passkey supprimé." };
+}
+
+async function listAccountActivity({ userId, page = 1, limit = 20 }) {
+  const prisma = getPrismaClient();
+  const safePage = Math.max(parseInt(page, 10) || 1, 1);
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+  const skip = (safePage - 1) * safeLimit;
+
+  const where = {
+    targetUserId: userId,
+    action: { in: ACCOUNT_ACTIVITY_ACTIONS },
+  };
+
+  const [total, entries] = await Promise.all([
+    prisma.accountActionLog.count({ where }),
+    prisma.accountActionLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: safeLimit,
+    }),
+  ]);
+
+  return {
+    activity: entries.map((entry) => ({
+      id: entry.id,
+      action: entry.action,
+      createdAt: entry.createdAt,
+      metadata: entry.metadata,
+      isSelfInitiated: entry.actorId === userId,
+    })),
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.ceil(total / safeLimit) || 1,
+    },
+  };
+}
+
+function secureAccountTokenKey(jti) {
+  return `account-security-token:${jti}`;
+}
+
+async function buildSecureAccountLink(userId) {
+  const jti = crypto.randomUUID();
+  const token = signAccountSecurityToken({ userId, jti });
+  await cache.set(
+    secureAccountTokenKey(jti),
+    true,
+    SECURE_ACCOUNT_TOKEN_TTL_MINUTES * 60,
+  );
+  return `${env.appUrl}/auth/secure-account?token=${encodeURIComponent(token)}`;
+}
+
+async function secureAccount({ userId, trigger }) {
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { emails: true },
+  });
+  if (!user) {
+    throw new NotFoundError("Compte introuvable.");
+  }
+
+  const primaryEmail = getPrimaryEmail(user);
+  const hadPassword = Boolean(user.password);
+
+  const [revoked, twoFactorRemoved, passkeysRemoved] =
+    await prisma.$transaction([
+      prisma.session.updateMany({
+        where: { userId, isRevoked: false },
+        data: { isRevoked: true },
+      }),
+      prisma.twoFactorAuth.deleteMany({ where: { userId } }),
+      prisma.passkey.deleteMany({ where: { userId } }),
+      ...(hadPassword
+        ? [
+            prisma.user.update({
+              where: { id: userId },
+              data: { password: null },
+            }),
+          ]
+        : []),
+    ]);
+
+  await recordAccountAction({
+    actorId: userId,
+    actorRole: user.role,
+    targetUserId: userId,
+    targetUserEmail: primaryEmail?.email || "",
+    action: "ACCOUNT_SECURED",
+    metadata: {
+      trigger,
+      revokedSessionCount: revoked.count,
+      passwordCleared: hadPassword,
+      twoFactorRemoved: twoFactorRemoved.count > 0,
+      passkeysRemovedCount: passkeysRemoved.count,
+    },
+  });
+
+  if (primaryEmail) {
+    try {
+      const emailContent = accountSecuredEmail({
+        name: user.name,
+        signInUrl: `${env.appUrl}/auth/sign-in`,
+        removedTwoFactor: twoFactorRemoved.count > 0,
+        removedPasskeysCount: passkeysRemoved.count,
+        locale: "en",
+      });
+
+      await createNotification({
+        userId: user.id,
+        type: NOTIFICATION_TYPES.ACCOUNT_SECURITY,
+        title: emailContent.subject,
+        body: "Toutes les sessions ont été déconnectées et le mot de passe a été supprimé.",
+        data: { action: "accountSecured" },
+        emailOverride: emailContent,
+      });
+    } catch (err) {
+      console.error("[auth] Failed to notify account-secured:", err.message);
+    }
+  }
+
+  return {
+    message: "Compte sécurisé. Toutes les sessions ont été déconnectées.",
+  };
+}
+
+async function requestSecureAccountOtp({ userId, locale = "en" }) {
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { emails: true },
+  });
+  if (!user) {
+    throw new NotFoundError("Compte introuvable.");
+  }
+
+  const primaryEmail = getPrimaryEmail(user);
+  if (!primaryEmail) {
+    throw new ConflictError("Aucune adresse email n'est associée à ce compte.");
+  }
+
+  const code = generateVerificationOtp();
+  const codeHash = hashVerificationCode(code);
+  const expiresAt = getOtpExpiry(SECURE_ACCOUNT_OTP_TTL_MINUTES);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      securityConfirmationCode: codeHash,
+      securityConfirmationCodeExpiresAt: expiresAt,
+    },
+  });
+
+  await sendSecureAccountOtpEmail(primaryEmail.email, {
+    name: user.name,
+    code,
+    expiresInMinutes: SECURE_ACCOUNT_OTP_TTL_MINUTES,
+    locale,
+  });
+
+  return { message: "Code envoyé." };
+}
+
+async function confirmSecureAccountOtp({ userId, code }) {
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new NotFoundError("Compte introuvable.");
+  }
+
+  if (isOtpExpired(user.securityConfirmationCodeExpiresAt)) {
+    throw new AppError(
+      "Ce code a expiré. Veuillez réessayer.",
+      422,
+      "OTP_EXPIRED",
+    );
+  }
+  if (!verifyHashedCode(user.securityConfirmationCode, code)) {
+    throw new UnauthorizedError("Code invalide.");
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      securityConfirmationCode: null,
+      securityConfirmationCodeExpiresAt: null,
+    },
+  });
+
+  return secureAccount({ userId, trigger: "otp" });
+}
+
+async function confirmSecureAccountByToken({ token }) {
+  let claims;
+  try {
+    claims = verifyAccountSecurityToken(token);
+  } catch {
+    throw new UnauthorizedError("Ce lien est invalide ou a expiré.");
+  }
+
+  const key = secureAccountTokenKey(claims.jti);
+  const stillValid = await cache.get(key);
+  if (!stillValid) {
+    throw new UnauthorizedError(
+      "Ce lien est invalide, a expiré, ou a déjà été utilisé.",
+    );
+  }
+  await cache.del(key);
+
+  return secureAccount({ userId: claims.sub, trigger: "email_link" });
+}
+
+async function requestPhoneAccountRecovery({ phone }) {
+  if (!isValidPhone(phone)) {
+    throw new ValidationError("Veuillez entrer un numéro de téléphone valide.");
+  }
+
+  const GENERIC_RESPONSE = {
+    message:
+      "Si un compte existe avec ce numéro, un code de récupération a été envoyé.",
+  };
+
+  const normalizedPhone = phone.trim();
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({
+    where: { phone: normalizedPhone },
+  });
+
+  if (!user) return GENERIC_RESPONSE;
+  if (user.isBlocked) return GENERIC_RESPONSE;
+  if (user.deletedAt) return GENERIC_RESPONSE;
+  if (!user.isPhoneVerified) return GENERIC_RESPONSE;
+
+  if (user.phoneRecoveryCode && user.phoneRecoveryCodeExpiresAt) {
+    const requestedAt = new Date(
+      user.phoneRecoveryCodeExpiresAt.getTime() -
+        PHONE_RECOVERY_OTP_TTL_MINUTES * 60 * 1000,
+    );
+    const cooldownEndsAt = new Date(
+      requestedAt.getTime() + PHONE_RECOVERY_RESEND_COOLDOWN_SECONDS * 1000,
+    );
+    const now = new Date();
+    if (cooldownEndsAt > now) {
+      const secondsLeft = Math.ceil((cooldownEndsAt - now) / 1000);
+      throw new TooManyRequestsError(
+        `Veuillez patienter ${secondsLeft} secondes avant de demander un nouveau code.`,
+      );
+    }
+  }
+
+  const code = generateVerificationOtp();
+  const codeHash = hashVerificationCode(code);
+  const expiresAt = getOtpExpiry(PHONE_RECOVERY_OTP_TTL_MINUTES);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      phoneRecoveryCode: codeHash,
+      phoneRecoveryCodeExpiresAt: expiresAt,
+    },
+  });
+
+  await sendSms({
+    to: normalizedPhone,
+    message: `${code} est votre code de récupération de compte Swiftgoma. Il expire dans ${PHONE_RECOVERY_OTP_TTL_MINUTES} minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.`,
+  });
+
+  return GENERIC_RESPONSE;
+}
+
+async function confirmPhoneAccountRecovery({ phone, code }) {
+  if (!isValidPhone(phone)) {
+    throw new ValidationError("Veuillez entrer un numéro de téléphone valide.");
+  }
+  if (!code || typeof code !== "string" || !code.trim()) {
+    throw new ValidationError("Veuillez entrer le code de récupération.");
+  }
+
+  const normalizedPhone = phone.trim();
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({
+    where: { phone: normalizedPhone },
+  });
+
+  if (!user || user.deletedAt) {
+    throw new NotFoundError("Aucun compte trouvé avec ce numéro.");
+  }
+  if (user.isBlocked) {
+    throw new ForbiddenError("Ce compte a été bloqué. Contactez le support.");
+  }
+
+  if (isOtpExpired(user.phoneRecoveryCodeExpiresAt)) {
+    throw new AppError(
+      "Ce code a expiré. Demandez-en un nouveau.",
+      422,
+      "OTP_EXPIRED",
+    );
+  }
+  if (!verifyHashedCode(user.phoneRecoveryCode, code)) {
+    throw new UnauthorizedError("Code invalide.");
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { phoneRecoveryCode: null, phoneRecoveryCodeExpiresAt: null },
+  });
+
+  return secureAccount({ userId: user.id, trigger: "phone_recovery" });
 }
 
 module.exports = {
@@ -2134,6 +2712,8 @@ module.exports = {
   resendEmailVerification,
   requestLoginOtp,
   verifyLoginOtp,
+  requestLoginOtpBySms,
+  verifyLoginOtpBySms,
   loginWithPassword,
   refreshAccessToken,
   getCurrentUser,
@@ -2162,4 +2742,10 @@ module.exports = {
   deletePasskey,
   issueSessionAndNotify,
   sanitizeUser,
+  listAccountActivity,
+  requestSecureAccountOtp,
+  confirmSecureAccountOtp,
+  confirmSecureAccountByToken,
+  requestPhoneAccountRecovery,
+  confirmPhoneAccountRecovery,
 };

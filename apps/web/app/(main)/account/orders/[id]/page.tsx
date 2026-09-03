@@ -18,6 +18,8 @@ import { getOrder, type OrderDetail } from "@/lib/api/routes/orders";
 import { formatMoney } from "@/lib/products";
 import { getServerLocale } from "@/lib/language";
 import OrderChat from "@/components/account/oder-chat";
+import { getRequestPathname } from "@/lib/auth/request-pathname.server";
+import { buildSignInHref } from "@/lib/auth/sign-in-redirect";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -65,7 +67,8 @@ async function loadOrder(id: string): Promise<OrderDetail> {
     return await getOrder(id);
   } catch (err) {
     if (axios.isAxiosError(err)) {
-      if (err.response?.status === 401) redirect("/auth/sign-in");
+      if (err.response?.status === 401)
+        redirect(buildSignInHref(await getRequestPathname()));
       if (err.response?.status === 404) notFound();
     }
     throw err;

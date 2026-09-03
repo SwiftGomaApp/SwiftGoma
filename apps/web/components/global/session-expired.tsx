@@ -1,7 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
+import { buildSignInHref } from "@/lib/auth/sign-in-redirect";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,10 +16,11 @@ import {
 export function SessionExpiredModal() {
   const { sessionExpired, dismissSessionExpired } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   function handleLogin() {
     dismissSessionExpired();
-    router.push("/auth/sign-in");
+    router.push(buildSignInHref(pathname));
   }
 
   function handleOpenChange(open: boolean) {

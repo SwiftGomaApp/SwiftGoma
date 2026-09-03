@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, Loader2 } from "lucide-react";
+import { Check, Copy, Download, Loader2 } from "lucide-react";
 
 import {
   AlertDialog,
@@ -22,6 +22,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/toast";
 import { isApiError } from "@/lib/api/client";
 import {
   confirmTotp,
@@ -54,6 +55,9 @@ const STRINGS = {
     backupCodesTitle: "Save your backup codes",
     backupCodesDescription:
       "Store these somewhere safe. Each code can be used once if you lose access to your authenticator app.",
+    copyAll: "Copy codes",
+    copyAllCopied: "Copied",
+    download: "Download",
     done: "Done",
     disableTitle: "Disable two-factor authentication?",
     disableDescription:
@@ -85,6 +89,9 @@ const STRINGS = {
     backupCodesTitle: "Enregistrez vos codes de secours",
     backupCodesDescription:
       "Conservez-les en lieu sûr. Chaque code n'est utilisable qu'une fois si vous perdez l'accès à votre application.",
+    copyAll: "Copier les codes",
+    copyAllCopied: "Copié",
+    download: "Télécharger",
     done: "Terminé",
     disableTitle: "Désactiver l'authentification à deux facteurs ?",
     disableDescription:
@@ -119,6 +126,7 @@ export function SecurityTwoFactor({ locale }: { locale: Locale }) {
   const [error, setError] = useState<string | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  const [copiedAll, setCopiedAll] = useState(false);
 
   async function startSetup() {
     setError(null);
@@ -161,6 +169,32 @@ export function SecurityTwoFactor({ locale }: { locale: Locale }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
+  }
+
+  function copyAllBackupCodes() {
+    navigator.clipboard
+      .writeText(backupCodes.join("\n"))
+      .then(() => {
+        setCopiedAll(true);
+        setTimeout(() => setCopiedAll(false), 1500);
+      })
+      .catch(() => {
+        toast.add({ title: t.genericError, type: "error" });
+      });
+  }
+
+  function downloadBackupCodes() {
+    const blob = new Blob([backupCodes.join("\n") + "\n"], {
+      type: "text/plain",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "swiftgoma-backup-codes.txt";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   async function handleDisable(confirmCode: string) {
@@ -232,7 +266,7 @@ export function SecurityTwoFactor({ locale }: { locale: Locale }) {
             alt="TOTP QR code"
             className="size-40 shrink-0 self-center rounded-lg border border-border sm:self-start"
           />
-          <div className="flex flex-1 flex-col gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
             <div>
               <p className="text-sm font-medium text-foreground">
                 {t.scanTitle}
@@ -245,7 +279,7 @@ export function SecurityTwoFactor({ locale }: { locale: Locale }) {
               <span className="text-xs text-muted-foreground">
                 {t.manualEntry}
               </span>
-              <code className="rounded-md bg-muted px-2 py-1 text-xs">
+              <code className="max-w-full truncate rounded-md bg-muted px-2 py-1 text-xs">
                 {manualEntryKey}
               </code>
               <Button
@@ -321,6 +355,24 @@ export function SecurityTwoFactor({ locale }: { locale: Locale }) {
                 {backupCode}
               </code>
             ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={copyAllBackupCodes}>
+              {copiedAll ? (
+                <Check className="size-4" />
+              ) : (
+                <Copy className="size-4" />
+              )}
+              {copiedAll ? t.copyAllCopied : t.copyAll}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={downloadBackupCodes}
+            >
+              <Download className="size-4" />
+              {t.download}
+            </Button>
           </div>
           <Button type="button" onClick={finishBackupCodes} className="w-fit">
             {t.done}

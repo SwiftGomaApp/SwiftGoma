@@ -53,6 +53,13 @@ export default function AuthenticationGuidePage() {
         once the access token expires. Neither token is ever returned in a way your client
         needs to parse manually on web — see below.
       </p>
+      <Callout variant="note" title="Refresh tokens rotate, with a grace period">
+        Every call to <code>POST /refresh-token</code> issues a brand-new refresh token and
+        retires the one that was used. The just-retired token stays valid for a short grace
+        window (30 seconds), so a race between two near-simultaneous requests — two open tabs,
+        a retried request — succeeds instead of failing. A token reused <em>outside</em> that
+        window is treated as a genuine replay and revokes the whole session immediately.
+      </Callout>
 
       <h2 className="mb-3 text-xl font-semibold tracking-tight">Web vs. mobile sessions</h2>
       <p className="mb-4 text-[15px] leading-relaxed text-muted-foreground">
@@ -71,8 +78,8 @@ export default function AuthenticationGuidePage() {
 
       <h2 className="mb-3 text-xl font-semibold tracking-tight">Ways to sign in</h2>
       <p className="mb-4 text-[15px] leading-relaxed text-muted-foreground">
-        All five methods converge on the same result — a session for web, or a token pair for
-        mobile — and all five can be intercepted by a two-factor challenge if the account has
+        All six methods converge on the same result — a session for web, or a token pair for
+        mobile — and all six can be intercepted by a two-factor challenge if the account has
         TOTP enabled.
       </p>
       <InfoTable
@@ -92,6 +99,15 @@ export default function AuthenticationGuidePage() {
             </Link>,
             <Link key="b2" href="/reference/login-verify-otp" className="text-primary underline underline-offset-2">
               POST /login/verify-otp
+            </Link>,
+          ],
+          [
+            "Passwordless SMS code",
+            <Link key="f" href="/reference/login-request-otp-sms" className="text-primary underline underline-offset-2">
+              POST /login/request-otp-sms
+            </Link>,
+            <Link key="f2" href="/reference/login-verify-otp-sms" className="text-primary underline underline-offset-2">
+              POST /login/verify-otp-sms
             </Link>,
           ],
           [
@@ -163,6 +179,35 @@ export default function AuthenticationGuidePage() {
         ]}
       />
 
+      <h3 className="mb-3 text-base font-semibold">Passwordless SMS code</h3>
+      <StepList
+        steps={[
+          {
+            title: "Request a code",
+            body: (
+              <>
+                <code>POST /login/request-otp-sms</code> with the <code>phone</code> number.
+                Requires the account to already have a <em>verified</em> phone number — the
+                response is identical whether or not the number is registered.
+              </>
+            ),
+          },
+          {
+            title: "Verify the code",
+            body: (
+              <>
+                The user receives a code by SMS. Submit it to{" "}
+                <code>POST /login/verify-otp-sms</code> along with the <code>phone</code>.
+              </>
+            ),
+          },
+        ]}
+      />
+      <Callout variant="note">
+        This uses a dedicated OTP field on the account, separate from the email login code, so
+        requesting one channel&apos;s code never invalidates an in-flight request on the other.
+      </Callout>
+
       <h3 className="mb-3 text-base font-semibold">Passkey</h3>
       <StepList
         steps={[
@@ -189,6 +234,44 @@ export default function AuthenticationGuidePage() {
               <>
                 Send the browser&apos;s response and the <code>challengeId</code> to{" "}
                 <code>POST /passkey/login/verify</code>.
+              </>
+            ),
+          },
+        ]}
+      />
+
+      <h3 className="mb-3 text-base font-semibold">Registering a passkey</h3>
+      <p className="mb-4 text-[15px] leading-relaxed text-muted-foreground">
+        Adding a passkey requires an existing session — it&apos;s an account-settings action, not
+        a sign-in method on its own.
+      </p>
+      <StepList
+        steps={[
+          {
+            title: "Get a challenge",
+            body: (
+              <>
+                <code>POST /passkey/register/options</code> (authenticated) returns a WebAuthn
+                attestation challenge.
+              </>
+            ),
+          },
+          {
+            title: "Resolve it with the browser",
+            body: (
+              <>
+                Pass the challenge to <code>navigator.credentials.create()</code>.
+              </>
+            ),
+          },
+          {
+            title: "Verify and save it",
+            body: (
+              <>
+                Send the browser&apos;s attestation response to{" "}
+                <code>POST /passkey/register/verify</code>. List existing passkeys with{" "}
+                <code>GET /passkey</code>, remove one with{" "}
+                <code>DELETE /passkey/:passkeyId</code>.
               </>
             ),
           },
@@ -313,6 +396,107 @@ export default function AuthenticationGuidePage() {
         ]}
       />
 
+      <h2 className="mb-3 text-xl font-semibold tracking-tight">Account activity and security</h2>
+      <p className="mb-4 text-[15px] leading-relaxed text-muted-foreground">
+        <Link href="/reference/account-activity" className="text-primary underline underline-offset-2">
+          GET /activity
+        </Link>{" "}
+        returns a durable, paginated log of security-relevant events on the account — sign-ins,
+        password changes, two-factor changes, session revocations, and account-secured events —
+        independent of the ephemeral in-app notification feed.
+      </p>
+      <Callout variant="note" title="New-device detection">
+        A login only counts as &quot;new&quot; the first time a given browser/OS/device
+        combination is seen for that account — comparing normalized fingerprints, not exact
+        User-Agent strings, so a routine browser update doesn&apos;t look like a new device. The
+        new-sign-in-detected email (and its &quot;Secure your account&quot; link) only fires for
+        genuinely unrecognized devices, not on every login.
+      </Callout>
+
+      <h3 className="mb-3 text-base font-semibold">Secure my account</h3>
+      <p className="mb-4 text-[15px] leading-relaxed text-muted-foreground">
+        A single destructive action, reachable three different ways, for a user who suspects
+        their account has been compromised. It atomically revokes every session, clears the
+        password, and removes any two-factor method and passkeys on the account.
+      </p>
+      <InfoTable
+        columns={["Entry point", "Requires", "Endpoint(s)"]}
+        rows={[
+          [
+            "In-app",
+            "An active session, confirmed with an emailed code",
+            <>
+              <Link key="a" href="/reference/secure-account-request-otp" className="text-primary underline underline-offset-2">
+                POST /secure-account/request-otp
+              </Link>{" "}
+              then{" "}
+              <Link key="a2" href="/reference/secure-account-confirm" className="text-primary underline underline-offset-2">
+                POST /secure-account/confirm
+              </Link>
+            </>,
+          ],
+          [
+            "Security alert email",
+            "Possession of a signed, single-use link — no session needed",
+            <Link key="b" href="/reference/secure-account-confirm-link" className="text-primary underline underline-offset-2">
+              POST /secure-account/confirm-link
+            </Link>,
+          ],
+          [
+            "Locked out entirely",
+            "A verified phone number",
+            "See Account recovery below",
+          ],
+        ]}
+      />
+      <Callout variant="tip">
+        Every path funnels into the same lockdown, logs an <code>ACCOUNT_SECURED</code> entry in
+        the activity feed with a <code>trigger</code> distinguishing which path was used, and
+        sends a confirmation email — copied to a verified secondary email if one exists on the
+        account, so the alert still reaches the owner even if the primary inbox is the thing
+        that was compromised.
+      </Callout>
+
+      <h2 className="mb-3 text-xl font-semibold tracking-tight">Locked out? Recovery by phone</h2>
+      <p className="mb-4 text-[15px] leading-relaxed text-muted-foreground">
+        For a user who can&apos;t sign in at all — wrong password, lost authenticator, no backup
+        codes, nothing to click in an email — recovery by phone runs the exact same lockdown as
+        &quot;Secure my account&quot; above, just reached without any session or working email
+        link. This is a different flow from the email-based{" "}
+        <Link href="/reference/recovery-request" className="text-primary underline underline-offset-2">
+          account deletion recovery
+        </Link>{" "}
+        documented in the Users guide — this one is for a locked-out but not deleted account.
+      </p>
+      <StepList
+        steps={[
+          {
+            title: "Request a code",
+            body: (
+              <>
+                <code>POST /account-recovery/phone/request</code> with a verified{" "}
+                <code>phone</code> number. Same generic response whether or not the number is
+                registered.
+              </>
+            ),
+          },
+          {
+            title: "Confirm it",
+            body: (
+              <>
+                <code>POST /account-recovery/phone/confirm</code> with the SMS code. On success,
+                every session is revoked, the password is cleared, and two-factor/passkeys are
+                removed — the user signs in fresh afterward and sets a new password.
+              </>
+            ),
+          },
+        ]}
+      />
+      <Callout variant="warning">
+        A soft-deleted account returns <code>NOT_FOUND</code> here rather than proceeding — that
+        case belongs to the separate account-deletion recovery flow, not this one.
+      </Callout>
+
       <h2 className="mb-3 text-xl font-semibold tracking-tight">Rate limits</h2>
       <p className="mb-4 text-[15px] leading-relaxed text-muted-foreground">
         Auth endpoints are grouped into tiers with different limits, tightest where the risk of
@@ -323,12 +507,12 @@ export default function AuthenticationGuidePage() {
         rows={[
           [
             "Credential check",
-            "login/password, login/verify-otp, password/reset, totp confirm/disable",
+            "login/password, login/verify-otp, login/verify-otp-sms, password/reset, totp confirm/disable, secure-account/confirm-link, account-recovery/phone/confirm",
             "Tightest limits, scoped by IP and by account. Repeated failures feed automatic IP blocking.",
           ],
           [
             "Request / initiation",
-            "login/request-otp, password/forgot, resend-verification",
+            "login/request-otp, login/request-otp-sms, password/forgot, resend-verification, account-recovery/phone/request",
             "Limited per IP and per account, with a resend cooldown, to prevent inbox or SMS flooding.",
           ],
           [
@@ -338,12 +522,12 @@ export default function AuthenticationGuidePage() {
           ],
           [
             "Session",
-            "me, logout, sessions, refresh-token",
+            "me, logout, sessions, refresh-token, activity",
             "Looser limits — these don't touch credentials.",
           ],
           [
             "Authenticated action",
-            "totp/setup, passkey registration, password/create",
+            "totp/setup, passkey registration, password/create, secure-account/request-otp, secure-account/confirm",
             "Requires a valid session already; moderate limits.",
           ],
         ]}

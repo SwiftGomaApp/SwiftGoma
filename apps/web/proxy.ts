@@ -11,10 +11,10 @@ function isProtectedPath(pathname: string): boolean {
 }
 
 export default async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
 
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-pathname", pathname);
+  requestHeaders.set("x-pathname", pathname + search);
 
   const hasAccessToken = Boolean(request.cookies.get(ACCESS_TOKEN_COOKIE));
 

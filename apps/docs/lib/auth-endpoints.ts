@@ -24,6 +24,8 @@ export const AUTH_GROUPS = [
   "Two-Factor (TOTP)",
   "Passkeys",
   "Sessions",
+  "Account Security",
+  "Account Lockout Recovery",
 ] as const;
 
 export const authEndpoints: EndpointDoc[] = [
@@ -218,6 +220,48 @@ export const authEndpoints: EndpointDoc[] = [
     notes: [
       "If two-factor authentication is enabled, the response is { requiresTotp: true, pendingToken } instead — pass pendingToken to POST /login/totp.",
       "On web, tokens are set as httpOnly cookies; on mobile, they're included in the response body.",
+    ],
+  },
+  {
+    slug: "login-request-otp-sms",
+    method: "POST",
+    path: `${BASE}/login/request-otp-sms`,
+    title: "Request a passwordless login code by SMS",
+    group: "Login",
+    auth: "none",
+    rateLimit: "Request/initiation — per IP and per account",
+    description: "Sends a one-time login code by SMS, as an alternative to the email code above. Requires the account to have a verified phone number. Always returns the same generic response, whether or not the phone number is registered.",
+    bodyParams: [
+      { name: "phone", type: "string", required: true, description: "Verified phone number on the account, e.g. +243999999999." },
+    ],
+    successStatus: 200,
+    responseExample: {
+      success: true,
+      data: { message: "Si un compte existe avec ce numéro, un code de connexion a été envoyé." },
+    },
+  },
+  {
+    slug: "login-verify-otp-sms",
+    method: "POST",
+    path: `${BASE}/login/verify-otp-sms`,
+    title: "Verify a passwordless login code sent by SMS",
+    group: "Login",
+    auth: "none",
+    rateLimit: "Credential check — tight, feeds automatic IP blocking",
+    description: "Completes passwordless login using the code from POST /login/request-otp-sms.",
+    bodyParams: [
+      { name: "phone", type: "string", required: true, description: "The same phone number the code was requested for." },
+      { name: "code", type: "string", required: true, description: "The login code from the SMS." },
+      { name: "deviceName", type: "string", required: false, description: "Human-readable device label for the new session." },
+    ],
+    successStatus: 200,
+    responseExample: { success: true, data: { user: sampleUser } },
+    errorExamples: [
+      { status: 401, code: "OTP_INVALID", message: "Le code de connexion est incorrect." },
+    ],
+    notes: [
+      "Uses its own OTP field on the account, separate from the email login code — requesting one doesn't invalidate the other.",
+      "If two-factor authentication is enabled, the response is { requiresTotp: true, pendingToken } instead — pass pendingToken to POST /login/totp.",
     ],
   },
   {
@@ -620,6 +664,132 @@ export const authEndpoints: EndpointDoc[] = [
     ],
     successStatus: 200,
     responseExample: { success: true, data: { revoked: true } },
+  },
+  // --- Account Security ---
+  {
+    slug: "account-activity",
+    method: "GET",
+    path: `${BASE}/activity`,
+    title: "List account activity",
+    group: "Account Security",
+    auth: "bearer",
+    rateLimit: "Session",
+    description: "Returns a paginated, durable history of security-relevant events on the account — sign-ins, password changes, two-factor changes, passkey and session changes, and account-secured events.",
+    queryParams: [
+      { name: "page", type: "number", required: false, description: "Defaults to 1." },
+      { name: "limit", type: "number", required: false, description: "Defaults to 20, max 100." },
+    ],
+    successStatus: 200,
+    responseExample: {
+      success: true,
+      data: {
+        activity: [
+          { id: "act_1a2b3c", action: "LOGIN_SUCCESS", createdAt: "2026-02-14T18:30:00.000Z", metadata: { ip: "154.72.10.4", userAgent: "Mozilla/5.0", isNewDevice: false }, isSelfInitiated: true },
+          { id: "act_4d5e6f", action: "PASSWORD_CHANGED", createdAt: "2026-02-10T09:12:00.000Z", metadata: null, isSelfInitiated: true },
+        ],
+        pagination: { page: 1, limit: 20, total: 2, totalPages: 1 },
+      },
+    },
+    notes: [
+      "Only a fixed allowlist of self-explanatory action types is returned — internal audit rows unrelated to the account owner's own security are filtered out.",
+      "LOGIN_SUCCESS entries include isNewDevice, set by comparing a normalized browser/OS/device fingerprint against every prior session, so an alert (and the secure-account link below) only fires for genuinely unrecognized devices.",
+    ],
+  },
+  {
+    slug: "secure-account-request-otp",
+    method: "POST",
+    path: `${BASE}/secure-account/request-otp`,
+    title: "Request a code to secure the account",
+    group: "Account Security",
+    auth: "bearer",
+    rateLimit: "Authenticated action",
+    description: "Sends a confirmation code to the account's primary email — the first step of the in-app \"Secure my account\" flow, used when a signed-in user suspects their own account has been compromised.",
+    successStatus: 200,
+    responseExample: { success: true, data: { message: "Code envoyé." } },
+  },
+  {
+    slug: "secure-account-confirm",
+    method: "POST",
+    path: `${BASE}/secure-account/confirm`,
+    title: "Confirm and secure the account",
+    group: "Account Security",
+    auth: "bearer",
+    rateLimit: "Authenticated action",
+    description: "Confirms the code from POST /secure-account/request-otp and immediately locks down the account: revokes every session (including the current one), clears the password, and removes any two-factor method and passkeys. Auth cookies are cleared on web.",
+    bodyParams: [
+      { name: "code", type: "string", required: true, description: "The confirmation code from the account's email." },
+    ],
+    successStatus: 200,
+    responseExample: { success: true, data: { message: "Compte sécurisé. Toutes les sessions ont été déconnectées." } },
+    notes: [
+      "This is the same lockdown used by the email deep-link and phone-recovery flows below — only the entry point differs.",
+      "Sends a confirmation email (and, if a verified secondary email exists, a copy to that address too) once the lockdown completes.",
+    ],
+  },
+  {
+    slug: "secure-account-confirm-link",
+    method: "POST",
+    path: `${BASE}/secure-account/confirm-link`,
+    title: "Secure the account via an emailed link",
+    group: "Account Security",
+    auth: "none",
+    rateLimit: "Credential check — tight, feeds automatic IP blocking",
+    description: "Confirms a signed, single-use token embedded in security alert emails (e.g. the new-sign-in-detected email) and runs the same lockdown as POST /secure-account/confirm. Reachable without an active session, since possessing the token is itself the proof of identity.",
+    bodyParams: [
+      { name: "token", type: "string", required: true, description: "The token from the \"Secure your account\" link in the email." },
+    ],
+    successStatus: 200,
+    responseExample: { success: true, data: { message: "Compte sécurisé. Toutes les sessions ont été déconnectées." } },
+    errorExamples: [
+      { status: 401, code: "UNAUTHORIZED", message: "Ce lien est invalide, a expiré, ou a déjà été utilisé." },
+    ],
+    notes: [
+      "The token expires after 30 minutes and is single-use, tracked independently of its own JWT expiry.",
+    ],
+  },
+  // --- Account Lockout Recovery ---
+  {
+    slug: "account-recovery-phone-request",
+    method: "POST",
+    path: `${BASE}/account-recovery/phone/request`,
+    title: "Request account recovery by phone",
+    group: "Account Lockout Recovery",
+    auth: "none",
+    rateLimit: "Request/initiation — per IP and per account",
+    description: "For a user who can't sign in at all (lost password, lost authenticator, no backup codes) — sends an SMS code to a verified phone number on the account. Always returns the same generic response, whether or not the number is registered.",
+    bodyParams: [
+      { name: "phone", type: "string", required: true, description: "Verified phone number on the account." },
+    ],
+    successStatus: 200,
+    responseExample: {
+      success: true,
+      data: { message: "Si un compte existe avec ce numéro, un code de récupération a été envoyé." },
+    },
+    notes: [
+      "Uses its own OTP field, separate from both login-by-SMS and any other pending code, so a stuck recovery attempt can't collide with an in-progress sign-in.",
+    ],
+  },
+  {
+    slug: "account-recovery-phone-confirm",
+    method: "POST",
+    path: `${BASE}/account-recovery/phone/confirm`,
+    title: "Confirm account recovery by phone",
+    group: "Account Lockout Recovery",
+    auth: "none",
+    rateLimit: "Credential check — tight, feeds automatic IP blocking",
+    description: "Confirms the code from POST /account-recovery/phone/request and runs the same full lockdown as POST /secure-account/confirm — every session revoked, password cleared, two-factor and passkeys removed. Does not sign the user in; they sign in fresh afterward and set a new password.",
+    bodyParams: [
+      { name: "phone", type: "string", required: true, description: "The same phone number the code was requested for." },
+      { name: "code", type: "string", required: true, description: "The recovery code from the SMS." },
+    ],
+    successStatus: 200,
+    responseExample: { success: true, data: { message: "Compte sécurisé. Toutes les sessions ont été déconnectées." } },
+    errorExamples: [
+      { status: 404, code: "NOT_FOUND", message: "Aucun compte trouvé avec ce numéro." },
+    ],
+    notes: [
+      "A soft-deleted account is deliberately excluded here and returns NOT_FOUND — that case belongs to the separate account-deletion recovery flow, not this one.",
+    ],
   },
 ];
 

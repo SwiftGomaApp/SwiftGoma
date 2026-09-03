@@ -66,6 +66,23 @@ function signMfaPendingToken({ userId }) {
   });
 }
 
+function signAccountSecurityToken({ userId, jti }) {
+  return jwt.sign(
+    { sub: userId, jti, type: "account_security" },
+    env.jwt.accessSecret,
+    {
+      algorithm: "HS256",
+      expiresIn: "30m",
+      issuer: ISSUER,
+      audience: AUDIENCE,
+    },
+  );
+}
+
+function verifyAccountSecurityToken(token) {
+  return verify(token, env.jwt.accessSecret, "account_security");
+}
+
 function verify(token, secret, expectedType) {
   let payload;
   try {
@@ -76,7 +93,9 @@ function verify(token, secret, expectedType) {
     });
   } catch (err) {
     if (err.name === "TokenExpiredError") {
-      throw new UnauthorizedError("Session expirée. Veuillez vous reconnecter.");
+      throw new UnauthorizedError(
+        "Session expirée. Veuillez vous reconnecter.",
+      );
     }
     throw new UnauthorizedError("Jeton d'authentification invalide.");
   }
@@ -107,4 +126,6 @@ module.exports = {
   signMfaPendingToken,
   verifyMfaPendingToken,
   verifyRefreshToken,
+  signAccountSecurityToken,
+  verifyAccountSecurityToken,
 };

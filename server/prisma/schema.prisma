@@ -229,7 +229,7 @@ enum HeroRoles {
 model User {
   id                String  @id @default(uuid())
   name              String
-  phone             String?
+  phone             String? @unique
   pendingPhone      String?
   password          String?
   role              Role    @default(BUYER)
@@ -247,6 +247,15 @@ model User {
 
   loginOtp          String?
   loginOtpExpiresAt DateTime?
+
+  phoneLoginOtp          String?
+  phoneLoginOtpExpiresAt DateTime?
+
+  phoneRecoveryCode          String?
+  phoneRecoveryCodeExpiresAt DateTime?
+
+  securityConfirmationCode          String?
+  securityConfirmationCodeExpiresAt DateTime?
 
   passwordResetCode          String?
   passwordResetCodeExpiresAt DateTime?
@@ -336,6 +345,9 @@ model Session {
   userId           String
   user             User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   refreshTokenHash String @unique
+
+  previousRefreshTokenHash      String?
+  previousRefreshTokenExpiresAt DateTime?
 
   userAgent  String?
   ipAddress  String?

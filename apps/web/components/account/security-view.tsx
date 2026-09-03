@@ -6,6 +6,9 @@ import { SecurityPassword } from "@/components/account/security-password";
 import { SecuritySessions } from "@/components/account/security-sessions";
 import { SecurityTwoFactor } from "@/components/account/security-two-factor";
 import type { Locale } from "@/lib/language";
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
+import SecureAccountAction from "./secure-account-action";
 
 const STRINGS = {
   en: {
@@ -37,7 +40,19 @@ export function SecurityView({ locale }: { locale: Locale }) {
       <SecurityPasskeys locale={locale} />
       <div className="border-t border-border" />
       <SecuritySessions locale={locale} />
+      <SecureAccountAction locale={locale} />
       <div className="border-t border-border" />
+
+      <Link
+        href="/account/activity"
+        className="flex items-center justify-between rounded-lg border border-border p-4 text-sm font-medium text-foreground transition-colors hover:border-primary/40"
+      >
+        {locale === "fr" ? "Voir l'activité récente" : "View recent activity"}
+        <ArrowRight className="size-4 text-muted-foreground" />
+      </Link>
+
+      <div className="border-t border-border" />
+
       <SecurityDeleteAccount locale={locale} />
     </div>
   );

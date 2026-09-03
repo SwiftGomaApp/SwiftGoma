@@ -22,6 +22,8 @@ const COPY = {
     ctaText: "Review recent activity",
     reason:
       "This alert triggers when we detect a sign-in from an unrecognized location, device, or browser. Common causes: traveling, a VPN, or a new browser.",
+    notMeLink: (url) =>
+      `Wasn't you? <a href="${url}" style="color: inherit;">Secure your account</a> — this will sign out every device and require a new password.`,
   },
   fr: {
     subject: `Nouvelle connexion détectée sur votre compte ${BRAND.name}`,
@@ -41,6 +43,8 @@ const COPY = {
     reason:
       "Cette alerte se déclenche lorsque nous détectons une connexion depuis un emplacement, un appareil ou un navigateur non reconnu. Causes courantes : déplacement, VPN, ou nouveau navigateur.",
   },
+  notMeLink: (url) =>
+    `Ce n'était pas vous ? <a href="${url}" style="color: inherit;">Sécurisez votre compte</a> — cela déconnectera tous les appareils et nécessitera un nouveau mot de passe.`,
 };
 
 function loginDetectedEmail(data) {
@@ -90,6 +94,8 @@ function loginDetectedEmail(data) {
     <p style="margin: 0; font-family: ${FONT_FAMILY};">
       ${t.dontRecognize}
     </p>
+    
+        ${secureAccountUrl ? `<p style="margin: 12px 0 0 0; font-family: ${FONT_FAMILY};">${t.notMeLink(secureAccountUrl)}</p>` : ""}
   `;
 
   const html = renderEmailLayout({

@@ -10,11 +10,14 @@ import { Separator } from "@/components/ui/separator";
 import { DEFAULT_LOCALE, getClientLocale, Locale } from "@/lib/language";
 import { IllustrationPanel, STRINGS } from "@/lib/constants/auth";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
+import { getNextParam } from "@/lib/auth/sign-in-redirect";
 import {
   requestLoginOtp,
   verifyLoginOtp,
+  requestLoginOtpBySms,
+  verifyLoginOtpBySms,
   loginWithPassword,
   loginWithTotp,
   loginWithGoogle,
@@ -59,11 +62,16 @@ export default function SignInPage() {
   const [otpStatus, setOtpStatus] = useState<OtpStatus>("idle");
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
+  const [usePhone, setUsePhone] = useState(false);
+  const [phone, setPhone] = useState("");
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = getNextParam(searchParams);
   const { setUser } = useAuth();
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [otpErrorMessage, setOtpErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setLocale(getClientLocale());
@@ -74,6 +82,7 @@ export default function SignInPage() {
   const openOtpDialog = (mode: OtpMode) => {
     setOtpMode(mode);
     setOtpStatus("idle");
+    setOtpErrorMessage(null);
     setOtpLoading(false);
     setOtpOpen(true);
   };
@@ -83,17 +92,21 @@ export default function SignInPage() {
 
     if (!open) {
       setOtpStatus("idle");
+      setOtpErrorMessage(null);
       setOtpLoading(false);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!email) return;
+    if (usePhone ? !phone : !email) return;
 
     setIsSubmitting(true);
     try {
-      if (useEmailPassword) {
+      if (usePhone) {
+        await requestLoginOtpBySms(phone);
+        openOtpDialog("otp-login");
+      } else if (useEmailPassword) {
         if (!password) return;
         const result = await loginWithPassword({ email, password, locale });
         if ("requiresTotp" in result) {
@@ -101,7 +114,7 @@ export default function SignInPage() {
           openOtpDialog("totp");
         } else {
           setUser(result.user);
-          router.push("/account");
+          router.push(nextPath);
         }
       } else {
         await requestLoginOtp({ email, locale });
@@ -137,7 +150,7 @@ export default function SignInPage() {
         openOtpDialog("2fa");
       } else {
         setUser(result.user);
-        router.push("/account");
+        router.push(nextPath);
       }
     } catch (error) {
       const deletionEmail = getDeletionPendingEmail(error);
@@ -185,7 +198,7 @@ export default function SignInPage() {
         openOtpDialog("2fa");
       } else {
         setUser(result.user);
-        router.push("/account");
+        router.push(nextPath);
       }
     } catch (error) {
       const deletionEmail = getDeletionPendingEmail(error);
@@ -224,6 +237,10 @@ export default function SignInPage() {
         const result = await loginWithTotp({ pendingToken, code });
         if (!("user" in result)) throw new Error("Unexpected TOTP response.");
         setUser(result.user);
+      } else if (usePhone) {
+        const result = await verifyLoginOtpBySms({ phone, code });
+        if (!("user" in result)) throw new Error("Unexpected OTP response.");
+        setUser(result.user);
       } else {
         const result = await verifyLoginOtp({ email, code });
         if (!("user" in result)) throw new Error("Unexpected OTP response.");
@@ -240,6 +257,9 @@ export default function SignInPage() {
         return;
       }
       console.error(error);
+      setOtpErrorMessage(
+        extractErrorMessage(error, "Wrong code. Please try again."),
+      );
       setOtpStatus("error");
     } finally {
       setOtpLoading(false);
@@ -266,6 +286,9 @@ export default function SignInPage() {
         return;
       }
       console.error(error);
+      setOtpErrorMessage(
+        extractErrorMessage(error, "Wrong code. Please try again."),
+      );
       setOtpStatus("error");
     } finally {
       setOtpLoading(false);
@@ -276,16 +299,28 @@ export default function SignInPage() {
     if (otpMode !== "otp-login") return;
 
     try {
-      await requestLoginOtp({ email, locale });
+      if (usePhone) {
+        await requestLoginOtpBySms(phone);
+      } else {
+        await requestLoginOtp({ email, locale });
+      }
     } catch (error) {
       console.error("Failed to resend login code", error);
+      toast.add({
+        title: "Couldn't resend code",
+        description: extractErrorMessage(
+          error,
+          "Something went wrong. Please try again.",
+        ),
+        type: "error",
+      });
     }
   };
 
   const handleOtpSuccess = () => {
     setOtpOpen(false);
     setOtpStatus("idle");
-    router.push("/account");
+    router.push(nextPath);
   };
 
   return (
@@ -368,25 +403,40 @@ export default function SignInPage() {
               </div>
 
               <p className="mb-5 text-center text-sm font-medium text-foreground">
-                {t.orContinueWithEmail}
+                {usePhone ? t.orContinueWithPhone : t.orContinueWithEmail}
               </p>
 
               <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
-                <div className="space-y-1.5">
-                  <Label htmlFor="email">{t.emailLabel}</Label>
+                {usePhone ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="phone">{t.phoneLabel}</Label>
 
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={t.emailPlaceholder}
-                    autoComplete="email"
-                  />
-                </div>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder={t.phonePlaceholder}
+                      autoComplete="tel"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email">{t.emailLabel}</Label>
 
-                {!useEmailPassword && (
-                  <div className="flex justify-center">
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={t.emailPlaceholder}
+                      autoComplete="email"
+                    />
+                  </div>
+                )}
+
+                {!useEmailPassword && !usePhone && (
+                  <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
                     <Button
                       type="button"
                       variant="link"
@@ -394,6 +444,28 @@ export default function SignInPage() {
                       onClick={() => setUseEmailPassword(true)}
                     >
                       {t.useEmailPassword}
+                    </Button>
+                    <span className="text-muted-foreground">·</span>
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="h-auto w-fit p-0 text-sm font-medium"
+                      onClick={() => setUsePhone(true)}
+                    >
+                      {t.usePhoneNumber}
+                    </Button>
+                  </div>
+                )}
+
+                {usePhone && (
+                  <div className="flex justify-center">
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="h-auto w-fit p-0 text-sm font-medium"
+                      onClick={() => setUsePhone(false)}
+                    >
+                      {t.useEmailInstead}
                     </Button>
                   </div>
                 )}
@@ -444,15 +516,30 @@ export default function SignInPage() {
                   type="submit"
                   className="mt-2 w-full font-semibold"
                   disabled={
-                    !email || (useEmailPassword && !password) || isSubmitting
+                    (usePhone ? !phone : !email) ||
+                    (useEmailPassword && !password) ||
+                    isSubmitting
                   }
                 >
                   {isSubmitting
-                    ? "…"
-                    : useEmailPassword
-                      ? t.signInButton
-                      : t.continueWithEmail}
+                    ? "Loading..."
+                    : usePhone
+                      ? t.continueWithPhone
+                      : useEmailPassword
+                        ? t.signInButton
+                        : t.continueWithEmail}
                 </Button>
+
+                <div className="mt-2 flex justify-center">
+                  <Link
+                    href="/auth/locked-out"
+                    className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                  >
+                    {locale === "fr"
+                      ? "Verrouillé hors de votre compte ?"
+                      : "Locked out of your account?"}
+                  </Link>
+                </div>
               </form>
             </div>
           </CardContent>
@@ -464,11 +551,14 @@ export default function SignInPage() {
         onOpenChange={handleOtpOpenChange}
         mode={otpMode}
         locale={locale}
-        email={email}
+        email={usePhone ? phone : email}
+        description={
+          usePhone && otpMode === "otp-login" ? t.otpSentToPhone : undefined
+        }
         loading={otpLoading}
         status={otpStatus}
         onStatusChange={setOtpStatus}
-        errorMessage="Wrong code. Please try again."
+        errorMessage={otpErrorMessage ?? undefined}
         onSubmit={handleOtpSubmit}
         onUseBackupCode={handleBackupCode}
         onResend={handleResend}

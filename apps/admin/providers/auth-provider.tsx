@@ -11,9 +11,17 @@ import {
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { getMe, logout as logoutRequest } from "@/lib/api/routes/auth";
-import { ApiError } from "@/lib/api/client";
+import { ApiError, refreshAuthSession } from "@/lib/api/client";
 import { AuthContextValue, AuthUser } from "@/types/auth";
 import { getDashboardPath } from "@/lib/get-dashboard-path";
+
+const ACCESS_TOKEN_TTL_MINUTES =
+  Number(process.env.NEXT_PUBLIC_ACCESS_TOKEN_TTL_MINUTES) || 15;
+const PROACTIVE_REFRESH_MARGIN_MINUTES = 3;
+const PROACTIVE_REFRESH_DELAY_MS =
+  Math.max(ACCESS_TOKEN_TTL_MINUTES - PROACTIVE_REFRESH_MARGIN_MINUTES, 1) *
+  60 *
+  1000;
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
@@ -73,6 +81,33 @@ export function AuthProvider({
       cancelled = true;
     };
   }, [fetchUser, initialUser]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    function scheduleNext() {
+      timeoutId = setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          await refreshAuthSession();
+        } catch {
+          // A genuine failure still surfaces via the next request's reactive
+          // 401 handling — nothing extra to do here.
+        }
+        if (!cancelled) scheduleNext();
+      }, PROACTIVE_REFRESH_DELAY_MS);
+    }
+
+    scheduleNext();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [user]);
 
   const completeLogin = useCallback(
     async (sessionUser?: AuthUser | null) => {

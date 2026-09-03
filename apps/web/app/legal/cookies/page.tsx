@@ -92,6 +92,7 @@ const COOKIE_TERMS_CONTENT: Record<Locale, TermsContent> = {
         paragraphs: [
           "Swiftgoma may introduce additional cookies or similar technologies in the future as new Platform features are introduced.",
           "Such technologies may be used to remember user preferences, improve Platform functionality, maintain security, understand Platform performance, or provide features that require information to be stored in your browser.",
+          "For example, we use your browser's local storage — not a cookie, but a similar browser-based storage mechanism — to record the time your session was last refreshed. This lets multiple open tabs coordinate authentication without each one making a separate request, and stores nothing beyond that timestamp.",
           "If additional cookies are introduced, we may update these Cookie Terms to explain their purpose and how they are used.",
         ],
       },
@@ -208,6 +209,7 @@ const COOKIE_TERMS_CONTENT: Record<Locale, TermsContent> = {
         paragraphs: [
           "Swiftgoma peut introduire à l'avenir des cookies supplémentaires ou des technologies similaires lorsque de nouvelles fonctionnalités de la Plateforme seront ajoutées.",
           "Ces technologies peuvent être utilisées pour mémoriser les préférences des utilisateurs, améliorer les fonctionnalités de la Plateforme, maintenir la sécurité, comprendre les performances de la Plateforme ou fournir des fonctionnalités nécessitant la conservation d'informations dans votre navigateur.",
+          "Par exemple, nous utilisons le stockage local de votre navigateur — qui n'est pas un cookie, mais un mécanisme de stockage similaire basé sur le navigateur — pour enregistrer l'heure du dernier renouvellement de votre session. Cela permet à plusieurs onglets ouverts de coordonner l'authentification sans que chacun n'effectue une requête séparée, et ne conserve rien d'autre que cet horodatage.",
           "Si des cookies supplémentaires sont introduits, nous pouvons mettre à jour les présentes Conditions cookies afin d'expliquer leur finalité et leur utilisation.",
         ],
       },
