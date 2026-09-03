@@ -42,7 +42,7 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    _iconSize = Tween<double>(begin: 100, end: 36).animate(
+    _iconSize = Tween<double>(begin: 64, end: 28).animate(
       CurvedAnimation(
         parent: _controller,
         curve: const Interval(0.38, 0.72, curve: Curves.easeInOutCubic),

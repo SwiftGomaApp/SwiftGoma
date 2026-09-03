@@ -59,9 +59,12 @@ class AppButton extends StatelessWidget {
         ? SizedBox(
             width: _iconSize,
             height: _iconSize,
-            child: CircularProgressIndicator(
+            child: CircularProgressIndicator.adaptive(
               strokeWidth: 2,
-              color: style.foreground,
+              // `backgroundColor` is what actually tints the Cupertino
+              // spinner on iOS/macOS; `valueColor` only affects Material.
+              valueColor: AlwaysStoppedAnimation(style.foreground),
+              backgroundColor: style.foreground,
             ),
           )
         : Row(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AppInput extends StatelessWidget {
   const AppInput({
@@ -13,6 +14,7 @@ class AppInput extends StatelessWidget {
     this.textInputAction,
     this.prefixIcon,
     this.suffixIcon,
+    this.inputFormatters,
     this.onChanged,
   });
 
@@ -26,6 +28,7 @@ class AppInput extends StatelessWidget {
   final TextInputAction? textInputAction;
   final Widget? prefixIcon;
   final Widget? suffixIcon;
+  final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onChanged;
 
   static const _lightRing = Color(0xFFABA09C);
@@ -65,6 +68,7 @@ class AppInput extends StatelessWidget {
             enabled: enabled,
             keyboardType: keyboardType,
             textInputAction: textInputAction,
+            inputFormatters: inputFormatters,
             onChanged: onChanged,
             style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
             decoration: InputDecoration(
