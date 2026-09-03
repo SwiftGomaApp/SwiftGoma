@@ -23,6 +23,9 @@ const { orderStatusEmail } = require("./templates/orderStatus");
 const { contactSupportEmail } = require("./templates/contactSupport");
 const { adminPayoutOtpEmail } = require("./templates/adminPayoutOtp");
 const {
+  connectedAccountChangedEmail,
+} = require("./templates/connectedAccountChanged");
+const {
   adminPayoutInitiatedEmail,
 } = require("./templates/adminPayoutInitiated");
 const {
@@ -183,4 +186,5 @@ module.exports = {
   sendSecureAccountOtpEmail,
   secureAccountOtpEmail,
   accountSecuredEmail,
+  connectedAccountChangedEmail,
 };

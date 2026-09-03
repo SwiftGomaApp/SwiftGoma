@@ -88,6 +88,8 @@ export interface AuthUser {
   pendingPhone?: string | null;
   isPhoneVerified?: boolean;
   [key: string]: unknown;
+  googleId?: string | null;
+  appleId?: string | null;
 }
 
 export interface MobileAuthPayload {

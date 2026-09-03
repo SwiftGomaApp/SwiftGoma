@@ -149,6 +149,10 @@ const ACCOUNT_ACTIVITY_ACTIONS = [
   "SESSION_REVOKED",
   "ALL_SESSIONS_REVOKED",
   "ACCOUNT_SECURED",
+  "GOOGLE_LINKED",
+  "GOOGLE_UNLINKED",
+  "APPLE_LINKED",
+  "APPLE_UNLINKED",
 ];
 
 const EMAIL_SENSITIVE_FIELDS = [
@@ -2748,4 +2752,5 @@ module.exports = {
   confirmSecureAccountByToken,
   requestPhoneAccountRecovery,
   confirmPhoneAccountRecovery,
+  recordAccountAction,
 };

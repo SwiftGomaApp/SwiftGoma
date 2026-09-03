@@ -13,7 +13,17 @@ export const USER_ROUTES = {
   secondaryEmailRequest: "/users/email/secondary/request",
   secondaryEmailVerify: "/users/email/secondary/verify",
   secondaryEmail: "/users/email/secondary",
+  linkGoogle: "/users/google/link",
+  unlinkGoogle: "/users/google/unlink",
+  linkApple: "/users/apple/link",
+  unlinkApple: "/users/apple/unlink",
 } as const;
+
+export interface LinkAccountResult {
+  message: string;
+  googleLinked?: boolean;
+  appleLinked?: boolean;
+}
 
 export interface DeleteAccountResult {
   message: string;
@@ -74,7 +84,10 @@ export function verifyPhoneUpdate(body: { code: string; locale?: string }) {
   return apiPost<AuthUser>(USER_ROUTES.phoneUpdateVerify, body);
 }
 
-export function requestSecondaryEmail(body: { email: string; locale?: string }) {
+export function requestSecondaryEmail(body: {
+  email: string;
+  locale?: string;
+}) {
   return apiPost<OtpRequestResult>(USER_ROUTES.secondaryEmailRequest, body);
 }
 
@@ -84,4 +97,20 @@ export function verifySecondaryEmail(body: { code: string; locale?: string }) {
 
 export function deleteSecondaryEmail() {
   return apiDelete<AuthUser>(USER_ROUTES.secondaryEmail);
+}
+
+export function linkGoogleAccount(idToken: string) {
+  return apiPost<LinkAccountResult>(USER_ROUTES.linkGoogle, { idToken });
+}
+
+export function unlinkGoogleAccount() {
+  return apiPost<LinkAccountResult>(USER_ROUTES.unlinkGoogle);
+}
+
+export function linkAppleAccount(idToken: string) {
+  return apiPost<LinkAccountResult>(USER_ROUTES.linkApple, { idToken });
+}
+
+export function unlinkAppleAccount() {
+  return apiPost<LinkAccountResult>(USER_ROUTES.unlinkApple);
 }
