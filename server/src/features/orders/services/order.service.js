@@ -93,6 +93,27 @@ async function getFullOrder(orderId) {
   return order;
 }
 
+// Raw buyer/rider.user/shop.sellerProfile.user rows carry password hashes
+// and OTP codes — never return them to a client as-is. Callers must pass an
+// order fetched with getFullOrder's includes (items, shop.sellerProfile.user,
+// buyer, rider.user).
+function sanitizeOrderForClient(order) {
+  return {
+    ...order,
+    buyer: sanitizeUser(order.buyer),
+    rider: order.rider
+      ? { ...order.rider, user: sanitizeUser(order.rider.user) }
+      : null,
+    shop: {
+      ...order.shop,
+      sellerProfile: {
+        ...order.shop.sellerProfile,
+        user: sanitizeUser(order.shop.sellerProfile.user),
+      },
+    },
+  };
+}
+
 async function assertOrderOwnedByShop(orderId, sellerProfileId) {
   const order = await getFullOrder(orderId);
   if (order.shop.sellerProfileId !== sellerProfileId) {
@@ -943,7 +964,7 @@ async function acceptOrder(orderId, sellerProfileId) {
     body: "Le vendeur a commencé à la préparer. Vous serez averti dès qu'elle sera prête.",
   });
 
-  return fullOrder;
+  return sanitizeOrderForClient(fullOrder);
 }
 
 async function refundOrderPayment(order, reasonLabel) {
@@ -1026,7 +1047,7 @@ async function rejectOrder(orderId, sellerProfileId, reason) {
     reason,
   });
 
-  return updated;
+  return sanitizeOrderForClient(fullOrder);
 }
 
 async function markReadyForPickup(orderId, sellerProfileId) {
@@ -1040,7 +1061,7 @@ async function markReadyForPickup(orderId, sellerProfileId) {
   await claimOrderStatus(prisma, orderId, order.status, {
     status: "READY_FOR_PICKUP",
   });
-  const updated = await prisma.order.findUnique({ where: { id: orderId } });
+  const updated = await getFullOrder(orderId);
   emitOrderUpdate(updated);
 
   await notifyBuyer(order.buyerId, {
@@ -1050,14 +1071,14 @@ async function markReadyForPickup(orderId, sellerProfileId) {
     orderId,
   });
 
-  return updated;
+  return sanitizeOrderForClient(updated);
 }
 
 async function markReadyForDelivery(orderId, sellerProfileId) {
   const order = await assertOrderOwnedByShop(orderId, sellerProfileId);
 
   if (order.status === "PREPARING") {
-    return order;
+    return sanitizeOrderForClient(order);
   }
 
   assertValidStatusTransition(
@@ -1069,7 +1090,7 @@ async function markReadyForDelivery(orderId, sellerProfileId) {
   await claimOrderStatus(prisma, orderId, order.status, {
     status: "PREPARING",
   });
-  const updated = await prisma.order.findUnique({ where: { id: orderId } });
+  const updated = await getFullOrder(orderId);
   emitOrderUpdate(updated);
 
   await notifyBuyer(order.buyerId, {
@@ -1079,7 +1100,7 @@ async function markReadyForDelivery(orderId, sellerProfileId) {
     orderId,
   });
 
-  return updated;
+  return sanitizeOrderForClient(updated);
 }
 
 async function markOrderReady(orderId, sellerProfileId) {
@@ -1132,7 +1153,7 @@ async function completePickupHandoff(orderId, sellerProfileId, scannedQrToken) {
     body: "Merci pour votre achat ! À bientôt sur SwiftGoma.",
   });
 
-  return updated;
+  return sanitizeOrderForClient(fullOrder);
 }
 
 async function assignRider(orderId, sellerProfileId, riderIdOrUserId) {
@@ -1162,11 +1183,10 @@ async function assignRider(orderId, sellerProfileId, riderIdOrUserId) {
     status: "RIDER_ASSIGNED",
     riderId: rider.id,
   });
-  const updated = await prisma.order.findUnique({ where: { id: orderId } });
+  const updated = await getFullOrder(orderId);
   emitOrderUpdate(updated);
 
-  const fullOrder = await getFullOrder(orderId);
-  await notifyRiderWithEmail(rider, fullOrder, {
+  await notifyRiderWithEmail(rider, updated, {
     action: "deliveryAssigned",
     title: "Nouvelle livraison assignée",
     body: `Une commande de ${formatMoney(order.total, order.currency)} vous a été assignée. Rendez-vous au point de retrait dès que possible.`,
@@ -1178,7 +1198,7 @@ async function assignRider(orderId, sellerProfileId, riderIdOrUserId) {
     orderId,
   });
 
-  return updated;
+  return sanitizeOrderForClient(updated);
 }
 
 async function markPickedUp(orderId, riderUserId) {
@@ -1193,7 +1213,7 @@ async function markPickedUp(orderId, riderUserId) {
     status: "PICKED_UP",
     pickedUpAt: new Date(),
   });
-  const updated = await prisma.order.findUnique({ where: { id: orderId } });
+  const updated = await getFullOrder(orderId);
   emitOrderUpdate(updated);
 
   await notifyBuyer(order.buyerId, {
@@ -1203,7 +1223,7 @@ async function markPickedUp(orderId, riderUserId) {
     orderId,
   });
 
-  return updated;
+  return sanitizeOrderForClient(updated);
 }
 
 async function markOnTheWay(orderId, riderUserId) {
@@ -1217,7 +1237,7 @@ async function markOnTheWay(orderId, riderUserId) {
   await claimOrderStatus(prisma, orderId, order.status, {
     status: "ON_THE_WAY",
   });
-  const updated = await prisma.order.findUnique({ where: { id: orderId } });
+  const updated = await getFullOrder(orderId);
   emitOrderUpdate(updated);
 
   await notifyBuyer(order.buyerId, {
@@ -1227,7 +1247,7 @@ async function markOnTheWay(orderId, riderUserId) {
     orderId,
   });
 
-  return updated;
+  return sanitizeOrderForClient(updated);
 }
 
 async function completeDeliveryHandoff(orderId, riderUserId, scannedQrToken) {
@@ -1270,7 +1290,7 @@ async function completeDeliveryHandoff(orderId, riderUserId, scannedQrToken) {
     body: "Votre commande est arrivée. Merci pour votre achat !",
   });
 
-  return updated;
+  return sanitizeOrderForClient(fullOrder);
 }
 
 async function markFailedDelivery(orderId, riderUserId, reason) {
@@ -1281,7 +1301,7 @@ async function markFailedDelivery(orderId, riderUserId, reason) {
     status: "FAILED",
     failureReason: reason || null,
   });
-  const updated = await prisma.order.findUnique({ where: { id: orderId } });
+  const updated = await getFullOrder(orderId);
   emitOrderUpdate(updated);
 
   await refundOrderPayment(order, "delivery_failed");
@@ -1295,7 +1315,7 @@ async function markFailedDelivery(orderId, riderUserId, reason) {
     orderId,
   });
 
-  return updated;
+  return sanitizeOrderForClient(updated);
 }
 
 async function scanOrderQr(scannerUserId, scannedQrToken) {
@@ -1422,7 +1442,7 @@ async function cancelOrder(orderId, buyerId, reason) {
     );
   }
 
-  return getFullOrder(orderId);
+  return sanitizeOrderForClient(await getFullOrder(orderId));
 }
 
 async function expireUnansweredOrders() {
@@ -1564,24 +1584,7 @@ async function completeOneDeliveredOrder(order, { notifySeller = false } = {}) {
 
 async function getOrderById(orderId, requesterId) {
   const order = await assertCanViewOrder(orderId, requesterId);
-
-  // assertCanViewOrder pulls raw User rows (buyer, seller, rider) for the
-  // ownership check — never return those to the client as-is, they carry
-  // password hashes and OTP codes. Strip them the same way auth responses do.
-  return {
-    ...order,
-    buyer: sanitizeUser(order.buyer),
-    rider: order.rider
-      ? { ...order.rider, user: sanitizeUser(order.rider.user) }
-      : null,
-    shop: {
-      ...order.shop,
-      sellerProfile: {
-        ...order.shop.sellerProfile,
-        user: sanitizeUser(order.shop.sellerProfile.user),
-      },
-    },
-  };
+  return sanitizeOrderForClient(order);
 }
 
 async function listOrdersForBuyer(
@@ -2024,7 +2027,7 @@ async function confirmDeliveryReceipt(orderId, buyerId) {
     );
   }
 
-  return prisma.order.findUnique({ where: { id: orderId } });
+  return getOrderById(orderId, buyerId);
 }
 
 module.exports = {
