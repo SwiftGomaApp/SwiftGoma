@@ -5,7 +5,10 @@ class Env {
     'APP_NAME',
     defaultValue: 'SwiftGoma Delivery',
   );
-  static const String apiBaseUrl = String.fromEnvironment('API_BASE_URL');
+  static const String apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://test.api.swiftgoma.com/api/v1',
+  );
   static const String mapboxAccessToken = String.fromEnvironment(
     'MAPBOX_ACCESS_TOKEN',
   );
