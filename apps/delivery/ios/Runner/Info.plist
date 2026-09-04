@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>SwiftGoma a besoin d'accéder à l'appareil photo pour changer votre photo de profil.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SwiftGoma a besoin d'accéder à vos photos pour changer votre photo de profil.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:delivery/app/locator.dart';
+import 'package:delivery/core/network/api_exception.dart';
 import 'package:delivery/features/auth/data/auth_api.dart';
 import 'package:delivery/features/auth/data/models/auth_user.dart';
 import 'package:delivery/features/auth/data/repo/auth_repository.dart';
@@ -34,6 +36,37 @@ class CurrentUserNotifier extends AsyncNotifier<AuthUser?> {
   Future<void> logout() async {
     await ref.read(authRepositoryProvider).logout();
     state = const AsyncData(null);
+  }
+
+  /// Updates the current user's name against the backend and, on success,
+  /// reflects it in [state] immediately. Returns an error message, or null
+  /// on success.
+  Future<String?> updateName(String name) async {
+    try {
+      final user = await ref
+          .read(authRepositoryProvider)
+          .updateProfile(name: name);
+      state = AsyncData(user);
+      return null;
+    } catch (e) {
+      return apiExceptionOf(e)?.message ??
+          'Une erreur est survenue. Veuillez réessayer.';
+    }
+  }
+
+  /// Uploads a new avatar and, on success, reflects it in [state]
+  /// immediately. Returns an error message, or null on success.
+  Future<String?> updateAvatar(File imageFile) async {
+    try {
+      final user = await ref
+          .read(authRepositoryProvider)
+          .uploadAvatar(imageFile);
+      state = AsyncData(user);
+      return null;
+    } catch (e) {
+      return apiExceptionOf(e)?.message ??
+          'Une erreur est survenue. Veuillez réessayer.';
+    }
   }
 }
 

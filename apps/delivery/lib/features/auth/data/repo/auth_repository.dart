@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:delivery/core/network/token_storage.dart';
 import 'package:delivery/features/auth/data/auth_api.dart';
 import 'package:delivery/features/auth/data/models/auth_user.dart';
@@ -52,6 +54,14 @@ class AuthRepository {
       await _tokenStorage.clearTokens();
       return null;
     }
+  }
+
+  Future<AuthUser> updateProfile({String? name}) {
+    return _authApi.updateProfile(name: name);
+  }
+
+  Future<AuthUser> uploadAvatar(File imageFile) {
+    return _authApi.uploadAvatar(imageFile);
   }
 
   Future<void> requestLoginOtp({required String email}) {

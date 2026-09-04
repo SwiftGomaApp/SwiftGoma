@@ -1,62 +1,46 @@
-import 'package:delivery/features/auth/providers.dart';
+import 'package:delivery/features/deliveries/deliveries_screen.dart';
+import 'package:delivery/features/history/history_screen.dart';
+import 'package:delivery/features/notifications/notifications_screen.dart';
+import 'package:delivery/features/profile/profile_screen.dart';
+import 'package:delivery/shared/widgets/app_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentUser = ref.watch(currentUserProvider);
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
+class _HomeScreenState extends State<HomeScreen> {
+  int _index = 0;
+
+  static const _tabs = [
+    DeliveriesScreen(),
+    HistoryScreen(),
+    NotificationsScreen(),
+    ProfileScreen(),
+  ];
+
+  static const _destinations = [
+    AppNavDestination(icon: Icons.local_shipping_outlined, label: 'Livraisons'),
+    AppNavDestination(icon: Icons.history_outlined, label: 'Historique'),
+    AppNavDestination(
+      icon: Icons.notifications_outlined,
+      label: 'Notifications',
+    ),
+    AppNavDestination(icon: Icons.person_outline, label: 'Profil'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: currentUser.when(
-          data: (user) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircleAvatar(
-                radius: 32,
-                backgroundImage: user?.avatarUrl != null
-                    ? NetworkImage(user!.avatarUrl!)
-                    : null,
-                child: user?.avatarUrl == null
-                    ? const Icon(Icons.person_outline, size: 32)
-                    : null,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                user?.name ?? 'Non connecté',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              if (user?.email != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  user!.email!,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: () async {
-                  await ref.read(currentUserProvider.notifier).logout();
-                  if (context.mounted) context.go('/login');
-                },
-                child: const Text('Log out'),
-              ),
-            ],
-          ),
-          loading: () => const CircularProgressIndicator(),
-          error: (error, stackTrace) => FilledButton(
-            onPressed: () => context.push('/login'),
-            child: const Text('Go to Login'),
-          ),
-        ),
+      extendBody: true,
+      body: IndexedStack(index: _index, children: _tabs),
+      bottomNavigationBar: AppBottomNavBar(
+        selectedIndex: _index,
+        onDestinationSelected: (index) => setState(() => _index = index),
+        destinations: _destinations,
       ),
     );
   }

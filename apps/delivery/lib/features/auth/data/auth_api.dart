@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:delivery/features/auth/data/models/auth_user.dart';
 import 'package:delivery/features/auth/data/models/login_result.dart';
 import 'package:dio/dio.dart';
@@ -26,6 +28,25 @@ class AuthApi {
 
   Future<AuthUser> getMe() async {
     final response = await _dio.get('/auth/me');
+    return AuthUser.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<AuthUser> updateProfile({String? name}) async {
+    final response = await _dio.patch(
+      '/users/profile',
+      data: {'name': ?name},
+    );
+    return AuthUser.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<AuthUser> uploadAvatar(File imageFile) async {
+    final formData = FormData.fromMap({
+      'avatar': await MultipartFile.fromFile(
+        imageFile.path,
+        filename: imageFile.uri.pathSegments.last,
+      ),
+    });
+    final response = await _dio.post('/users/profile/avatar', data: formData);
     return AuthUser.fromJson(response.data as Map<String, dynamic>);
   }
 
