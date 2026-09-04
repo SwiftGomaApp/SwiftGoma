@@ -10,12 +10,15 @@ class AppInput extends StatelessWidget {
     this.errorText,
     this.obscureText = false,
     this.enabled = true,
+    this.autofocus = false,
     this.keyboardType,
     this.textInputAction,
+    this.textCapitalization = TextCapitalization.none,
     this.prefixIcon,
     this.suffixIcon,
     this.inputFormatters,
     this.onChanged,
+    this.onSubmitted,
   });
 
   final TextEditingController? controller;
@@ -24,12 +27,15 @@ class AppInput extends StatelessWidget {
   final String? errorText;
   final bool obscureText;
   final bool enabled;
+  final bool autofocus;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
+  final TextCapitalization textCapitalization;
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
 
   static const _lightRing = Color(0xFFABA09C);
   static const _darkRing = Color(0xFF7C6D67);
@@ -66,10 +72,13 @@ class AppInput extends StatelessWidget {
             controller: controller,
             obscureText: obscureText,
             enabled: enabled,
+            autofocus: autofocus,
             keyboardType: keyboardType,
             textInputAction: textInputAction,
+            textCapitalization: textCapitalization,
             inputFormatters: inputFormatters,
             onChanged: onChanged,
+            onSubmitted: onSubmitted,
             style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
             decoration: InputDecoration(
               hintText: hint,

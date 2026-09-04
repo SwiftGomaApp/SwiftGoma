@@ -1,3 +1,4 @@
+import 'package:delivery/shared/utils/validators.dart';
 import 'package:delivery/shared/widgets/app_button.dart';
 import 'package:delivery/shared/widgets/app_input.dart';
 import 'package:flutter/material.dart';
@@ -17,6 +18,8 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  static const _minPasswordLength = 8;
+
   final _emailController = TextEditingController();
   final _codeController = TextEditingController();
   final _newPasswordController = TextEditingController();
@@ -26,7 +29,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+  bool _showValidationErrors = false;
   String? _errorText;
+
+  String? get _emailError {
+    if (!_showValidationErrors) return null;
+    final value = _emailController.text.trim();
+    if (value.isEmpty || isValidEmail(value)) return null;
+    return 'Enter a valid email address';
+  }
+
+  String? get _newPasswordError {
+    if (!_showValidationErrors) return null;
+    final value = _newPasswordController.text;
+    if (value.isEmpty || value.length >= _minPasswordLength) return null;
+    return 'Use at least $_minPasswordLength characters';
+  }
 
   @override
   void dispose() {
@@ -47,17 +65,26 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   // wired up (POST /auth/forgot-password, POST /auth/reset-password).
   Future<void> _onSendCode() async {
     if (_emailController.text.trim().isEmpty || _isLoading) return;
+    if (!isValidEmail(_emailController.text)) {
+      setState(() => _showValidationErrors = true);
+      return;
+    }
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(seconds: 1));
     if (!mounted) return;
     setState(() {
       _isLoading = false;
+      _showValidationErrors = false;
       _step = _Step.reset;
     });
   }
 
   Future<void> _onResetPassword() async {
     if (_isLoading) return;
+    if (_newPasswordController.text.length < _minPasswordLength) {
+      setState(() => _showValidationErrors = true);
+      return;
+    }
     if (_newPasswordController.text != _confirmPasswordController.text) {
       setState(() => _errorText = 'Passwords do not match.');
       return;
@@ -85,9 +112,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
   }
 
-  void _onTryAgain() {
+  Future<void> _onTryAgain() async {
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(seconds: 1)); // resend code
+    if (!mounted) return;
     setState(() {
+      _isLoading = false;
       _errorText = null;
+      _showValidationErrors = false;
       _clearResetFields();
       _step = _Step.reset;
     });
@@ -96,6 +128,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   void _onStartOver() {
     setState(() {
       _errorText = null;
+      _showValidationErrors = false;
       _clearResetFields();
       _step = _Step.forgot;
     });
@@ -108,16 +141,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
-      appBar: _step == _Step.reset
-          ? AppBar(
-              backgroundColor: colorScheme.surface,
-              elevation: 0,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: _onStartOver,
-              ),
-            )
-          : AppBar(backgroundColor: colorScheme.surface, elevation: 0),
+      appBar: AppBar(backgroundColor: colorScheme.surface, elevation: 0),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
@@ -156,12 +180,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ];
       case _Step.reset:
         return [
-          Text(
-            'Reset password',
-            style: textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: colorScheme.onSurface,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Reset password',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: _onStartOver,
+                child: const Text('Start over'),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Text(
@@ -228,8 +262,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             controller: _emailController,
             label: 'Email',
             hint: 'm@example.com',
+            errorText: _emailError,
+            autofocus: true,
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.done,
             onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _onSendCode(),
           ),
           const SizedBox(height: 16),
           AppButton(
@@ -255,21 +293,28 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             controller: _codeController,
             label: 'Verification code',
             hint: 'Enter your code',
+            autofocus: true,
             keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.next,
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
               LengthLimitingTextInputFormatter(6),
             ],
             onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => FocusScope.of(context).nextFocus(),
           ),
           const SizedBox(height: 12),
           AppInput(
             controller: _newPasswordController,
             label: 'New password',
             hint: 'Enter your new password',
+            errorText: _newPasswordError,
             obscureText: _obscureNewPassword,
+            textInputAction: TextInputAction.next,
             onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => FocusScope.of(context).nextFocus(),
             suffixIcon: IconButton(
+              tooltip: _obscureNewPassword ? 'Show password' : 'Hide password',
               icon: Icon(
                 _obscureNewPassword
                     ? Icons.visibility_off_outlined
@@ -279,14 +324,26 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   setState(() => _obscureNewPassword = !_obscureNewPassword),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
+          Text(
+            'At least $_minPasswordLength characters.',
+            style: textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurface.withValues(alpha: 0.5),
+            ),
+          ),
+          const SizedBox(height: 8),
           AppInput(
             controller: _confirmPasswordController,
             label: 'Confirm password',
             hint: 'Confirm your new password',
             obscureText: _obscureConfirmPassword,
+            textInputAction: TextInputAction.done,
             onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _onResetPassword(),
             suffixIcon: IconButton(
+              tooltip: _obscureConfirmPassword
+                  ? 'Show password'
+                  : 'Hide password',
               icon: Icon(
                 _obscureConfirmPassword
                     ? Icons.visibility_off_outlined
@@ -333,6 +390,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             label: 'Try again',
             expand: true,
             height: 44,
+            isLoading: _isLoading,
             onPressed: _onTryAgain,
           ),
           const SizedBox(height: 12),
