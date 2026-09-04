@@ -1,0 +1,44 @@
+name: delivery
+description: "A new Flutter project."
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  google_fonts: ^8.2.0
+  go_router: ^14.6.2
+  flutter_svg: ^2.0.10+1
+  shared_preferences: ^2.3.3
+  dio: ^5.11.1
+  flutter_riverpod: ^2.6.1
+  flutter_secure_storage: ^11.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/icons/app_icon.png"
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/icons/app_icon.png
+    - assets/images/logo.png
+    - assets/images/onboarding_1.svg
+    - assets/images/onboarding_2.svg
+    - assets/images/onboarding_3.svg
+    - assets/images/login_hero.jpg
