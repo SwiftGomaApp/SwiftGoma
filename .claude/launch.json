@@ -24,6 +24,15 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "apps/rider-web", "--", "-p", "3004"],
       "port": 3004
+    },
+    {
+      "name": "delivery",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd apps/delivery && flutter run -d chrome --web-port 3005 --dart-define-from-file env/.env.dev.json"
+      ],
+      "port": 3005
     }
   ]
 }

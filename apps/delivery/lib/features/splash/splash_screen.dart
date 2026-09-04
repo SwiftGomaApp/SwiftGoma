@@ -1,16 +1,18 @@
 import 'package:delivery/core/services/onboarding_prefs.dart';
+import 'package:delivery/features/auth/providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
+class _SplashScreenState extends ConsumerState<SplashScreen>
     with SingleTickerProviderStateMixin {
   static const Duration _animationDuration = Duration(milliseconds: 2200);
   static const Duration _holdAfterAnimation = Duration(milliseconds: 700);
@@ -73,8 +75,16 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     final hasSeenOnboarding = await OnboardingPrefs.hasSeenOnboarding();
+    final currentUser = await ref.read(currentUserProvider.future);
     if (!mounted) return;
-    context.go(hasSeenOnboarding ? '/login' : '/onboarding');
+
+    if (currentUser != null) {
+      context.go('/');
+    } else if (hasSeenOnboarding) {
+      context.go('/login');
+    } else {
+      context.go('/onboarding');
+    }
   }
 
   @override

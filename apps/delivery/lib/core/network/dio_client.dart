@@ -1,57 +1,25 @@
 import 'package:delivery/core/config/env.dart';
 import 'package:delivery/core/network/api_exception.dart';
+import 'package:delivery/core/network/mobile_headers.dart';
+import 'package:delivery/core/network/token_refresher.dart';
 import 'package:delivery/core/network/token_storage.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
-const _mobileHeaders = {
-  'Accept': 'application/json',
-  'x-client-type': 'mobile',
-  'X-Locale': 'fr',
-};
-
-Dio createDio(TokenStorage tokenStorage) {
+Dio createDio(TokenStorage tokenStorage, TokenRefresher tokenRefresher) {
   final dio = Dio(
     BaseOptions(
       baseUrl: Env.apiBaseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
-      headers: _mobileHeaders,
+      headers: mobileHeaders,
     ),
   );
-
-  final refreshDio = Dio(
-    BaseOptions(baseUrl: Env.apiBaseUrl, headers: _mobileHeaders),
-  );
-
-  Future<bool>? refreshing;
-
-  Future<bool> doRefresh() async {
-    final refreshToken = await tokenStorage.readRefreshToken();
-    if (refreshToken == null) return false;
-    try {
-      final response = await refreshDio.post(
-        '/auth/refresh-token',
-        data: {'refreshToken': refreshToken},
-      );
-      final data = response.data as Map<String, dynamic>;
-      await tokenStorage.saveTokens(
-        accessToken: data['accessToken'] as String,
-        refreshToken: data['refreshToken'] as String,
-      );
-      return true;
-    } catch (_) {
-      await tokenStorage.clearTokens();
-      return false;
-    }
-  }
-
-  Future<bool> refreshTokens() =>
-      refreshing ??= doRefresh().whenComplete(() => refreshing = null);
 
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
+        await tokenRefresher.refreshIfExpiringSoon();
         final token = await tokenStorage.readAccessToken();
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
@@ -70,7 +38,7 @@ Dio createDio(TokenStorage tokenStorage) {
         final alreadyRetried = error.requestOptions.extra['retried'] == true;
 
         if (isUnauthorized && !alreadyRetried) {
-          final refreshed = await refreshTokens();
+          final refreshed = await tokenRefresher.refresh();
           if (refreshed) {
             final retryOptions = error.requestOptions..extra['retried'] = true;
             final newToken = await tokenStorage.readAccessToken();

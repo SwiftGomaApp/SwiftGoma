@@ -19,6 +19,7 @@ class AppInput extends StatelessWidget {
     this.inputFormatters,
     this.onChanged,
     this.onSubmitted,
+    this.height,
   });
 
   final TextEditingController? controller;
@@ -37,6 +38,10 @@ class AppInput extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
 
+  /// Minimum height of the input box, e.g. to match an adjacent [AppButton].
+  /// The field still grows taller than this to fit [errorText].
+  final double? height;
+
   static const _lightRing = Color(0xFFABA09C);
   static const _darkRing = Color(0xFF7C6D67);
   static const _lightMutedForeground = Color(0xFF7C6D67);
@@ -50,7 +55,7 @@ class AppInput extends StatelessWidget {
     final mutedForeground = isDark
         ? _darkMutedForeground
         : _lightMutedForeground;
-    final radius = BorderRadius.circular(8);
+    final radius = BorderRadius.circular(14);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,6 +84,7 @@ class AppInput extends StatelessWidget {
             inputFormatters: inputFormatters,
             onChanged: onChanged,
             onSubmitted: onSubmitted,
+            textAlignVertical: TextAlignVertical.center,
             style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
             decoration: InputDecoration(
               hintText: hint,
@@ -89,6 +95,9 @@ class AppInput extends StatelessWidget {
               prefixIcon: prefixIcon,
               suffixIcon: suffixIcon,
               isDense: true,
+              constraints: height != null
+                  ? BoxConstraints(minHeight: height!)
+                  : null,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 12,
                 vertical: 10,

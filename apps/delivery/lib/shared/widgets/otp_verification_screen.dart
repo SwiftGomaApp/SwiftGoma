@@ -29,22 +29,33 @@ enum OtpPurpose {
 class OtpVerificationScreen extends StatefulWidget {
   const OtpVerificationScreen({
     super.key,
-    required this.destination,
+    this.destination,
     required this.onVerify,
-    required this.onResend,
+    this.onResend,
     this.purpose = OtpPurpose.login,
     this.title,
+    this.subtitle,
     this.codeLength = 6,
     this.resendCooldown = const Duration(seconds: 30),
   });
 
-  final String destination;
+  /// Where the code was sent (email/phone), shown as an editable chip below
+  /// the title. Leave null — together with [subtitle] — for codes that
+  /// weren't "sent" anywhere, e.g. an authenticator app TOTP code.
+  final String? destination;
   final Future<String?> Function(String code) onVerify;
-  final Future<void> Function() onResend;
+
+  /// Resend handler. Omit to hide the resend row entirely, e.g. for a TOTP
+  /// code that can't be "resent".
+  final Future<void> Function()? onResend;
   final OtpPurpose purpose;
 
   /// Overrides [purpose]'s default title when set.
   final String? title;
+
+  /// Overrides the default "A N-digit code was sent to destination" line
+  /// (and hides the destination chip) when set.
+  final String? subtitle;
   final int codeLength;
   final Duration resendCooldown;
 
@@ -106,8 +117,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   Future<void> _onResend() async {
-    if (_resendSecondsLeft > 0) return;
-    await widget.onResend();
+    final onResend = widget.onResend;
+    if (onResend == null || _resendSecondsLeft > 0) return;
+    await onResend();
     if (!mounted) return;
     setState(() => _resendSecondsLeft = widget.resendCooldown.inSeconds);
     _resendTimer?.cancel();
@@ -152,39 +164,52 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      'A ${widget.codeLength}-digit code was sent to',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurface.withValues(alpha: 0.6),
-                        height: 1.4,
+                    if (widget.subtitle != null)
+                      Text(
+                        widget.subtitle!,
+                        textAlign: TextAlign.center,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurface.withValues(alpha: 0.6),
+                          height: 1.4,
+                        ),
+                      )
+                    else ...[
+                      Text(
+                        'A ${widget.codeLength}-digit code was sent to',
+                        textAlign: TextAlign.center,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurface.withValues(alpha: 0.6),
+                          height: 1.4,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Tooltip(
-                      message: 'Edit',
-                      child: TextButton.icon(
-                        onPressed: () => Navigator.of(context).maybePop(),
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        icon: Icon(
-                          Icons.edit_outlined,
-                          size: 14,
-                          color: colorScheme.primary,
-                        ),
-                        label: Text(
-                          widget.destination,
-                          style: TextStyle(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.w600,
+                      if (widget.destination != null) ...[
+                        const SizedBox(height: 2),
+                        Tooltip(
+                          message: 'Edit',
+                          child: TextButton.icon(
+                            onPressed: () => Navigator.of(context).maybePop(),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            icon: Icon(
+                              Icons.edit_outlined,
+                              size: 14,
+                              color: colorScheme.primary,
+                            ),
+                            label: Text(
+                              widget.destination!,
+                              style: TextStyle(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                      ],
+                    ],
                     const SizedBox(height: 32),
                     Stack(
                       alignment: Alignment.center,
@@ -251,27 +276,29 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       isLoading: _isSubmitting,
                       onPressed: _isComplete ? _onContinue : null,
                     ),
-                    const SizedBox(height: 8),
-                    _resendSecondsLeft > 0
-                        ? Text(
-                            'Resend code in ${_resendSecondsLeft}s',
-                            style: TextStyle(
-                              color: colorScheme.onSurface.withValues(
-                                alpha: 0.5,
-                              ),
-                              fontSize: 14,
-                            ),
-                          )
-                        : TextButton(
-                            onPressed: _onResend,
-                            child: Text(
-                              'Resend code',
+                    if (widget.onResend != null) ...[
+                      const SizedBox(height: 8),
+                      _resendSecondsLeft > 0
+                          ? Text(
+                              'Resend code in ${_resendSecondsLeft}s',
                               style: TextStyle(
-                                color: colorScheme.primary,
-                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurface.withValues(
+                                  alpha: 0.5,
+                                ),
+                                fontSize: 14,
+                              ),
+                            )
+                          : TextButton(
+                              onPressed: _onResend,
+                              child: Text(
+                                'Resend code',
+                                style: TextStyle(
+                                  color: colorScheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                          ),
+                    ],
                   ],
                 ),
               ),

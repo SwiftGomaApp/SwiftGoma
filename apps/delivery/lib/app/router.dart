@@ -1,7 +1,7 @@
-import 'package:delivery/features/auth/login_screen.dart';
-import 'package:delivery/features/auth/signup_screen.dart';
+import 'package:delivery/features/auth/views/login_screen.dart';
+import 'package:delivery/features/auth/views/signup_screen.dart';
 import 'package:delivery/features/home/home_screen.dart';
-import 'package:delivery/features/auth/forgot_password_screen.dart';
+import 'package:delivery/features/auth/views/forgot_password_screen.dart';
 import 'package:delivery/features/legal/privacy_policy_screen.dart';
 import 'package:delivery/features/legal/terms_screen.dart';
 import 'package:delivery/features/onboarding/onboarding_screen.dart';

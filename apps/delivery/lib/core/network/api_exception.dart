@@ -1,3 +1,25 @@
+import 'package:dio/dio.dart';
+
+/// Unwraps the [ApiException] that `dio_client.dart`'s error interceptor
+/// attaches to a failed request. Requests reject with a [DioException]
+/// whose `.error` field holds the mapped [ApiException] — the exception
+/// itself is never thrown directly — so `on ApiException catch (e)` never
+/// matches. Catch broadly and call this instead, e.g.:
+/// ```dart
+/// try {
+///   ...
+/// } catch (e) {
+///   final message = apiExceptionOf(e)?.message ?? 'Generic fallback.';
+/// }
+/// ```
+ApiException? apiExceptionOf(Object error) {
+  if (error is ApiException) return error;
+  if (error is DioException && error.error is ApiException) {
+    return error.error as ApiException;
+  }
+  return null;
+}
+
 class ApiException implements Exception {
   const ApiException({
     required this.message,
