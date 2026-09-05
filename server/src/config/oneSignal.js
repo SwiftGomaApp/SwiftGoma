@@ -10,6 +10,15 @@ const client = axios.create({
   timeout: 10000,
 });
 
+// "LivraisonsUrgent" Android channel — created at Android's true
+// IMPORTANCE_HIGH (4) so notifications show as a heads-up banner. Verified
+// via `adb shell dumpsys notification` against real devices: OneSignal
+// dashboard's "High" importance option actually creates the Android channel
+// at IMPORTANCE_DEFAULT (3), which never peeks — only "Urgent" produces a
+// channel at IMPORTANCE_HIGH (4). Don't "fix" this by switching back to a
+// channel configured with "High" without re-verifying via adb.
+const ANDROID_CHANNEL_ID = "46df37d6-6f02-4a25-9c5c-960609982e2c";
+
 async function sendPushNotification({ externalUserIds, title, body, data }) {
   if (!externalUserIds?.length) return null;
 
@@ -17,6 +26,7 @@ async function sendPushNotification({ externalUserIds, title, body, data }) {
     const res = await client.post("/notifications", {
       app_id: env.oneSignal.appId,
       include_external_user_ids: externalUserIds,
+      android_channel_id: ANDROID_CHANNEL_ID,
       headings: { en: title, fr: title },
       contents: { en: body, fr: body },
       data: data || {},

@@ -7,6 +7,7 @@ import 'package:delivery/features/auth/data/auth_api.dart';
 import 'package:delivery/features/auth/data/models/auth_user.dart';
 import 'package:delivery/features/auth/data/repo/auth_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 final authApiProvider = Provider<AuthApi>((ref) {
   return AuthApi(ref.watch(dioProvider));
@@ -19,28 +20,25 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   );
 });
 
-/// The signed-in user for the current session, or null if signed out.
-/// [build] checks the stored session once (used on app start); a successful
-/// login pushes the fresh user in directly via [CurrentUserNotifier.setUser]
-/// instead of re-fetching it.
 class CurrentUserNotifier extends AsyncNotifier<AuthUser?> {
   @override
-  FutureOr<AuthUser?> build() {
-    return ref.read(authRepositoryProvider).getCurrentUser();
+  Future<AuthUser?> build() async {
+    final user = await ref.read(authRepositoryProvider).getCurrentUser();
+    if (user != null) OneSignal.login(user.id);
+    return user;
   }
 
   void setUser(AuthUser user) {
     state = AsyncData(user);
+    OneSignal.login(user.id);
   }
 
   Future<void> logout() async {
     await ref.read(authRepositoryProvider).logout();
+    OneSignal.logout();
     state = const AsyncData(null);
   }
 
-  /// Updates the current user's name against the backend and, on success,
-  /// reflects it in [state] immediately. Returns an error message, or null
-  /// on success.
   Future<String?> updateName(String name) async {
     try {
       final user = await ref
@@ -54,8 +52,6 @@ class CurrentUserNotifier extends AsyncNotifier<AuthUser?> {
     }
   }
 
-  /// Uploads a new avatar and, on success, reflects it in [state]
-  /// immediately. Returns an error message, or null on success.
   Future<String?> updateAvatar(File imageFile) async {
     try {
       final user = await ref

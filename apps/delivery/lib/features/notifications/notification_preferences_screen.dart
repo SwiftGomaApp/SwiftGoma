@@ -45,36 +45,62 @@ class _NotificationPreferencesSheet extends ConsumerWidget {
             ),
           ),
           Flexible(
-            child: prefs.when(
-              data: (byType) => ListView.separated(
-                shrinkWrap: true,
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                itemCount: notificationPreferenceTypes.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(height: 14),
-                itemBuilder: (context, index) {
-                  final type = notificationPreferenceTypes[index];
-                  final pref = byType[type]!;
-                  return _PreferenceCard(
-                    type: type,
-                    pref: pref,
-                    onInAppChanged: (value) => notifier.setInApp(type, value),
-                    onPushChanged: (value) => notifier.setPush(type, value),
-                    onSmsChanged: (value) => notifier.setSms(type, value),
-                  );
-                },
-              ),
-              loading: () => const Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(child: CircularProgressIndicator.adaptive()),
-              ),
-              error: (error, stackTrace) => Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  apiExceptionOf(error)?.message ??
-                      'Impossible de charger vos préférences.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colorScheme.error),
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: prefs.when(
+                data: (byType) => ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  itemCount: notificationPreferenceTypes.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 14),
+                  itemBuilder: (context, index) {
+                    final type = notificationPreferenceTypes[index];
+                    final pref = byType[type]!;
+                    return _PreferenceCard(
+                      type: type,
+                      pref: pref,
+                      onInAppChanged: (value) =>
+                          notifier.setInApp(type, value),
+                      onPushChanged: (value) => notifier.setPush(type, value),
+                      onSmsChanged: (value) => notifier.setSms(type, value),
+                    );
+                  },
+                ),
+                loading: () => const SizedBox(
+                  height: 220,
+                  child: Center(child: CircularProgressIndicator.adaptive()),
+                ),
+                error: (error, stackTrace) => Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.cloud_off_rounded,
+                        size: 40,
+                        color: colorScheme.onSurface.withValues(alpha: 0.35),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        apiExceptionOf(error)?.message ??
+                            'Impossible de charger vos préférences.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        onPressed: () =>
+                            ref.invalidate(notificationPreferencesProvider),
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: const Text('Réessayer'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

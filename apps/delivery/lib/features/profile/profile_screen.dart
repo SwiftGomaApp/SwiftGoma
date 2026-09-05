@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -58,14 +59,7 @@ class ProfileScreen extends ConsumerWidget {
             const SizedBox(height: 10),
             _SettingsCard(
               children: [
-                _SettingsSwitchRow(
-                  icon: Icons.notifications_outlined,
-                  label: 'Notifications push',
-                  subtitle: 'Autoriser les notifications sur cet appareil',
-                  value: true,
-                  onChanged: (_) =>
-                      _comingSoon(context, "L'autorisation des notifications"),
-                ),
+                const _PushNotificationsRow(),
                 _SettingsRow(
                   icon: Icons.tune,
                   label: 'Préférences de notification',
@@ -106,6 +100,34 @@ class ProfileScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PushNotificationsRow extends StatefulWidget {
+  const _PushNotificationsRow();
+
+  @override
+  State<_PushNotificationsRow> createState() => _PushNotificationsRowState();
+}
+
+class _PushNotificationsRowState extends State<_PushNotificationsRow> {
+  bool _enabled = OneSignal.Notifications.permission;
+
+  Future<void> _onChanged(bool value) async {
+    final granted = await OneSignal.Notifications.requestPermission(true);
+    if (!mounted) return;
+    setState(() => _enabled = granted);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsSwitchRow(
+      icon: Icons.notifications_outlined,
+      label: 'Notifications push',
+      subtitle: 'Autoriser les notifications sur cet appareil',
+      value: _enabled,
+      onChanged: _onChanged,
     );
   }
 }

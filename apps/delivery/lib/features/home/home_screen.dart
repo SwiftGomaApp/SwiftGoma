@@ -4,16 +4,16 @@ import 'package:delivery/features/notifications/notifications_screen.dart';
 import 'package:delivery/features/profile/profile_screen.dart';
 import 'package:delivery/shared/widgets/app_bottom_nav_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class HomeScreen extends StatefulWidget {
+/// Which bottom-nav tab is selected. A plain int index, not tied to
+/// [HomeScreen]'s own lifecycle, so external triggers (e.g. tapping a push
+/// notification) can switch tabs without needing a BuildContext under
+/// HomeScreen.
+final homeTabIndexProvider = StateProvider<int>((ref) => 0);
+
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
-
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  int _index = 0;
 
   static const _tabs = [
     DeliveriesScreen(),
@@ -33,13 +33,16 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final index = ref.watch(homeTabIndexProvider);
+
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(index: _index, children: _tabs),
+      body: IndexedStack(index: index, children: _tabs),
       bottomNavigationBar: AppBottomNavBar(
-        selectedIndex: _index,
-        onDestinationSelected: (index) => setState(() => _index = index),
+        selectedIndex: index,
+        onDestinationSelected: (i) =>
+            ref.read(homeTabIndexProvider.notifier).state = i,
         destinations: _destinations,
       ),
     );

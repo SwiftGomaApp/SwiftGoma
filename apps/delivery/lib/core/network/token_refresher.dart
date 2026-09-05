@@ -4,11 +4,6 @@ import 'package:delivery/core/network/mobile_headers.dart';
 import 'package:delivery/core/network/token_storage.dart';
 import 'package:dio/dio.dart';
 
-/// Owns access-token refresh so both `dio_client.dart`'s interceptor and an
-/// app-resume listener can share it: concurrent refresh attempts are
-/// deduped into a single request, and the stored session is only cleared
-/// when the server explicitly rejects the refresh token (401/403) — a
-/// network hiccup during refresh must not log the user out.
 class TokenRefresher {
   TokenRefresher({required TokenStorage tokenStorage})
     : _tokenStorage = tokenStorage,
@@ -25,7 +20,6 @@ class TokenRefresher {
   Future<bool> refresh() =>
       _refreshing ??= _doRefresh().whenComplete(() => _refreshing = null);
 
-  /// Refreshes now if the stored access token expires within [buffer].
   Future<void> refreshIfExpiringSoon({Duration buffer = defaultBuffer}) async {
     final token = await _tokenStorage.readAccessToken();
     if (token != null && isJwtExpiringSoon(token, buffer: buffer)) {

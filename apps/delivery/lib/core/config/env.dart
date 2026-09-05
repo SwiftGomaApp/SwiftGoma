@@ -12,6 +12,10 @@ class Env {
   static const String mapboxAccessToken = String.fromEnvironment(
     'MAPBOX_ACCESS_TOKEN',
   );
+
+  static const String oneSignalAppId = String.fromEnvironment(
+    'ONESIGNAL_APP_ID',
+  );
   static const String fcmSenderId = String.fromEnvironment('FCM_SENDER_ID');
   static const String sentryDsn = String.fromEnvironment('SENTRY_DSN');
 }
